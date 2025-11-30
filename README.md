@@ -5,34 +5,32 @@ An AI Integrated and Python Based Web Project Witth Advanced options that any ch
 
 # Mint Frost AI #
 
-## Latest Version :-  1.0 ##
+## Latest Version :-  2.0 ##
+
+## ============================================================ ##
+
 
 
 ## Apache 2.0 LICENSES ##
 
 
-* !!! This is my 1st initial project release !!!*  
+* !!! This is my 2st  project release !!!*  
 
 * - Its an Educational Purpose, Publicly viewable and even executable project meant for only education. *
 
 
-## This Version includes the following aspects changes :- ##
+## This Version includes the following new aspects changes :- ##
 
-*  AI Chat Generation Ability *
-*  Text Formating Applied *
-*  Image Generation Ability *
-*  Better Tables are generated *
-*  Regeneration, Like, Export, Copy in AI Responses *
-*  Edit / modify user's message *
-*  Database included - SQLite is Used *
-*  Pre-Built Themes *
-*  OS color theme adaptability *
-*  User Customizable Themes * 
-*  Chat History Panel and Session History *
-*  Right Click Context Menu for Chat History *
-*  "Ctrl + K" For Context Menu *
-*  Customized Button, Panels, And Better Text Formatting *
-*  Python, Flask & AI Capabilities *
+*  ##New## :- "Spotify Panel Inegration" 
+*  ##New## :- "Google Sign-in and Spotify Sign-in Support"
+*  ##New## :- "##Spotify Themed## + ##Mint Fosty## themen Panel Adaptive Enviroment" 
 
+## Known Issues :- ##
 
-** !! -- More Changes, Updates for UI &Functionality are #"Coming Soon"# -- !! . **
+* Though Spotify UI/UX has been implement but the panel is jut designed *
+* It'c can't just play songs right now
+* In Newer updates It play in future but is currently limmited to features *
+  
+## ============================================================= ##
+
+** !! -- More Changes, Updates for UI & Functionality are #"Coming Soon"# -- !! . **
