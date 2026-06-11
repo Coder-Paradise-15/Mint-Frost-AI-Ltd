@@ -3482,5 +3482,5 @@ def api_mfa_totp_delete():
 
 if __name__ == '__main__':
     # Start Flask development server
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5001)
     # Spotify credentials updated reload trigger
