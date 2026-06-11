@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Google Authentication</title>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 40px;
+      color: #e0e0e0;
+      background: #111115;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 70vh;
+    }
+    h3 {
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+    }
+    p {
+      color: #a0a0ab;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  {% if error %}
+    <h3 style="color: #ff5555;">Authentication Failed</h3>
+    <p>{{ error }}</p>
+    <script>
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'google_auth_error', error: '{{ error }}' }, '*');
+        }
+      } catch(e) {
+        console.error(e);
+      }
+      setTimeout(() => window.close(), 3500);
+    </script>
+  {% else %}
+    <h3 style="color: #00e676;">Authentication Successful</h3>
+    <p>You can close this window. Returning to the app…</p>
+    <script>
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'google_auth_success' }, '*');
+        }
+      } catch(e) {
+        console.error(e);
+      }
+      setTimeout(() => window.close(), 800);
+    </script>
+  {% endif %}
+</body>
+</html>

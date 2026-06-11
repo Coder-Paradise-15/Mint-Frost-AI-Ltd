@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <title>Welcome to Mint Frost AI</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    /* Premium Login styling layered over main theme */
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--bg-0);
+      overflow-x: hidden;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 440px;
+      z-index: 10;
+      position: relative;
+    }
+
+    .login-card {
+      padding: 40px 32px;
+      border-radius: var(--radius-xl);
+      background: var(--glass);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      overflow: hidden;
+      position: relative;
+      transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
+    }
+
+    .login-card:hover {
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 15px rgba(55, 230, 181, 0.05);
+    }
+
+    .brand-header {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      height: 48px;
+      width: auto;
+      filter: drop-shadow(0 0 8px rgba(55, 230, 181, 0.4));
+      animation: pulseLogo 3s infinite ease-in-out;
+    }
+
+    .brand-title {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--mint) 0%, #ffffff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: -4px;
+    }
+
+    /* Elegant Sliding Tab Selector */
+    .auth-toggle {
+      display: flex;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: var(--radius-md);
+      padding: 4px;
+      position: relative;
+      border: 1px solid var(--border);
+    }
+
+    .toggle-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      padding: 10px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      z-index: 2;
+      transition: color 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .toggle-btn.active {
+      color: var(--bg-0);
+    }
+
+    .toggle-slider {
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      left: 4px;
+      width: calc(50% - 4px);
+      background: var(--mint);
+      border-radius: calc(var(--radius-md) - 2px);
+      z-index: 1;
+      transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      box-shadow: 0 4px 12px rgba(55, 230, 181, 0.3);
+    }
+
+    .toggle-btn:nth-child(2).active ~ .toggle-slider {
+      transform: translateX(100%);
+    }
+
+    /* Slider Windows for Forms */
+    .form-window {
+      width: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .form-slider {
+      display: flex;
+      width: 300%;
+      transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .auth-form, .mfa-pane {
+      width: 33.333%;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      transition: opacity 0.3s ease;
+    }
+
+    .form-slider.show-register {
+      transform: translateX(-33.333%);
+    }
+
+    .form-slider.show-mfa {
+      transform: translateX(-66.666%);
+    }
+
+    .form-slider.show-register #login-form,
+    .form-slider.show-register #mfa-form,
+    .form-slider.show-mfa #login-form,
+    .form-slider.show-mfa #register-form {
+      opacity: 0.2;
+      pointer-events: none;
+    }
+
+    #register-form {
+      max-height: 325px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+
+    /* Premium Custom Scrollbar for Register Pane */
+    #register-form::-webkit-scrollbar {
+      width: 5px;
+    }
+    #register-form::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: var(--radius-sm);
+    }
+    #register-form::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-sm);
+    }
+    #register-form::-webkit-scrollbar-thumb:hover {
+      background: var(--mint);
+    }
+
+    /* Styled Input Containers */
+    .input-field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+
+    .input-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 16px;
+      color: var(--muted);
+      font-size: 14px;
+      pointer-events: none;
+      transition: color 0.3s ease;
+    }
+
+    .input-box {
+      width: 100%;
+      padding: 14px 16px 14px 44px;
+      border-radius: var(--radius-md);
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .input-box:focus {
+      border-color: var(--mint);
+      background: rgba(55, 230, 181, 0.03);
+      box-shadow: 0 0 0 3px rgba(55, 230, 181, 0.15);
+    }
+
+    .input-box:focus ~ .input-icon {
+      color: var(--mint);
+    }
+
+    /* Alert / Notification box */
+    .auth-alert {
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.4;
+      animation: slideDown 0.3s ease;
+    }
+
+    .auth-alert.error {
+      background: rgba(255, 107, 107, 0.1);
+      border: 1px solid rgba(255, 107, 107, 0.25);
+      color: #ff8b8b;
+      display: flex;
+    }
+
+    .auth-alert.success {
+      background: rgba(55, 230, 181, 0.1);
+      border: 1px solid rgba(55, 230, 181, 0.25);
+      color: var(--mint);
+      display: flex;
+    }
+
+    /* CTA Premium Button */
+    .btn--full {
+      width: 100%;
+      justify-content: center;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn--full:active {
+      transform: scale(0.98);
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0,0,0,0.1);
+      border-top-color: var(--bg-0);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    .btn--full.loading .spinner {
+      display: inline-block;
+    }
+
+    .btn--full.loading .btn-text {
+      opacity: 0.7;
+    }
+
+    /* Keyframe Animations */
+    @keyframes pulseLogo {
+      0%, 100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 8px rgba(55, 230, 181, 0.4));
+      }
+      50% {
+        transform: scale(1.05);
+        filter: drop-shadow(0 0 16px rgba(55, 230, 181, 0.7));
+      }
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+
+    .shake-animation {
+      animation: shake 0.4s ease-in-out;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Animated Background Gradients from Design System -->
+  <div class="bg-gradient"></div>
+
+  <div class="login-container">
+    <div class="login-card glass" id="auth-card">
+      
+      <!-- Brand Header -->
+      <div class="brand-header">
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt="Mint Frost Logo" class="brand-logo">
+        <h1 class="brand-title">Mint Frost AI</h1>
+        <p class="brand-subtitle">Secure access to your personal models</p>
+      </div>
+
+      <!-- Auth Form Toggle Pill -->
+      <div class="auth-toggle">
+        <button class="toggle-btn active" id="tab-login" onclick="switchForm('login')">
+          <i class="fas fa-sign-in-alt"></i> Login
+        </button>
+        <button class="toggle-btn" id="tab-register" onclick="switchForm('register')">
+          <i class="fas fa-user-plus"></i> Register
+        </button>
+        <div class="toggle-slider"></div>
+      </div>
+
+      <!-- Global Error / Success Alerts -->
+      <div class="auth-alert" id="alert-box">
+        <i class="fas fa-exclamation-circle" id="alert-icon"></i>
+        <span id="alert-text">Placeholder error message</span>
+      </div>
+
+      <!-- Sliding Forms Window -->
+      <div class="form-window">
+        <div class="form-slider" id="form-slider">
+          
+          <!-- LOGIN FORM -->
+          <form class="auth-form" id="login-form" onsubmit="handleAuth(event, 'login')">
+            <div class="input-field-group">
+              <label class="input-label" for="login-username">Username</label>
+              <div class="input-wrapper">
+                <input type="text" id="login-username" class="input-box" placeholder="Enter username" autocomplete="username" required>
+                <i class="fas fa-user input-icon"></i>
+              </div>
+            </div>
+
+            <div class="input-field-group">
+              <label class="input-label" for="login-password">Password</label>
+              <div class="input-wrapper">
+                <input type="password" id="login-password" class="input-box" placeholder="••••••••" autocomplete="current-password" required>
+                <i class="fas fa-lock input-icon"></i>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn--mint btn--full" id="btn-login">
+              <div class="spinner"></div>
+              <span class="btn-text">Sign In</span>
+            </button>
+            
+            <div style="display: flex; align-items: center; justify-content: center; margin: 16px 0; position: relative;">
+              <div style="position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid rgba(255,255,255,0.08); z-index: 1;"></div>
+              <span style="position: relative; z-index: 2; padding: 0 10px; background: rgba(20, 28, 40, 0.98); font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 1px;">Or continue with</span>
+            </div>
+            
+            <button type="button" class="btn btn--ghost btn--full" id="google-login-btn" onclick="startGoogleAuth()" style="border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02); display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" style="vertical-align: middle; flex-shrink: 0;"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92(3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.67-.35-1.37-.35-2.09l.81 1.46z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg> <span class="btn-text">Google Account</span>
+            </button>
+            
+            <button type="button" class="btn btn--full" onclick="location.href='/admin/login'" style="margin-top: 10px; border: 1px solid rgba(0, 230, 118, 0.25); background: rgba(0, 230, 118, 0.04); color: var(--mint); display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <i class="fas fa-shield-alt"></i> <span class="btn-text">Login As Admin</span>
+            </button>
+          </form>
+
+          <!-- REGISTER FORM -->
+          <form class="auth-form" id="register-form" onsubmit="handleAuth(event, 'register')">
+            <div class="input-field-group">
+              <label class="input-label" for="reg-username">Username</label>
+              <div class="input-wrapper">
+                <input type="text" id="reg-username" class="input-box" placeholder="3-20 characters, alphanumeric" autocomplete="username" required>
+                <i class="fas fa-user input-icon"></i>
+              </div>
+            </div>
+
+            <div class="input-field-group">
+              <label class="input-label" for="reg-displayname">Display Name (Optional)</label>
+              <div class="input-wrapper">
+                <input type="text" id="reg-displayname" class="input-box" placeholder="e.g. CoderParadise" autocomplete="name">
+                <i class="fas fa-id-card input-icon"></i>
+              </div>
+            </div>
+
+            <div class="input-field-group">
+              <label class="input-label" for="reg-password">Password</label>
+              <div class="input-wrapper">
+                <input type="password" id="reg-password" class="input-box" placeholder="At least 6 characters" autocomplete="new-password" required>
+                <i class="fas fa-lock input-icon"></i>
+              </div>
+            </div>
+
+            <div class="input-field-group">
+              <label class="input-label" for="reg-password-confirm">Confirm Password</label>
+              <div class="input-wrapper">
+                <input type="password" id="reg-password-confirm" class="input-box" placeholder="••••••••" autocomplete="new-password" required>
+                <i class="fas fa-shield-alt input-icon"></i>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn--mint btn--full" id="btn-register">
+              <div class="spinner"></div>
+              <span class="btn-text">Create Account</span>
+            </button>
+            
+            <div style="display: flex; align-items: center; justify-content: center; margin: 16px 0; position: relative;">
+              <div style="position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid rgba(255,255,255,0.08); z-index: 1;"></div>
+              <span style="position: relative; z-index: 2; padding: 0 10px; background: rgba(20, 28, 40, 0.98); font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 1px;">Or continue with</span>
+            </div>
+            
+            <button type="button" class="btn btn--ghost btn--full" id="google-register-btn" onclick="startGoogleAuth()" style="border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02); display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" style="vertical-align: middle; flex-shrink: 0;"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92(3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.67-.35-1.37-.35-2.09l.81 1.46z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg> <span class="btn-text">Google Account</span>
+            </button>
+            
+            <button type="button" class="btn btn--full" onclick="location.href='/admin/login'" style="margin-top: 10px; border: 1px solid rgba(0, 230, 118, 0.25); background: rgba(0, 230, 118, 0.04); color: var(--mint); display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <i class="fas fa-shield-alt"></i> <span class="btn-text">Login As Admin</span>
+            </button>
+          </form>
+
+          <!-- MFA VERIFICATION PANEL -->
+          <div class="mfa-pane" id="mfa-form" style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="text-align: center;">
+              <h3 style="font-size: 18px; font-weight: 600; color: var(--mint); margin-bottom: 8px;">
+                <i class="fas fa-shield-alt"></i> MFA Verification
+              </h3>
+              <p style="font-size: 13px; color: var(--muted); margin: 0;">Your account is protected by Multi-Factor Authentication.</p>
+            </div>
+
+            <!-- TOTP Section -->
+            <div id="mfa-login-totp-section" style="display: none; flex-direction: column; gap: 12px;">
+              <div class="input-field-group">
+                <label class="input-label" for="login-mfa-code">6-Digit Authenticator Code</label>
+                <div class="input-wrapper">
+                  <input type="text" id="login-mfa-code" class="input-box" placeholder="e.g. 123456" maxlength="6" style="text-align: center; font-size: 18px; letter-spacing: 4px; font-weight: bold; padding-left: 16px;">
+                </div>
+              </div>
+              <button type="button" class="btn btn--mint btn--full" id="btn-verify-totp" onclick="submitMfaTotp()">
+                <div class="spinner"></div>
+                <span class="btn-text">Verify Code</span>
+              </button>
+            </div>
+
+            <!-- Passkey Section -->
+            <div id="mfa-login-passkey-section" style="display: none; flex-direction: column; gap: 12px; align-items: center;">
+              <button type="button" class="btn btn--mint btn--full" id="btn-verify-passkey" onclick="startPasskeyAuth()" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <i class="fas fa-key"></i> <span class="btn-text">Verify with Passkey</span>
+              </button>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px;">
+              <button type="button" class="btn btn--ghost btn--full" onclick="cancelMfa()" style="font-size: 13px; padding: 10px;">
+                <i class="fas fa-arrow-left"></i> Back to Login
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Form toggle function with sliding layout
+    function switchForm(type) {
+      const slider = document.getElementById('form-slider');
+      const tabLogin = document.getElementById('tab-login');
+      const tabRegister = document.getElementById('tab-register');
+      const alertBox = document.getElementById('alert-box');
+      
+      // Clear alerts on switch
+      alertBox.className = 'auth-alert';
+      alertBox.style.display = 'none';
+
+      if (type === 'login') {
+        slider.classList.remove('show-register');
+        tabLogin.classList.add('active');
+        tabRegister.classList.remove('active');
+      } else {
+        slider.classList.add('show-register');
+        tabRegister.classList.add('active');
+        tabLogin.classList.remove('active');
+      }
+    }
+
+    // Modern AJAX authentication and form submission
+    async function handleAuth(event, type) {
+      event.preventDefault();
+      
+      const alertBox = document.getElementById('alert-box');
+      const alertIcon = document.getElementById('alert-icon');
+      const alertText = document.getElementById('alert-text');
+      const card = document.getElementById('auth-card');
+      
+      // Reset alert
+      alertBox.className = 'auth-alert';
+      alertBox.style.display = 'none';
+      
+      let endpoint = '';
+      let payload = {};
+      let submitBtn = null;
+
+      if (type === 'login') {
+        const userVal = document.getElementById('login-username').value;
+        const passVal = document.getElementById('login-password').value;
+        
+        endpoint = '/api/login';
+        payload = { username: userVal, password: passVal };
+        submitBtn = document.getElementById('btn-login');
+      } else {
+        const userVal = document.getElementById('reg-username').value;
+        const displayVal = document.getElementById('reg-displayname').value;
+        const passVal = document.getElementById('reg-password').value;
+        const passConfirmVal = document.getElementById('reg-password-confirm').value;
+
+        // Custom validation check
+        if (passVal !== passConfirmVal) {
+          alertBox.className = 'auth-alert error';
+          alertIcon.className = 'fas fa-exclamation-circle';
+          alertText.textContent = "Passwords do not match!";
+          
+          // Shake card
+          card.classList.add('shake-animation');
+          setTimeout(() => card.classList.remove('shake-animation'), 400);
+          return;
+        }
+
+        endpoint = '/api/register';
+        payload = { 
+          username: userVal, 
+          password: passVal, 
+          display_name: displayVal 
+        };
+        submitBtn = document.getElementById('btn-register');
+      }
+
+      // Enter loading state
+      submitBtn.classList.add('loading');
+      submitBtn.disabled = true;
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          if (type === 'login' && data.mfa_required) {
+            submitBtn.classList.remove('loading');
+            submitBtn.disabled = false;
+
+            document.getElementById('mfa-login-totp-section').style.display = data.methods.totp ? 'flex' : 'none';
+            document.getElementById('mfa-login-passkey-section').style.display = data.methods.passkey ? 'flex' : 'none';
+
+            const slider = document.getElementById('form-slider');
+            slider.classList.remove('show-register');
+            slider.classList.add('show-mfa');
+
+            document.querySelector('.auth-toggle').style.display = 'none';
+
+            return;
+          }
+
+          // Show beautiful success banner
+          alertBox.className = 'auth-alert success';
+          alertIcon.className = 'fas fa-check-circle';
+          alertText.textContent = type === 'login' 
+            ? "Welcome back! Accessing dashboard..." 
+            : "Account created successfully! Preparing dashboard...";
+          
+          // Smooth fade-in
+          alertBox.style.display = 'flex';
+          
+          // Reload page to automatically unlock the dashboard at "/"
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          // Show error and shake card
+          throw new Error(data.error || "Authentication failed");
+        }
+      } catch (err) {
+        // Exit loading state
+        submitBtn.classList.remove('loading');
+        submitBtn.disabled = false;
+
+        alertBox.className = 'auth-alert error';
+        alertIcon.className = 'fas fa-exclamation-circle';
+        alertText.textContent = err.message;
+        alertBox.style.display = 'flex';
+
+        // Play premium shake animation
+        card.classList.add('shake-animation');
+        setTimeout(() => card.classList.remove('shake-animation'), 400);
+      }
+    }
+
+    function cancelMfa() {
+      const slider = document.getElementById('form-slider');
+      slider.classList.remove('show-mfa');
+      document.querySelector('.auth-toggle').style.display = 'flex';
+      document.getElementById('alert-box').style.display = 'none';
+    }
+
+    async function submitMfaTotp() {
+      const codeInput = document.getElementById('login-mfa-code');
+      const code = codeInput.value.trim();
+      const verifyBtn = document.getElementById('btn-verify-totp');
+      const alertBox = document.getElementById('alert-box');
+      const alertIcon = document.getElementById('alert-icon');
+      const alertText = document.getElementById('alert-text');
+      const card = document.getElementById('auth-card');
+
+      if (!code || code.length !== 6) {
+        alertBox.className = 'auth-alert error';
+        alertIcon.className = 'fas fa-exclamation-circle';
+        alertText.textContent = "Please enter a valid 6-digit code";
+        alertBox.style.display = 'flex';
+        card.classList.add('shake-animation');
+        setTimeout(() => card.classList.remove('shake-animation'), 400);
+        return;
+      }
+
+      verifyBtn.classList.add('loading');
+      verifyBtn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/login/mfa/totp/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+        const res = await resp.json();
+        if (resp.ok && res.success) {
+          alertBox.className = 'auth-alert success';
+          alertIcon.className = 'fas fa-check-circle';
+          alertText.textContent = "MFA verification successful! Accessing dashboard...";
+          alertBox.style.display = 'flex';
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          throw new Error(res.error || "Verification failed");
+        }
+      } catch (err) {
+        verifyBtn.classList.remove('loading');
+        verifyBtn.disabled = false;
+        alertBox.className = 'auth-alert error';
+        alertIcon.className = 'fas fa-exclamation-circle';
+        alertText.textContent = err.message;
+        alertBox.style.display = 'flex';
+        card.classList.add('shake-animation');
+        setTimeout(() => card.classList.remove('shake-animation'), 400);
+      }
+    }
+
+    async function startPasskeyAuth() {
+      const verifyBtn = document.getElementById('btn-verify-passkey');
+      const alertBox = document.getElementById('alert-box');
+      const alertIcon = document.getElementById('alert-icon');
+      const alertText = document.getElementById('alert-text');
+      const card = document.getElementById('auth-card');
+
+      if (window.location.hostname === '127.0.0.1' || window.location.hostname === '[::1]') {
+        if (confirm("WebAuthn Passkeys do not support IP addresses (127.0.0.1) in modern browsers. Redirect to http://localhost:5001/ to use your passkey?")) {
+          window.location.href = window.location.href.replace(window.location.hostname, 'localhost');
+          return;
+        }
+      }
+
+      verifyBtn.classList.add('loading');
+      verifyBtn.disabled = true;
+
+      try {
+        const optionsResp = await fetch('/api/login/mfa/passkey/options', { method: 'POST' });
+        if (!optionsResp.ok) throw new Error("Failed to load passkey authentication options");
+        const options = await optionsResp.json();
+
+        options.challenge = Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0));
+        if (options.allowCredentials) {
+          options.allowCredentials.forEach(cred => {
+            cred.id = Uint8Array.from(atob(cred.id), c => c.charCodeAt(0));
+          });
+        }
+
+        if (!navigator.credentials || !navigator.credentials.get) {
+          throw new Error("WebAuthn credentials retrieval is not supported by your browser or in non-secure context.");
+        }
+
+        const assertion = await navigator.credentials.get({ publicKey: options });
+
+        const verifyResp = await fetch('/api/login/mfa/passkey/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            credential_id: btoa(String.fromCharCode(...new Uint8Array(assertion.rawId)))
+          })
+        });
+
+        const res = await verifyResp.json();
+        if (verifyResp.ok && res.success) {
+          alertBox.className = 'auth-alert success';
+          alertIcon.className = 'fas fa-check-circle';
+          alertText.textContent = "Passkey verified successfully! Accessing dashboard...";
+          alertBox.style.display = 'flex';
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          throw new Error(res.error || "Verification failed");
+        }
+      } catch (err) {
+        verifyBtn.classList.remove('loading');
+        verifyBtn.disabled = false;
+        alertBox.className = 'auth-alert error';
+        alertIcon.className = 'fas fa-exclamation-circle';
+        alertText.textContent = err.message;
+        alertBox.style.display = 'flex';
+        card.classList.add('shake-animation');
+        setTimeout(() => card.classList.remove('shake-animation'), 400);
+      }
+    }
+
+    // Google SSO Centered Popup Auth Handler
+    function startGoogleAuth() {
+      const width = 500;
+      const height = 650;
+      const left = (window.screen.width / 2) - (width / 2);
+      const top = (window.screen.height / 2) - (height / 2);
+      
+      const alertBox = document.getElementById('alert-box');
+      const alertIcon = document.getElementById('alert-icon');
+      const alertText = document.getElementById('alert-text');
+      
+      alertBox.className = 'auth-alert';
+      alertBox.style.display = 'none';
+      
+      // Open popup window
+      const popup = window.open('/api/google/auth', 'GoogleAuthPopup', `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`);
+      
+      // Listen for message from callback popup window
+      const handleAuthMessage = (event) => {
+        if (event.data && event.data.type === 'google_auth_success') {
+          window.removeEventListener('message', handleAuthMessage);
+          
+          alertBox.className = 'auth-alert success';
+          alertIcon.className = 'fas fa-check-circle';
+          alertText.textContent = "Welcome! Google SSO login successful. Accessing dashboard...";
+          alertBox.style.display = 'flex';
+          
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1000);
+        } else if (event.data && event.data.type === 'google_auth_error') {
+          window.removeEventListener('message', handleAuthMessage);
+          
+          alertBox.className = 'auth-alert error';
+          alertIcon.className = 'fas fa-exclamation-circle';
+          alertText.textContent = event.data.error || "Google Authentication failed.";
+          alertBox.style.display = 'flex';
+          
+          const card = document.getElementById('auth-card');
+          card.classList.add('shake-animation');
+          setTimeout(() => card.classList.remove('shake-animation'), 400);
+        }
+      };
+      
+      window.addEventListener('message', handleAuthMessage);
+    }
+
+    // Check for URL query errors on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const alertBox = document.getElementById('alert-box');
+      const alertIcon = document.getElementById('alert-icon');
+      const alertText = document.getElementById('alert-text');
+
+      if (urlParams.get('error') === 'deactivated') {
+        alertBox.className = 'auth-alert error';
+        alertIcon.className = 'fas fa-exclamation-circle';
+        alertText.textContent = 'Your account has been deactivated by an administrator.';
+        alertBox.style.display = 'flex';
+        
+        // Play premium shake animation
+        const card = document.getElementById('auth-card');
+        card.classList.add('shake-animation');
+        setTimeout(() => card.classList.remove('shake-animation'), 400);
+      }
+    });
+  </script>
+</body>
+
+</html>

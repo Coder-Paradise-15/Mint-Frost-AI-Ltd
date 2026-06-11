@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mint Frost AI — Admin Secure Portal</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    /* Premium Login styling layered over main theme */
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--bg-0);
+      overflow-x: hidden;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 440px;
+      z-index: 10;
+      position: relative;
+    }
+
+    .login-card {
+      padding: 40px 32px;
+      border-radius: var(--radius-xl);
+      background: var(--glass);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      overflow: hidden;
+      position: relative;
+      transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
+    }
+
+    .login-card:hover {
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 15px rgba(55, 230, 181, 0.05);
+    }
+
+    .brand-header {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      height: 48px;
+      width: auto;
+      filter: drop-shadow(0 0 8px rgba(55, 230, 181, 0.4));
+      animation: pulseLogo 3s infinite ease-in-out;
+    }
+
+    .brand-title {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--mint) 0%, #ffffff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: -4px;
+    }
+
+    /* Elegant Sliding Tab Selector (Admin Locked) */
+    .auth-toggle {
+      display: flex;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: var(--radius-md);
+      padding: 4px;
+      position: relative;
+      border: 1px solid var(--border);
+    }
+
+    .toggle-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      padding: 10px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--bg-0);
+      cursor: default;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      left: 4px;
+      width: calc(100% - 8px);
+      background: var(--mint);
+      border-radius: calc(var(--radius-md) - 2px);
+      z-index: 1;
+      box-shadow: 0 4px 12px rgba(55, 230, 181, 0.3);
+    }
+
+    /* Slider Windows for Forms - Matches standard login card structure */
+    .form-window {
+      width: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .form-slider {
+      display: flex;
+      width: 200%;
+      transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    /* Styled Input Containers */
+    .input-field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+
+    .input-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 16px;
+      color: var(--muted);
+      font-size: 14px;
+      pointer-events: none;
+      transition: color 0.3s ease;
+    }
+
+    .input-box {
+      width: 100%;
+      padding: 14px 16px 14px 44px;
+      border-radius: var(--radius-md);
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .input-box:focus {
+      border-color: var(--mint);
+      background: rgba(55, 230, 181, 0.03);
+      box-shadow: 0 0 0 3px rgba(55, 230, 181, 0.15);
+    }
+
+    .input-box:focus ~ .input-icon {
+      color: var(--mint);
+    }
+
+    /* Alert / Notification box */
+    .auth-alert {
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.4;
+      animation: slideDown 0.3s ease;
+    }
+
+    .auth-alert.error {
+      background: rgba(255, 107, 107, 0.1);
+      border: 1px solid rgba(255, 107, 107, 0.25);
+      color: #ff8b8b;
+      display: flex;
+    }
+
+    .auth-alert.success {
+      background: rgba(55, 230, 181, 0.1);
+      border: 1px solid rgba(55, 230, 181, 0.25);
+      color: var(--mint);
+      display: flex;
+    }
+
+    /* CTA Premium Button */
+    .btn--full {
+      width: 100%;
+      justify-content: center;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn--full:active {
+      transform: scale(0.98);
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0,0,0,0.1);
+      border-top-color: var(--bg-0);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    .btn--full.loading .spinner {
+      display: inline-block;
+    }
+
+    .btn--full.loading .btn-text {
+      opacity: 0.7;
+    }
+
+    .auth-form {
+      width: 50%;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      transition: opacity 0.3s ease;
+    }
+
+    /* Keyframe Animations */
+    @keyframes pulseLogo {
+      0%, 100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 8px rgba(55, 230, 181, 0.4));
+      }
+      50% {
+        transform: scale(1.05);
+        filter: drop-shadow(0 0 16px rgba(55, 230, 181, 0.7));
+      }
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+
+    .shake-animation {
+      animation: shake 0.4s ease-in-out;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Animated Background Gradients from Design System -->
+  <div class="bg-gradient"></div>
+
+  <div class="login-container">
+    <div class="login-card glass" id="auth-card">
+      
+      <!-- Brand Header -->
+      <div class="brand-header">
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt="Mint Frost Logo" class="brand-logo">
+        <h1 class="brand-title">Mint Frost AI</h1>
+        <p class="brand-subtitle">Secure Admin Control Panel</p>
+      </div>
+
+      <!-- Auth Form Toggle Pill (Admin Locked) -->
+      <div class="auth-toggle">
+        <button class="toggle-btn" id="tab-login" style="pointer-events: none;">
+          <i class="fas fa-shield-alt"></i> Admin Login
+        </button>
+        <div class="toggle-slider"></div>
+      </div>
+
+      <!-- Global Error / Success Alerts -->
+      <div class="auth-alert" id="alert-box">
+        <i class="fas fa-exclamation-circle" id="alert-icon"></i>
+        <span id="alert-text">Placeholder error message</span>
+      </div>
+
+      <!-- Sliding Forms Window - Matches standard login card structure and flex gaps -->
+      <div class="form-window">
+        <div class="form-slider" id="form-slider">
+          
+          <!-- ADMIN LOGIN FORM -->
+          <form class="auth-form" id="admin-login-form" onsubmit="handleAdminLogin(event)">
+            <div class="input-field-group">
+              <label class="input-label" for="admin-username">Admin Username</label>
+              <div class="input-wrapper">
+                <input type="text" id="admin-username" class="input-box" placeholder="Enter admin username" autocomplete="username" required>
+                <i class="fas fa-user input-icon"></i>
+              </div>
+            </div>
+
+            <div class="input-field-group">
+              <label class="input-label" for="admin-password">Admin Password</label>
+              <div class="input-wrapper">
+                <input type="password" id="admin-password" class="input-box" placeholder="••••••••" autocomplete="current-password" required>
+                <i class="fas fa-lock input-icon"></i>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn--mint btn--full" id="btn-login">
+              <div class="spinner"></div>
+              <span class="btn-text">Authenticate Portal</span>
+            </button>
+            
+            <div style="display: flex; align-items: center; justify-content: center; margin: 16px 0; position: relative;">
+              <div style="position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid rgba(255,255,255,0.08); z-index: 1;"></div>
+              <span style="position: relative; z-index: 2; padding: 0 10px; background: rgba(20, 28, 40, 0.98); font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 1px;">Security</span>
+            </div>
+            
+            <button type="button" class="btn btn--ghost btn--full" onclick="location.href='/login'" style="border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02); display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <i class="fas fa-arrow-left"></i> <span class="btn-text">Standard User Login</span>
+            </button>
+          </form>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // URL Query check
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const alertBox = document.getElementById('alert-box');
+      const alertIcon = document.getElementById('alert-icon');
+      const alertText = document.getElementById('alert-text');
+
+      if (urlParams.get('error') === 'unauthorized') {
+        alertBox.className = 'auth-alert error';
+        alertIcon.className = 'fas fa-exclamation-circle';
+        alertText.textContent = 'Access denied. Administrator privileges required.';
+        alertBox.style.display = 'flex';
+        
+        const card = document.getElementById('auth-card');
+        card.classList.add('shake-animation');
+        setTimeout(() => card.classList.remove('shake-animation'), 400);
+      }
+    });
+
+    // AJAX login
+    async function handleAdminLogin(event) {
+      event.preventDefault();
+      
+      const alertBox = document.getElementById('alert-box');
+      const alertIcon = document.getElementById('alert-icon');
+      const alertText = document.getElementById('alert-text');
+      const card = document.getElementById('auth-card');
+      const submitBtn = document.getElementById('btn-login');
+      
+      alertBox.className = 'auth-alert';
+      alertBox.style.display = 'none';
+      
+      const userVal = document.getElementById('admin-username').value;
+      const passVal = document.getElementById('admin-password').value;
+
+      submitBtn.classList.add('loading');
+      submitBtn.disabled = true;
+
+      try {
+        const response = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ username: userVal, password: passVal })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          alertBox.className = 'auth-alert success';
+          alertIcon.className = 'fas fa-check-circle';
+          alertText.textContent = "Authentication successful! Accessing Command Center...";
+          alertBox.style.display = 'flex';
+          
+          setTimeout(() => {
+            window.location.href = '/admin';
+          }, 1000);
+        } else {
+          throw new Error(data.error || "Authentication failed");
+        }
+      } catch (err) {
+        submitBtn.classList.remove('loading');
+        submitBtn.disabled = false;
+
+        alertBox.className = 'auth-alert error';
+        alertIcon.className = 'fas fa-exclamation-circle';
+        alertText.textContent = err.message;
+        alertBox.style.display = 'flex';
+
+        card.classList.add('shake-animation');
+        setTimeout(() => card.classList.remove('shake-animation'), 400);
+      }
+    }
+  </script>
+</body>
+
+</html>
