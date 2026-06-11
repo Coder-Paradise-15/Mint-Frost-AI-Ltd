@@ -1,0 +1,2 @@
+your-google-client-id-here.apps.googleusercontent.com
+GOCSPX-your-google-client-secret-here

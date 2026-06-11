@@ -1,11 +1,374 @@
-/* THEME SYSTEM */
+/* Base theme fallbacks (don't override later theme vars) */
+:root {
+  --bg-0: #0b0f14;
+  --fg: #e9fbf5;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--fg);
+  background: var(--bg-0);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  padding-top: calc(var(--nav-height) + var(--nav-gap));
+  zoom: 1;
+  transform-origin: top left;
+}
+
+/* Chat panel uses same glass styling as other panels by default. */
+
+/* GLASS CARD STYLE (default) */
+.glass {
+  background: var(--glass);
+  border: 3px solid #9fecd7;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+}
+
+/* Override for non-chat glass elements (keep original) */
+#tab-home .glass {
+  background: var(--glass);
+  border: 3px solid #9fecd7;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+}
+
+.footer.glass {
+  background: var(--glass);
+  border: 3px solid #9fecd7;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+}
+
+/* Remove back panel box effect */
+#tab-chat {
+  background: var(--bg-0) !important;
+}
+
+#tab-chat .chat-main {
+  background: transparent !important;
+}
+/* ========================================
+   CHAT TAB - OPTIMIZED LAYOUT
+   ======================================== */
+
+/* Panel container - flex layout */
+#tab-chat .panel-container {
+  display: flex;
+  gap: 0;
+  min-height: 500px;
+  height: 100%;
+  align-items: stretch;
+}
+
+/* Sidebar - fixed width */
+#tab-chat .panel-sidebar {
+  flex: 0 0 260px;
+  max-width: 260px;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-right: 20px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(1.5px);
+}
+
+#tab-chat .panel-sidebar.hidden {
+  flex: 0 0 0;
+  max-width: 0;
+  border: none;
+  overflow: hidden;
+  margin-right: 0;
+}
+
+/* Main chat area */
+#tab-chat .chat-main {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Panel header */
+#tab-chat .panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 8px 0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Messages container */
+#tab-chat .messages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 50px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.05));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 70vh;
+  max-height: 70vh;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  backdrop-filter: blur(2px);
+  position: relative;
+  will-change: scroll-position;
+  transform: translate3d(0,0,0);
+}
+
+#tab-chat .messages::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  pointer-events: none;
+}
+
+/* Typing indicator */
+#tab-chat #typing-indicator {
+  padding: 5px 0;
+}
+
+/* Composer/Input area */
+#tab-chat .composer {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Panel footer */
+#tab-chat .panel__footer {
+  margin-top: 12px;
+}
+
+/* Search panel */
+#tab-chat #search-panel {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+#tab-chat #search-panel .input {
+  flex: 1;
+  height: 36px;
+  border-radius: var(--radius-sm);
+}
+
+/* Sidebar header */
+#tab-chat .sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(55, 230, 181, 0.04);
+}
+
+#tab-chat .sidebar-header h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mint);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0;
+}
+
+/* Chat list */
+#tab-chat .chat-list {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  padding: 12px 0;
+  overflow-y: auto;
+}
+
+/* Chat item */
+#tab-chat .chat-item {
+  width: 100%;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#tab-chat .chat-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(55, 230, 181, 0.3);
+  transform: translateY(-1px);
+}
+
+#tab-chat .chat-item.active {
+  background: rgba(55, 230, 181, 0.08);
+  border-color: rgba(55, 230, 181, 0.6);
+}
+
+/* ======= FINAL OVERRIDES - RESTORE STABLE LAYOUT ======= */
+html, body {
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--fg);
+  background: var(--bg-0);
+}
+
+.shell {
+  max-width: 1100px !important;
+  margin: 0 auto 28px !important;
+  padding: 0 18px !important;
+}
+
+/* Restore glass look for page cards */
+.glass {
+  background: var(--glass) !important;
+  border: 3px solid rgba(159, 236, 215, 0.5) !important;
+  border-radius: var(--radius-xl) !important;
+  box-shadow: var(--shadow) !important;
+  -webkit-backdrop-filter: blur(1.5px) !important;
+  backdrop-filter: blur(1.5px) !important;
+}
+
+/* Chat tab styling overridden in templates/index.html */
+
+
+#tab-chat .panel.glass {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+/* Messages area reasonable size */
+#tab-chat .messages {
+  min-height: calc(100vh - 260px) !important;
+  max-height: calc(100vh - 200px) !important;
+}
+
+/* Ensure home tab visible when active */
+#tab-home.active-tab-content { display: block !important; }
+
+/* keep body padding for navbar spacing */
+body { padding-top: calc(var(--nav-height) + var(--nav-gap) * 3); }
+
+/* SAFETY: final adjustments to prevent layout overflow and restore expected sizes */
+.shell { max-width: 1100px; margin: 0 auto 28px; padding: 0 18px; }
+
+/* Centering chat tab handled in templates/index.html */
+
+
+#tab-chat .panel.glass {
+  height: 100% !important;
+  max-height: 100% !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 12px !important;
+}
+
+/* Messages area: fit inside panel leaving space for header and composer */
+#tab-chat .messages {
+  flex: 1 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto;
+}
+
+/* Sidebar: slightly narrower to give more room to messages */
+/* Sidebar width tuned for content */
+#tab-chat .panel-sidebar { flex: 0 0 280px; max-width: 280px; }
+
+/* Ensure home tab still visible when not viewing chat */
+#tab-home.active-tab-content { display: block !important; }
+
+#tab-chat .chat-item__title {
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 2px;
+  font-size: 15px;
+}
+
+#tab-chat .chat-item__preview {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#tab-chat .chat-item__time {
+  color: var(--muted);
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* Bubble styles */
+#tab-chat .bubble {
+  max-width: 80%;
+  border-radius: 20px;
+  backdrop-filter: blur(1.5px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#tab-chat .bubble:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+#tab-chat .bubble--ai {
+  align-self: flex-start;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+#tab-chat .bubble--user {
+  align-self: flex-end;
+  margin-left: auto;
+  margin-right: 0;
+}
 :root {
   --radius-xl: 20px;
   --radius-lg: 16px;
   --radius-md: 12px;
   --radius-sm: 10px;
-  --nav-height: 80px;
-  --nav-gap: 15px;
+  --nav-height: 60px;
+  --nav-gap: 10px;
   --error: #ff6b6b;
   --warning: #ffa726;
   --success: #66bb6a;
@@ -161,7 +524,7 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   padding-top: calc(var(--nav-height) + var(--nav-gap));
-  zoom: 0.675;
+  zoom: 0.7;
   transform-origin: top left;
 }
 
@@ -291,6 +654,12 @@ body {
   padding: 0 18px;
 }
 
+#tab-home .shell {
+  max-width: 1100px;
+  margin: 0 auto 28px;
+  padding: 0 18px;
+}
+
 /* GLASS CARD STYLE */
 .glass {
   background: var(--glass);
@@ -301,12 +670,22 @@ body {
   backdrop-filter: blur(1.5px);
 }
 
+/* Remove glass styling from chat panel */
+#tab-chat .panel.glass {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 /* HERO */
 .hero {
   display: grid;
   grid-template-columns: 1.3fr 1fr;
-  gap: 20px;
-  padding: 40px 28px 28px;
+  gap: 16px;
+  padding: 20px 20px 10px;
   align-items: stretch;
 }
 
@@ -368,12 +747,12 @@ body {
 .grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  margin: 22px 0;
+  gap: 12px;
+  margin: 10px 0;
 }
 
 .card {
-  padding: 18px;
+  padding: 12px;
 }
 
 .card__title {
@@ -448,8 +827,9 @@ body {
   border-radius: var(--radius-lg);
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.05));
   border: 1px solid rgba(255, 255, 255, 0.08);
-  min-height: 70vh;
-  max-height: 70vh;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   scroll-behavior: smooth;
   backdrop-filter: blur(2px);
