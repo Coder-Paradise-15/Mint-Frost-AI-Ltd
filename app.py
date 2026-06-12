@@ -153,7 +153,6 @@ def load_google_credentials():
         pass
     return None, None
 
-client = OpenAI(api_key=load_openai_key())
 weather_service = WeatherService(api_key=load_weather_key())
 google_client_id, google_client_secret = load_google_credentials()
 
@@ -185,7 +184,7 @@ def get_llm_client(data):
             return gemini_client, active_model
         except Exception as e:
             app.logger.warning(f"Failed to instantiate Gemini client: {e}")
-            return client, 'gpt-4o-mini'
+            raise
             
     elif provider == 'openai' and api_key:
         try:
@@ -194,7 +193,7 @@ def get_llm_client(data):
             return openai_client, active_model
         except Exception as e:
             app.logger.warning(f"Failed to instantiate OpenAI client: {e}")
-            return client, 'gpt-4o-mini'
+            raise
             
     elif provider == 'groq' and api_key:
         try:
@@ -3482,5 +3481,5 @@ def api_mfa_totp_delete():
 
 if __name__ == '__main__':
     # Start Flask development server
-    app.run(host='0.0.0.0', port=5001)
+    app.run(host='0.0.0.0', port=5001, debug=True)
     # Spotify credentials updated reload trigger

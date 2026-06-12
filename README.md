@@ -1,4 +1,4 @@
-# Mint Frost AI Chat - Enhanced Version 2.0
+# Mint Frost AI Chat - Enhanced Version 4.0
 
 A modern, feature-rich AI chat application built with Flask, featuring advanced UI/UX, real-time interactions, and comprehensive chat management.
 
@@ -7,9 +7,15 @@ A modern, feature-rich AI chat application built with Flask, featuring advanced 
 ### 🎨 **Advanced UI/UX**
 - **Dark/Light Theme Toggle** - Switch between themes with smooth transitions
 - **Glassmorphism Design** - Enhanced frosted glass effects with better blur
-- **Responsive Layout** - Optimized for all screen sizes
+- **Responsive Layout** - Optimized for all screen sizes, including a new flexible 100% width chat panel
 - **Smooth Animations** - Fade-in messages, typing indicators, and micro-interactions
 - **Custom Scrollbars** - Styled scrollbars for better visual consistency
+
+### 🛠️ **Dedicated Support Hub & Tools**
+- **In-App Support Tab** - A new dedicated Support panel without leaving the page
+- **Email Composer Modal** - Fully functional Gmail-style message composer built directly into the UI with toast notifications
+- **Daily Newsletter Subscription** - Easy to use newsletter enrollment card with instant feedback
+- **Bring Your Own Key (BYOK)** - Fixed OpenAI auto-crash to ensure pure BYOK capability on startup
 
 ### 💬 **Enhanced Chat Features**
 - **Message History** - Persistent chat history with session management
@@ -119,6 +125,10 @@ A modern, feature-rich AI chat application built with Flask, featuring advanced 
 - Custom scrollbars and smooth scrolling
 - Toast notifications for user feedback
 - Loading states and error handling
+- New Support tab with Knowledge Base, Contact Us, and Community links
+- Embedded Email Composer modal for direct support requests
+- New Support tab with Knowledge Base, Contact Us, and Community links
+- Embedded Email Composer modal for direct support requests
 
 ✅ **Performance Optimizations:**
 - Efficient DOM manipulation
