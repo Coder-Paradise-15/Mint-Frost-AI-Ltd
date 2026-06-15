@@ -1,0 +1,29 @@
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Local virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Database files (prevent copying active or malformed databases)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+databases/*.db
+databases/*.sqlite
+
+# Local development / temporary files
+scratch/
+.git/
+.gitignore
+Dockerfile
+.dockerignore
+*.mp4
+*.zip

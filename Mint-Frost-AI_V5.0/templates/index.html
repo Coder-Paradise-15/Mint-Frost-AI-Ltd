@@ -1,0 +1,2275 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <title>Mint Frost • AI Chat</title>
+  <script>
+    window.currentUser = "{{ session.get('user_id', '') }}";
+    window.currentUserDisplayName = "{{ session.get('display_name', '') or '' }}";
+    window.currentUserProfilePic = "{{ profile_pic or '' }}";
+    window.currentSessionId = "{{ session.get('current_session_id', '') }}";
+    function updateHeaderAvatar(url) {
+      const icon = document.getElementById('profile-menu-icon');
+      const img = document.getElementById('profile-menu-img');
+      if (icon && img) {
+        if (url) {
+          img.src = url;
+          img.style.display = 'block';
+          icon.style.display = 'none';
+        } else {
+          img.style.display = 'none';
+          icon.style.display = 'block';
+        }
+      }
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      updateHeaderAvatar(window.currentUserProfilePic);
+    });
+  </script>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-dark.svg') }}" media="(prefers-color-scheme: dark)">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='1.0.2') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="{{ url_for('static', filename='custom_modals.js') }}"></script>
+  <style>
+    /* Nav Tab Styles */
+    .nav__links a.active-tab { color: var(--mint); border-bottom: 2px solid var(--mint); }
+    #tab-home, #tab-chat, #tab-support { display: none; }
+    #tab-home.active-tab-content, #tab-chat.active-tab-content, #tab-support.active-tab-content { display: block; }
+    #tab-chat.active-tab-content {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      margin: 10px auto;
+      height: 125vh;
+      width: 275vh;
+      right: 416px;
+      box-sizing: border-box;
+      z-index: 100;
+      background: var(--bg-0);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+    }
+    /* Limit chat panel width so it doesn't cover Home */
+    #tab-chat .panel.glass {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      margin: 0;
+      border-radius: 0;
+      max-height: 100%;
+      height: 100%;
+      padding: 8px !important;
+    }
+    #tab-chat .panel-container {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+      height: 100%;
+    }
+    #tab-chat .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    #tab-chat .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 60px !important;
+      gap: 12px !important;
+    }
+    #tab-chat .panel-sidebar {
+      max-height: 100%;
+      overflow-y: auto;
+      border: none !important;
+      border-right: 1px solid var(--border) !important;
+      border-radius: 0 !important;
+    }
+    #tab-chat .composer {
+      margin-top: 8px !important;
+      gap: 8px !important;
+    }
+    #tab-chat .composer__input-group {
+      gap: 6px !important;
+    }
+    #tab-chat .input--large {
+      height: 38px !important;
+      padding: 0 16px !important;
+      font-size: 14px !important;
+    }
+    #tab-chat .model-selector-bar {
+      margin-bottom: 6px !important;
+      padding: 4px 8px !important;
+    }
+    #tab-chat #voice-btn, #tab-chat #send-btn {
+      height: 38px !important;
+      padding: 0 14px !important;
+      font-size: 13px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    #tab-chat .composer__info {
+      margin-top: 4px !important;
+      font-size: 11px !important;
+    }
+    #tab-chat .panel__footer {
+      margin-top: 4px !important;
+    }
+    #tab-chat .hint {
+      margin: 0 !important;
+      font-size: 11px !important;
+    }
+    /* MFA Sliding Drawer Overlay */
+    .mfa-drawer-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: transparent;
+      z-index: 9999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .mfa-drawer-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* MFA Floating Card Container */
+    .mfa-drawer {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 420px;
+      max-width: 90vw;
+      height: auto;
+      max-height: 85vh;
+      z-index: 10000;
+      transform: translate(-50%, -50%) scale(0.9);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      border-radius: 16px;
+      overflow: hidden;
+      background: rgba(15, 22, 32, 0.9);
+      backdrop-filter: blur(25px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #e9fbf5;
+    }
+    .mfa-drawer.show {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .mfa-drawer__header {
+      padding: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .theme-light .mfa-drawer__header {
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .mfa-drawer__title {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mfa-drawer__close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: inherit;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    .mfa-drawer__close:hover {
+      opacity: 1;
+    }
+
+    .mfa-drawer__body {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      max-height: calc(85vh - 75px);
+    }
+
+    /* Premium Tab Switcher Capsule */
+    .mfa-tabs-switcher {
+      display: flex;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 30px;
+      padding: 4px;
+      margin-bottom: 24px;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .theme-light .mfa-tabs-switcher {
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(0, 0, 0, 0.03);
+    }
+    .mfa-tab-btn {
+      flex: 1;
+      border: none;
+      background: none;
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: inherit;
+      cursor: pointer;
+      border-radius: 26px;
+      position: relative;
+      z-index: 2;
+      transition: color 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .mfa-tabs-switcher .sliding-pill {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      height: calc(100% - 8px);
+      width: calc(50% - 4px);
+      background: var(--mint, #37e6b5);
+      border-radius: 26px;
+      z-index: 1;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 4px 12px rgba(55, 230, 181, 0.2);
+    }
+    .mfa-tab-btn.active {
+      color: #121820 !important;
+    }
+
+    /* Section content animation */
+    .mfa-tab-content {
+      display: none;
+      animation: fadeIn 0.4s ease forwards;
+    }
+    .mfa-tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+
+
+    /* List Item Styles */
+    .mfa-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .mfa-list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: var(--radius-md, 12px);
+    }
+    .theme-light .mfa-list-item {
+      background: rgba(0,0,0,0.02);
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+    .mfa-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .mfa-item-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .mfa-item-date {
+      font-size: 0.75rem;
+      opacity: 0.6;
+    }
+    .mfa-delete-btn {
+      background: none;
+      border: none;
+      color: var(--error, #ff6b6b);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 50%;
+      transition: background 0.2s;
+    }
+    .mfa-delete-btn:hover {
+      background: rgba(255, 107, 107, 0.1);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="bg-gradient"></div>
+
+  <!-- NAV -->
+  <header class="nav" role="banner">
+    <div class="nav__brand">
+      <img src="{{ url_for('static', filename='logo.svg') }}" alt="Mint Frost AI" class="brand-logo" aria-hidden="true">
+    </div>
+    <div class="weather-time" id="weather-time">
+      <div class="time-display" id="time-display">--:--</div>
+      <div class="weather-display" id="weather-display">
+        <i class="fas fa-cloud"></i>
+        <span id="weather-temp">--°</span>
+      </div>
+    </div>
+    <nav class="nav__links" role="navigation" aria-label="Main">
+      <a href="#" class="nav-tab active-tab" data-tab="tab-home" aria-current="page">Home</a>
+      <a href="#" class="nav-tab" data-tab="tab-chat">Chat</a>
+      <a href="#">Features</a>
+      <a href="#">Docs</a>
+      <a href="#" class="nav-tab" data-tab="tab-support">Support</a>
+      <!-- Notification Center Dropdown -->
+      <div class="notification-menu-container">
+        <button id="notification-btn" class="btn btn--ghost btn--icon" title="Announcements" aria-label="Announcements" style="margin-right: 4px;">
+          <i class="fas fa-bell"></i>
+          <span id="notification-badge-el" class="notification-badge" style="display: none;">0</span>
+        </button>
+        <div id="notification-dropdown" class="notification-dropdown glass">
+          <div class="notification-dropdown__header" style="flex-direction: column; gap: 6px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+              <h4 style="margin: 0;">Global Notification Broadcast History</h4>
+              <button id="delete-all-notifications-btn" class="btn btn--ghost" title="Delete all notifications" style="font-size: 12px; padding: 4px 6px; border-radius: 4px; border: none; background: transparent; cursor: pointer; color: var(--error, #ff6b6b); transition: color 0.2s;">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
+            <button id="clear-notifications-btn" class="btn btn--ghost" style="font-size: 10px; padding: 3px 8px; border-radius: 4px; border: none; background: transparent; cursor: pointer; color: var(--mint); transition: color 0.2s; align-self: flex-end;">
+              Mark all read
+            </button>
+          </div>
+          <div class="notification-dropdown__list" id="notification-list-container">
+            <div class="notification-empty">No announcements yet</div>
+          </div>
+        </div>
+      </div>
+      <button id="theme-toggle" class="btn btn--ghost btn--icon" title="Toggle theme"
+        aria-label="Toggle dark/light theme">
+        <i class="fas fa-moon" id="theme-icon"></i>
+      </button>
+      <div class="profile-menu-container" style="position: relative; display: inline-block;">
+        <button id="profile-menu-btn" class="btn btn--ghost btn--icon" title="User Profile" aria-label="User Profile" style="margin-left: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 50%; width: 38px; height: 38px; padding: 0;">
+          <i class="fas fa-user-circle" id="profile-menu-icon" style="font-size: 24px;"></i>
+          <img id="profile-menu-img" style="display: none; width: 100%; height: 100%; object-fit: cover;" />
+        </button>
+        <div id="profile-dropdown" class="profile-dropdown glass">
+          <button id="profile-account-btn" class="btn btn--ghost btn--sm" style="display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); border: none; background: transparent; cursor: pointer; transition: background 0.2s;">
+            <i class="fas fa-user" style="width: 16px;"></i> <span>Account</span>
+          </button>
+          <button id="profile-mfa-btn" class="btn btn--ghost btn--sm" style="display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); border: none; background: transparent; cursor: pointer; transition: background 0.2s;">
+            <i class="fas fa-shield-alt" style="width: 16px; color: var(--mint);"></i> <span style="color: var(--mint);">MFA</span>
+          </button>
+          <hr style="border: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 6px 0;" />
+          <a href="/logout" class="btn btn--ghost btn--sm" style="text-decoration: none; display: flex; align-items: center; color: var(--error); gap: 8px; width: 100%; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); transition: background 0.2s;">
+            <i class="fas fa-sign-out-alt" style="width: 16px; color: var(--error);"></i> <span style="color: var(--error);">Logout</span>
+          </a>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- MAIN -->
+  <main class="shell" role="main">
+    <div id="tab-home" class="active-tab-content">
+    <section class="hero glass" aria-labelledby="hero-title">
+      <div class="hero__text">
+        <h1 id="hero-title">Mint Frost AI • Live Chat</h1>
+        <p>Talk to your model through a clean JSON API. This UI sends text to <code>/api/chat</code> and renders replies
+          in real time.</p>
+        <div class="hero__cta">
+          <a class="btn btn--mint" href="#">Get started</a>
+          <a class="btn btn--ghost" href="/ping">Ping API</a>
+        </div>
+      </div>
+
+      <div class="hero__card">
+        <div class="chip chip--mint">API • /api/chat</div>
+        <div class="hero__card__body">
+          <div class="line"><span class="tag">POST</span> <code>To Backend "/api/chat"</code></div>
+          <div class="line"><span class="muted">body</span> <code>User ask's {"message": "hello"}</code></div>
+          <div class="line"><span class="muted">returns</span>
+            <code>AI say's {"ai":"Hey There How may i help you!!"}</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GRID CARDS -->
+    <section class="grid">
+      <article class="card glass">
+        <h3 class="card__title">🚀 Fast Setup</h3>
+        <p>Spin up your AI backend in minutes with Flask. Zero fuss, pure Python.</p>
+        <a class="link-mint" href="#">Learn more →</a>
+      </article>
+
+      <article class="card glass">
+        <h3 class="card__title">🤖 Smart API</h3>
+        <p>Integrate with AI models easily through clean JSON endpoints, ready to plug into any frontend.</p>
+        <a class="link-mint" href="#">Design tokens →</a>
+      </article>
+
+      <article class="card glass">
+        <h3 class="card__title">🎨 Flexible UI</h3>
+        <p>Pair the backend with frosted-glass templates and mint aesthetics for a modern, polished feel.</p>
+        <a class="link-mint" href="#">API schema →</a>
+      </article>
+    </section>
+    </div>
+
+    <div id="tab-support">
+      <section class="panel glass" aria-labelledby="support-title" style="padding: 40px; margin: 110px auto 40px auto; width: 100%; max-width: 100%; height: 85vh; border-radius: var(--radius-xl); overflow-y: auto; display: flex; flex-direction: column; align-items: center; box-sizing: border-box;">
+        <header style="text-align: center; margin-bottom: 40px; margin-top: 20px;">
+          <h2 id="support-title" style="font-size: 2.5rem; color: var(--mint);">How can we help you?</h2>
+          <p style="color: var(--muted); font-size: 1.1rem; margin-top: 10px;">Find answers, contact support, and access our premium resources.</p>
+        </header>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 24px; width: 60%;">
+          <article class="card glass" style="text-align: center; padding: 32px 24px; width: 100%; transition: transform 0.2s;">
+            <i class="fas fa-book" style="font-size: 2.5rem; color: var(--mint); margin-bottom: 20px;"></i>
+            <h3 style="font-size: 1.25rem; margin-bottom: 12px;">Knowledge Base</h3>
+            <p style="font-size: 0.95rem; color: var(--muted); margin-bottom: 24px;">Browse our articles and guides to find quick solutions to common issues.</p>
+            <a class="btn btn--secondary" href="#">View Articles</a>
+          </article>
+          <article class="card glass" style="text-align: center; padding: 32px 24px; width: 100%; transition: transform 0.2s;">
+            <i class="fas fa-envelope" style="font-size: 2.5rem; color: var(--mint); margin-bottom: 20px;"></i>
+            <h3 style="font-size: 1.25rem; margin-bottom: 12px;">Contact Us</h3>
+            <p style="font-size: 0.95rem; color: var(--muted); margin-bottom: 24px;">Get in touch with our dedicated support team directly for 1-on-1 help.</p>
+            <a class="btn btn--mint" href="#" id="open-email-modal-btn">Send Message</a>
+          </article>
+          <article class="card glass" style="text-align: center; padding: 32px 24px; width: 100%; transition: transform 0.2s;">
+            <i class="fas fa-users" style="font-size: 2.5rem; color: var(--mint); margin-bottom: 20px;"></i>
+            <h3 style="font-size: 1.25rem; margin-bottom: 12px;">Community Forum</h3>
+            <p style="font-size: 0.95rem; color: var(--muted); margin-bottom: 24px;">Join the discussion with other users, share tips, and explore new ideas.</p>
+            <a class="btn btn--secondary" href="#">Join Forum</a>
+          </article>
+          <article class="card glass" style="text-align: center; padding: 32px 24px; width: 100%; transition: transform 0.2s;">
+            <i class="fas fa-newspaper" style="font-size: 2.5rem; color: var(--mint); margin-bottom: 20px;"></i>
+            <h3 style="font-size: 1.25rem; margin-bottom: 12px;">Daily Newsletter</h3>
+            <p style="font-size: 0.95rem; color: var(--muted); margin-bottom: 24px;">Provide your email to receive our daily newsletter and updates.</p>
+            <div style="display: flex; gap: 8px; justify-content: center; max-width: 400px; margin: 0 auto;">
+              <input type="email" id="newsletter-email" placeholder="Your email address..." style="flex: 1; border-radius: var(--radius-md); border: 1px solid var(--border); padding: 0 16px; background: rgba(0,0,0,0.2); color: var(--fg); height: 42px;" />
+              <button id="newsletter-subscribe-btn" class="btn btn--mint" style="height: 42px; padding: 0 20px; font-weight: 600;">Subscribe</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <div id="tab-chat">
+    <!-- CHAT PANEL -->
+    <section class="panel glass" aria-labelledby="chat-title">
+      <div class="panel-container">
+        <!-- Left Sidebar -->
+        <aside id="history-panel" class="panel-sidebar">
+          <div class="sidebar-header">
+            <h3>Chat History</h3>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button id="new-chat-btn" class="btn btn--ghost btn--sm" title="New Chat">
+                <i class="fas fa-plus"></i>
+              </button>
+              <button id="sidebar-close-btn" class="btn btn--ghost btn--sm" title="Close History" aria-label="Close Chat History" style="width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); background: rgba(255, 255, 255, 0.05); transition: all 0.2s ease;">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+            </div>
+          </div>
+          <div id="recent-chats" class="chat-list">
+            <div class="chat-item active">
+              <div class="chat-item__title">Current Chat</div>
+              <div class="chat-item__preview">Welcome message...</div>
+              <div class="chat-item__time">now</div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <div class="chat-main">
+          <header class="panel__head">
+            <div class="panel__title-group">
+              <h2 id="chat-title">Chat Panel</h2>
+              <div class="panel__controls" style="position: relative; display: flex; gap: 8px; align-items: center;">
+                <button id="sidebar-toggle-btn" class="btn btn--ghost btn--sm btn--icon" title="Toggle Chat History" aria-label="Toggle Chat History" style="border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(55, 230, 181, 0.08); border: 1px solid var(--border); color: var(--mint); transition: all 0.2s ease;">
+                  <i class="fas fa-history"></i>
+                </button>
+                <button id="toolbar-menu-btn" class="btn btn--ghost btn--sm btn--icon" title="Chat Actions" aria-label="Open Chat Actions Menu" style="border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                  <i class="fas fa-bars"></i>
+                </button>
+                <div id="toolbar-dropdown" class="toolbar-dropdown">
+                  <button id="history-toggle" class="btn btn--ghost btn--sm" title="Toggle chat history" aria-label="Toggle chat history">
+                    <i class="fas fa-history" style="width: 16px;"></i> <span>History</span>
+                  </button>
+                  <button id="search-btn" class="btn btn--ghost btn--sm" title="Search messages" aria-label="Search messages">
+                    <i class="fas fa-search" style="width: 16px;"></i> <span>Search</span>
+                  </button>
+                  <button id="export-btn" class="btn btn--ghost btn--sm" title="Export chat" aria-label="Export chat history">
+                    <i class="fas fa-download" style="width: 16px;"></i> <span>Export Chat</span>
+                  </button>
+                  <button id="clear-btn" class="btn btn--ghost btn--sm" title="Clear history" aria-label="Clear chat history">
+                    <i class="fas fa-trash" style="width: 16px;"></i> <span>Clear History</span>
+                  </button>
+                  <button id="location-btn" class="btn btn--ghost btn--sm" title="Get current location weather" aria-label="Access Real Time Weather">
+                    <i class="fas fa-map" style="width: 16px;"></i> <span>Weather</span>
+                  </button>
+                  <button id="emoji-btn" class="btn btn--ghost btn--sm" title="Add emoji" aria-label="Add emoji">
+                    <i class="fas fa-smile" style="width: 16px;"></i> <span>Emoji</span>
+                  </button>
+
+                  <button id="api-settings-btn" class="btn btn--ghost btn--sm" title="API Settings" aria-label="Configure API Keys">
+                    <i class="fas fa-cog" style="width: 16px;"></i> <span>API Settings</span>
+                  </button>
+                  <button id="jamendo-btn" class="btn btn--ghost btn--sm" title="Music Player" aria-label="Music Player">
+                    <i class="fas fa-music" style="width: 16px; color: var(--mint);"></i> <span>Music Player</span>
+                  </button>
+                  <!-- Logout removed from chat actions -->
+                </div>
+              </div>
+            </div>
+            <span class="status" id="status">
+              <span class="dot" id="status-dot" aria-hidden="true"></span>
+              <span id="status-text">Idle</span>
+            </span>
+          </header>
+
+          <div id="search-panel" class="search-panel" style="display: none;">
+            <input id="search-input" class="input" type="text" placeholder="Search messages..." />
+            <button id="search-close" class="btn btn--ghost btn--sm">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div class="messages" id="messages" aria-live="polite" aria-atomic="false">
+            <!-- JS will append messages here -->
+            <div class="bubble bubble--ai">
+              <div class="bubble__content">
+                <p>Welcome — ask me anything. I have context memory and can help with various tasks!</p>
+                <div class="bubble__actions">
+                  <button class="bubble__action" title="Copy message"
+                    onclick="copyMessage('Welcome — ask me anything. I have context memory and can help with various tasks!')">
+                    <i class="fas fa-copy"></i><span>Copy</span>
+                  </button>
+                  <button class="bubble__action" title="Like message" onclick="toggleReaction(this, 'like')">
+                    <i class="far fa-thumbs-up"></i><span>Like</span>
+                  </button>
+                </div>
+              </div>
+              <time>AI • now</time>
+            </div>
+          </div>
+
+          <div id="typing-indicator" class="typing-indicator" style="padding: 10px 0; display: none;">
+            <div class="bubble bubble--ai bubble--typing">
+              <div class="typing-dots">
+                <span></span><span></span><span></span>
+              </div>
+              <time>AI • typing...</time>
+            </div>
+          </div>
+
+          <form class="composer" id="composer" onsubmit="return false;" aria-label="Chat composer">
+            <div class="model-selector-bar">
+              <div class="model-selector-label">
+                <i class="fas fa-robot"></i>
+                <span>Active Model</span>
+              </div>
+              <div class="model-selector-wrap">
+                <!-- Custom Searchable Model Selector Dropdown -->
+                <div class="custom-model-searcher" id="custom-model-searcher">
+                  <div class="model-select-pill-trigger" id="model-pill-trigger">
+                    <span id="selected-model-display">🤖 Loading models...</span>
+                    <i class="fas fa-chevron-up"></i>
+                  </div>
+                  
+                  <div class="model-searcher-dropdown" id="model-searcher-dropdown">
+                    <div class="model-searcher-search-box">
+                      <i class="fas fa-search"></i>
+                      <input type="text" id="model-searcher-input" placeholder="Search or type custom model name..." autocomplete="off">
+                      <button type="button" id="model-searcher-clear" class="btn--clear" title="Clear input"><i class="fas fa-times"></i></button>
+                    </div>
+                    
+                    <div class="model-searcher-actions">
+                      <button type="button" id="fetch-live-models-btn" class="btn btn--ghost btn--xs" title="Fetch live models using your API keys">
+                        <i class="fas fa-sync-alt"></i> <span>Fetch Live Models</span>
+                      </button>
+                      <button type="button" id="add-custom-model-btn" class="btn type--button btn--mint btn--xs" title="Register typed custom model" style="display: none;">
+                        <i class="fas fa-plus"></i> <span>Add Custom Model</span>
+                      </button>
+                    </div>
+                    
+                    <div class="model-searcher-list custom-scrollbar" id="model-searcher-list">
+                      <!-- Populated by JS -->
+                    </div>
+                  </div>
+                </div>
+
+                <select id="chatbox-model-select" class="model-select-pill" style="display: none;">
+                  <optgroup label="OpenAI - reasoning &amp; flagship">
+                    <option value="openai:o3-mini">🧠 o3-mini (Reasoning - Recommended)</option>
+                    <option value="openai:o1">🧠 o1 (Flagship Reasoning)</option>
+                    <option value="openai:o1-mini">🧠 o1-mini (Fast Reasoning)</option>
+                    <option value="openai:o1-preview">🧠 o1-preview</option>
+                    <option value="openai:gpt-4o">🤖 GPT-4o (Flagship - Recommended)</option>
+                    <option value="openai:gpt-4o-mini">🤖 GPT-4o Mini (Fast - Recommended)</option>
+                    <option value="openai:gpt-4-turbo">🤖 GPT-4 Turbo (Large Context)</option>
+                    <option value="openai:gpt-4">🤖 GPT-4 Standard</option>
+                    <option value="openai:gpt-3.5-turbo">🤖 GPT-3.5 Turbo (Legacy)</option>
+                  </optgroup>
+                  <optgroup label="Google Gemini - Multimodal &amp; Fast">
+                    <option value="gemini:gemini-2.0-flash">✨ Gemini 2.0 Flash (Recommended)</option>
+                    <option value="gemini:gemini-2.0-flash-lite-preview-02-05">✨ Gemini 2.0 Flash Lite</option>
+                    <option value="gemini:gemini-2.0-pro-exp-02-05">✨ Gemini 2.0 Pro Experimental</option>
+                    <option value="gemini:gemini-2.0-flash-thinking-exp-01-21">✨ Gemini 2.0 Thinking Experimental</option>
+                    <option value="gemini:gemini-1.5-pro">✨ Gemini 1.5 Pro (Recommended)</option>
+                    <option value="gemini:gemini-1.5-flash">✨ Gemini 1.5 Flash</option>
+                    <option value="gemini:gemini-1.5-flash-8b">✨ Gemini 1.5 Flash 8B</option>
+                    <option value="gemini:gemini-1.0-pro">✨ Gemini 1.0 Pro (Legacy)</option>
+                  </optgroup>
+                  <optgroup label="Anthropic Claude - Smart &amp; Coding">
+                    <option value="anthropic:claude-3-5-sonnet-latest">🎭 Claude 3.5 Sonnet (Latest - Recommended)</option>
+                    <option value="anthropic:claude-3-5-sonnet-20241022">🎭 Claude 3.5 Sonnet (v2)</option>
+                    <option value="anthropic:claude-3-5-haiku-latest">🎭 Claude 3.5 Haiku (Latest)</option>
+                    <option value="anthropic:claude-3-5-haiku-20241022">🎭 Claude 3.5 Haiku (v1)</option>
+                    <option value="anthropic:claude-3-opus-latest">🎭 Claude 3 Opus (Latest)</option>
+                    <option value="anthropic:claude-3-opus-20240229">🎭 Claude 3 Opus</option>
+                    <option value="anthropic:claude-3-haiku-20240307">🎭 Claude 3 Haiku</option>
+                    <option value="anthropic:claude-2.1">🎭 Claude 2.1 (Legacy)</option>
+                    <option value="anthropic:claude-2.0">🎭 Claude 2.0 (Legacy)</option>
+                    <option value="anthropic:claude-instant-1.2">🎭 Claude Instant 1.2 (Legacy)</option>
+                  </optgroup>
+                  <optgroup label="⚡ Groq — High Speed LPU Inference">
+                    <option value="groq:llama-3.3-70b-versatile">⚡ Llama 3.3 70B (Versatile - Recommended)</option>
+                    <option value="groq:llama-3.1-8b-instant">⚡ Llama 3.1 8B (Instant)</option>
+                    <option value="groq:llama-3.1-70b-versatile">⚡ Llama 3.1 70B (Versatile)</option>
+                    <option value="groq:llama3-8b-8192">⚡ Llama 3 8B (v1)</option>
+                    <option value="groq:llama3-70b-8192">⚡ Llama 3 70B (v1)</option>
+                    <option value="groq:gemma2-9b-it">⚡ Gemma 2 9B</option>
+                    <option value="groq:mixtral-8x7b-32768">⚡ Mixtral 8x7B</option>
+                    <option value="groq:deepseek-r1-distill-llama-70b">⚡ DeepSeek R1 Distilled Llama 70B</option>
+                  </optgroup>
+                  <optgroup label="🌐 OpenRouter — Global Aggregator">
+                    <option value="openrouter:meta-llama/llama-3.3-70b-instruct">🌐 Llama 3.3 70B</option>
+                    <option value="openrouter:meta-llama/llama-3.1-8b-instruct:free">🌐 Llama 3.1 8B (Free)</option>
+                    <option value="openrouter:meta-llama/llama-3.1-70b-instruct">🌐 Llama 3.1 70B</option>
+                    <option value="openrouter:meta-llama/llama-3-8b-instruct:free">🌐 Llama 3 8B (Free)</option>
+                    <option value="openrouter:deepseek/deepseek-chat">🌐 DeepSeek V3 / R1 (Chat)</option>
+                    <option value="openrouter:deepseek/deepseek-r1:free">🌐 DeepSeek R1 (Free)</option>
+                    <option value="openrouter:deepseek/deepseek-r1">🌐 DeepSeek R1 (Full)</option>
+                    <option value="openrouter:google/gemini-2.0-flash-exp:free">🌐 Gemini 2.0 Flash (Free)</option>
+                    <option value="openrouter:google/gemma-2-9b-it:free">🌐 Gemma 2 9B (Free)</option>
+                    <option value="openrouter:mistralai/mistral-7b-instruct:free">🌐 Mistral 7B (Free)</option>
+                    <option value="openrouter:qwen/qwen-2.5-72b-instruct">🌐 Qwen 2.5 72B</option>
+                    <option value="openrouter:qwen/qwen-2-7b-instruct:free">🌐 Qwen 2 7B (Free)</option>
+                    <option value="openrouter:anthropic/claude-3.5-sonnet">🌐 Claude 3.5 Sonnet</option>
+                    <option value="openrouter:openai/gpt-4o">🌐 GPT-4o</option>
+                  </optgroup>
+                  <optgroup label="🌀 Mistral AI — Developer Platform">
+                    <option value="mistral:mistral-large-latest">🌀 Mistral Large (Latest - Recommended)</option>
+                    <option value="mistral:mistral-large-2411">🌀 Mistral Large (Nov 2024)</option>
+                    <option value="mistral:mistral-large-2407">🌀 Mistral Large (July 2024)</option>
+                    <option value="mistral:mistral-small-latest">🌀 Mistral Small (Latest)</option>
+                    <option value="mistral:mistral-small-2409">🌀 Mistral Small (Sept 2024)</option>
+                    <option value="mistral:codestral-latest">🌀 Codestral (Coding Model)</option>
+                    <option value="mistral:open-mistral-nemo">🌀 Mistral Nemo</option>
+                    <option value="mistral:open-mixtral-8x22">🌀 Mixtral 8x22</option>
+                    <option value="mistral:open-mixtral-8x7b">🌀 Mixtral 8x7B</option>
+                    <option value="mistral:open-mistral-7b">🌀 Mistral 7B</option>
+                  </optgroup>
+                </select>
+                <span id="model-key-badge" class="model-key-badge model-key-badge--warn" title="Select a model &amp; add your API key"></span>
+              </div>
+            </div>
+            <div class="composer__input-group">
+              <div class="input-container">
+                <input id="message-input" class="input input--large" type="text" name="message"
+                  placeholder="Type a message and press Enter…" autocomplete="off" maxlength="2000" />
+                <div class="voice-visualizer" id="voice-visualizer" style="display: none;">
+                  <div class="voice-bar"></div>
+                  <div class="voice-bar"></div>
+                  <div class="voice-bar"></div>
+                  <div class="voice-bar"></div>
+                  <div class="voice-bar"></div>
+                  <div class="voice-bar"></div>
+                  <div class="voice-bar"></div>
+                  <div class="voice-bar"></div>
+                </div>
+              </div>
+              <div class="composer__actions">
+                <button id="voice-btn" class="btn btn--ghost btn--icon btn--voice" type="button" title="Voice input"
+                  aria-label="Voice input">
+                  <i class="fas fa-microphone"></i>
+                </button>
+                <button id="send-btn" class="btn btn--mint" type="button" disabled>
+                  <i class="fas fa-paper-plane"></i>
+                  <span>Send</span>
+                </button>
+              </div>
+            </div>
+            <div class="composer__info">
+              <span id="char-count">0/2000</span>
+              <span id="message-count">Messages: 0</span>
+            </div>
+          </form>
+
+          <div class="panel__footer">
+            <div class="shortcuts" id="shortcuts" style="display: none;">
+              <div class="shortcuts__content">
+                <h4>Keyboard Shortcuts</h4>
+                <div class="shortcuts__list">
+                  <div><kbd>Enter</kbd> Send message</div>
+                  <div><kbd>Ctrl+K</kbd> Toggle shortcuts</div>
+                  <div><kbd>Ctrl+T</kbd> Theme manager</div>
+                  <div><kbd>Ctrl+L</kbd> Clear history</div>
+                  <div><kbd>Ctrl+E</kbd> Export chat</div>
+                  <div><kbd>Ctrl+F</kbd> Search messages</div>
+                  <div><kbd>Ctrl+Shift+C</kbd> Copy chat</div>
+                  <div><kbd>Ctrl+R</kbd> Regenerate last response</div>
+                  <div><kbd>Esc</kbd> Close panels</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    </div>
+
+    <footer class="foot glass">
+      <p>© <span id="year"></span> Mint Frost AI • Built with Flask</p>
+    </footer>
+  </main>
+
+
+
+  <!-- Emoji Picker Panel -->
+  <div id="emoji-picker" class="emoji-picker">
+    <div class="emoji-categories">
+      <button class="emoji-category active" data-category="smileys">😀</button>
+      <button class="emoji-category" data-category="people">👤</button>
+      <button class="emoji-category" data-category="nature">🌿</button>
+      <button class="emoji-category" data-category="food">🍎</button>
+      <button class="emoji-category" data-category="activities">⚽</button>
+      <button class="emoji-category" data-category="travel">✈️</button>
+      <button class="emoji-category" data-category="objects">💡</button>
+      <button class="emoji-category" data-category="symbols">❤️</button>
+    </div>
+    <div class="emoji-grid" id="emoji-grid">
+      <!-- Emojis will be populated by JavaScript -->
+    </div>
+  </div>
+
+
+
+  <!-- Hover Action Panel -->
+  <div id="hover-panel" class="hover-panel">
+    <div class="panel-item" data-action="duplicate">
+      <i class="fas fa-clone"></i>
+      <span>Duplicate</span>
+    </div>
+    <div class="panel-item" data-action="rename">
+      <i class="fas fa-edit"></i>
+      <span>Rename</span>
+    </div>
+    <div class="panel-item" data-action="copy">
+      <i class="fas fa-clipboard"></i>
+      <span>Copy</span>
+    </div>
+    <div class="panel-item" data-action="export">
+      <i class="fas fa-download"></i>
+      <span>Export</span>
+    </div>
+    <div class="panel-item danger" data-action="delete">
+      <i class="fas fa-trash"></i>
+      <span>Delete</span>
+    </div>
+  </div>
+
+  <!-- Theme Selector -->
+  <div id="theme-selector" class="theme-selector">
+    <div class="theme-selector__header">
+      <h3 class="theme-selector__title">🎨 Choose Theme</h3>
+      <button class="theme-selector__close" id="theme-close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="theme-grid">
+      <div class="theme-option" data-theme="dark">
+        <div class="theme-preview">
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+        </div>
+        <div class="theme-option__name">🌙 Dark</div>
+        <div class="theme-option__desc">Classic dark theme with mint accents</div>
+      </div>
+
+      <div class="theme-option" data-theme="light">
+        <div class="theme-preview">
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+        </div>
+        <div class="theme-option__name">☀️ Light</div>
+        <div class="theme-option__desc">Clean light theme for bright environments</div>
+      </div>
+
+      <div class="theme-option" data-theme="mint">
+        <div class="theme-preview">
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+        </div>
+        <div class="theme-option__name">🌿 Mint</div>
+        <div class="theme-option__desc">Vibrant mint green with dark background</div>
+      </div>
+
+      <div class="theme-option" data-theme="ocean">
+        <div class="theme-preview">
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+        </div>
+        <div class="theme-option__name">🌊 Ocean</div>
+        <div class="theme-option__desc">Cool blue tones inspired by the sea</div>
+      </div>
+
+      <div class="theme-option" data-theme="sunset">
+        <div class="theme-preview">
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+        </div>
+        <div class="theme-option__name">🌅 Sunset</div>
+        <div class="theme-option__desc">Warm orange and red sunset colors</div>
+      </div>
+
+      <div class="theme-option" data-theme="forest">
+        <div class="theme-preview">
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+          <div class="theme-color"></div>
+        </div>
+        <div class="theme-option__name">🌲 Forest</div>
+        <div class="theme-option__desc">Natural green tones of the forest</div>
+      </div>
+    </div>
+
+    <div class="theme-auto">
+      <input type="checkbox" id="auto-theme" />
+      <label for="auto-theme">🔄 Auto-detect system theme</label>
+    </div>
+
+    <button class="custom-theme-btn" id="create-theme-btn">
+      🎨 Create Custom Theme
+    </button>
+
+    <div class="custom-themes-list" id="custom-themes-list" style="display: none;">
+      <h4 style="margin: 0 0 12px 0; color: var(--fg);">Your Custom Themes</h4>
+      <div id="custom-themes-container"></div>
+    </div>
+  </div>
+
+  <!-- Simple Theme Creator Modal -->
+  <div id="theme-creator-overlay" class="modal-overlay">
+    <div id="theme-creator" class="modal" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🎨 Create Custom Theme</h3>
+        <button class="modal-close" id="creator-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Theme Name</label>
+          <input type="text" id="theme-name" class="form-input" placeholder="My Custom Theme" maxlength="50" />
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0;">
+          <div class="form-group">
+            <label class="form-label">Primary Color</label>
+            <input type="color" id="color-primary" value="#37e6b5"
+              style="width: 100%; height: 40px; border-radius: 8px; border: 1px solid var(--border);" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Background</label>
+            <input type="color" id="color-bg0" value="#0b0f14"
+              style="width: 100%; height: 40px; border-radius: 8px; border: 1px solid var(--border);" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Panel Background</label>
+            <input type="color" id="color-bg1" value="#0f1620"
+              style="width: 100%; height: 40px; border-radius: 8px; border: 1px solid var(--border);" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Text Color</label>
+            <input type="color" id="color-fg" value="#e9fbf5"
+              style="width: 100%; height: 40px; border-radius: 8px; border: 1px solid var(--border);" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Preview</label>
+          <div id="theme-preview"
+            style="padding: 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--preview-bg, #0f1620);">
+            <div style="color: var(--preview-primary, #37e6b5); font-weight: 600; margin-bottom: 8px;">🎨 Your Custom
+              Theme</div>
+            <div style="color: var(--preview-fg, #e9fbf5); font-size: 14px;">This is how your theme will look in the
+              app!</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn--secondary" id="creator-cancel">Cancel</button>
+        <button class="btn btn--mint" id="creator-save">Save Theme</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Settings (BYOK) Modal -->
+  <div id="api-settings-overlay" class="modal-overlay">
+    <div id="api-settings" class="modal" style="max-width: 550px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔑 API Configuration (BYOK)</h3>
+        <button class="modal-close" id="api-settings-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.5;">
+          Bring your own API key to bypass limits! Keys are stored securely in your browser's <code>localStorage</code> and are only transmitted to the backend over HTTPS on request. They are never saved on the server database.
+        </p>
+
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label class="form-label">Active Provider</label>
+          <select id="api-provider" class="form-input" style="background: var(--bg1); color: var(--fg); border: 1px solid var(--border); width: 100%; height: 42px; border-radius: 8px; padding: 0 12px; font-family: inherit; font-size: 14px; transition: all 0.3s ease;">
+            <option value="default">Server Default (Out of Credits Fallback)</option>
+            <option value="openai">Personal OpenAI Key</option>
+            <option value="gemini">Personal Google Gemini Key</option>
+            <option value="anthropic">Personal Anthropic Claude Key</option>
+            <option value="groq">Personal Groq Key</option>
+            <option value="openrouter">Personal OpenRouter Key</option>
+            <option value="mistral">Personal Mistral AI Key</option>
+          </select>
+        </div>
+
+        <!-- OpenAI Cards -->
+        <div id="openai-key-card" class="api-key-card" style="display: none; border: 1px solid rgba(255,255,255,0.08); padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.02); margin-bottom: 20px;">
+          <div class="form-group" style="margin-bottom: 16px; position: relative;">
+            <label class="form-label" style="display: flex; align-items: center; gap: 6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="#10a37f" style="vertical-align: middle; flex-shrink: 0;"><path d="M21.74 11.53c0-.36-.07-.72-.2-1.06-.1-.28-.27-.53-.48-.74l.01-.01c-.13-.15-.29-.27-.47-.36.21-.49.31-1.02.28-1.54-.03-.49-.16-.97-.39-1.4-.24-.46-.6-.84-1.03-1.11-.43-.27-.93-.41-1.43-.41-.33 0-.66.06-.97.17-.18-.17-.4-.3-.64-.38-.34-.58-.84-1.02-1.45-1.27-.6-.24-1.26-.29-1.89-.13a3.85 3.85 0 0 0-1.89 1.1c-.2-.03-.4-.05-.61-.05-1.04 0-2.04.41-2.77 1.15A3.94 3.94 0 0 0 4.7 8.3c-.6.31-1.07.82-1.34 1.44a3.88 3.88 0 0 0 .1 3.52 3.86 3.86 0 0 0 .37.5c-.15.22-.24.47-.28.74-.15.48-.19.98-.12 1.48.06.49.23.96.49 1.38.26.43.62.77 1.05 1 .43.23.91.36 1.4.37.28 0 .56-.04.83-.12.16.14.35.25.56.32.4.52.93.9 1.54 1.1.6.2 1.25.21 1.86.04a3.84 3.84 0 0 0 2-.95c.21.05.42.08.64.08 1.04 0 2.04-.41 2.77-1.15.74-.73 1.15-1.73 1.15-2.77 0-.25-.03-.5-.08-.74.19-.15.35-.34.46-.56.45-.4.77-.92.93-1.5.17-.57.19-1.18.06-1.76zm-8.87 8.1c-.6.28-1.27.32-1.89.12-.6-.2-1.12-.6-1.49-1.13l3.66-2.11c.21-.12.38-.29.5-.5.12-.21.18-.45.18-.69V10.2l2.3 1.33c.09.05.17.13.23.22.06.09.09.2.09.31v4.25c0 .64-.26 1.25-.71 1.7-.45.45-1.06.71-1.7.71a2.38 2.38 0 0 1-1.11-.29zm-7.66-3.8c-.3-.53-.42-1.16-.32-1.77.1-.6.38-1.16.82-1.56l3.66 2.11c.2.12.44.18.68.18s.48-.06.69-.18l4.43-2.56v2.66c0 .1.03.2.08.29a.57.57 0 0 0 .23.23l-3.69 2.13c-.56.32-1.2.45-1.84.36a2.41 2.41 0 0 1-1.58-.91 2.38 2.38 0 0 1-.36-1.84c.1-.64.44-1.22.93-1.63zM4.64 7.68c.28-.6.76-1.07 1.36-1.33.6-.26 1.27-.3 1.89-.1l3.66 2.11c.21.12.38.29.5.5s.18.45.18.69v5.12L9.93 13.4c-.09-.05-.17-.13-.23-.22a.58.58 0 0 1-.09-.31V8.62c0-.64.26-1.25.71-1.7a2.4 2.4 0 0 1 2.81-.42zm7.66 2.5l-3.66-2.11c-.2-.12-.44-.18-.68-.18s-.48.06-.69.18l-4.43 2.56v-2.66c0-.1-.03-.2-.08-.29a.57.57 0 0 0-.23-.23l3.69-2.13a2.39 2.39 0 0 1 3.42.55 2.41 2.41 0 0 1 .36 1.84c-.1.64-.44 1.22-.93 1.63zm3.76-2.5c.3.53.42 1.16.32 1.77-.1.6-.38 1.16-.82 1.56l-3.66-2.11a1.36 1.36 0 0 0-1.37 0l-4.43 2.56V8.8c0-.1-.03-.2-.08-.29a.57.57 0 0 0-.23-.23l3.69-2.13c.56-.32 1.2-.45 1.84-.36a2.41 2.41 0 0 1 1.58.91 2.38 2.38 0 0 1 .36 1.84c-.1.64-.44 1.22-.93 1.63zm2.3 8.1c-.28.6-.76 1.07-1.36 1.33a2.43 2.43 0 0 1-1.89.1l-3.66-2.11c-.21-.12-.38-.29-.5-.5a1.36 1.36 0 0 1-.18-.69V9.82l2.3 1.33c.09.05.17.13.23.22.06.09.09.2.09.31v4.25c0 .64-.26 1.25-.71 1.7a2.4 2.4 0 0 1-2.81.42z"/></svg>
+              OpenAI API Key
+            </label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input type="password" id="api-openai-key" class="form-input" placeholder="sk-..." style="padding-right: 40px; width: 100%;" />
+              <button type="button" class="toggle-password-btn" style="position: absolute; right: 10px; background: none; border: none; color: var(--muted); cursor: pointer;">
+                <i class="far fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Model</label>
+            <select id="api-openai-model" class="form-input" style="background: var(--bg1); color: var(--fg); border: 1px solid var(--border); width: 100%; height: 42px; border-radius: 8px; padding: 0 12px; font-family: inherit; font-size: 14px;">
+              <option value="gpt-4o-mini">gpt-4o-mini (Recommended)</option>
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="o3-mini">o3-mini (Reasoning)</option>
+              <option value="o1">o1 (Flagship Reasoning)</option>
+              <option value="o1-mini">o1-mini (Reasoning)</option>
+              <option value="o1-preview">o1-preview</option>
+              <option value="gpt-4-turbo">gpt-4-turbo</option>
+              <option value="gpt-4">gpt-4</option>
+              <option value="gpt-3.5-turbo">gpt-3.5-turbo (Legacy)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Gemini Cards -->
+        <div id="gemini-key-card" class="api-key-card" style="display: none; border: 1px solid rgba(255,255,255,0.08); padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.02); margin-bottom: 20px;">
+          <div class="form-group" style="margin-bottom: 16px; position: relative;">
+            <label class="form-label" style="display: flex; align-items: center; gap: 6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; flex-shrink: 0;"><path fill="#4285F4" d="M12 2C12 2 12 7.5 6.5 7.5C12 7.5 12 13 12 13C12 13 12 7.5 17.5 7.5C12 7.5 12 2 12 2Z"/><path fill="#ea4335" d="M19 13C19 13 19 15.5 16.5 15.5C19 15.5 19 18 19 18C19 18 19 15.5 21.5 15.5C19 15.5 19 13 19 13Z"/></svg>
+              Google Gemini API Key
+            </label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input type="password" id="api-gemini-key" class="form-input" placeholder="AIzaSy..." style="padding-right: 40px; width: 100%;" />
+              <button type="button" class="toggle-password-btn" style="position: absolute; right: 10px; background: none; border: none; color: var(--muted); cursor: pointer;">
+                <i class="far fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Model</label>
+            <select id="api-gemini-model" class="form-input" style="background: var(--bg1); color: var(--fg); border: 1px solid var(--border); width: 100%; height: 42px; border-radius: 8px; padding: 0 12px; font-family: inherit; font-size: 14px;">
+              <option value="gemini-2.0-flash">gemini-2.0-flash (Recommended)</option>
+              <option value="gemini-2.0-flash-lite-preview-02-05">gemini-2.0-flash-lite</option>
+              <option value="gemini-2.0-pro-exp-02-05">gemini-2.0-pro-exp</option>
+              <option value="gemini-2.0-flash-thinking-exp-01-21">gemini-2.0-flash-thinking</option>
+              <option value="gemini-1.5-pro">gemini-1.5-pro (Recommended)</option>
+              <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+              <option value="gemini-1.5-flash-8b">gemini-1.5-flash-8b</option>
+              <option value="gemini-1.0-pro">gemini-1.0-pro</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Anthropic Cards -->
+        <div id="anthropic-key-card" class="api-key-card" style="display: none; border: 1px solid rgba(255,255,255,0.08); padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.02); margin-bottom: 20px;">
+          <div class="form-group" style="margin-bottom: 16px; position: relative;">
+            <label class="form-label" style="display: flex; align-items: center; gap: 6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="#cc5843" style="vertical-align: middle; flex-shrink: 0;"><path d="M12 2c-.8 0-1.5.7-1.5 1.5v6.3l-4.5-4.5c-.6-.6-1.5-.6-2.1 0s-.6 1.5 0 2.1l4.5 4.5H2c-.8 0-1.5.7-1.5 1.5S1.2 15 2 15h6.4l-4.5 4.5c-.6.6-.6 1.5 0 2.1.3.3.7.4 1.1.4.4 0 .8-.1 1.1-.4l4.5-4.5v6.4c0 .8.7 1.5 1.5 1.5s1.5-.7 1.5-1.5v-6.4l4.5 4.5c.3.3.7.4 1.1.4.4 0 .8-.1 1.1-.4.6-.6.6-1.5 0-2.1l-4.5-4.5H22c.8 0 1.5-.7 1.5-1.5S22.8 12 22 12h-6.4l4.5-4.5c.6-.6.6-1.5 0-2.1s-1.5-.6-2.1 0l-4.5 4.5V3.5C13.5 2.7 12.8 2 12 2z"/></svg>
+              Anthropic Claude API Key
+            </label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input type="password" id="api-anthropic-key" class="form-input" placeholder="sk-ant-..." style="padding-right: 40px; width: 100%;" />
+              <button type="button" class="toggle-password-btn" style="position: absolute; right: 10px; background: none; border: none; color: var(--muted); cursor: pointer;">
+                <i class="far fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Model</label>
+            <select id="api-anthropic-model" class="form-input" style="background: var(--bg1); color: var(--fg); border: 1px solid var(--border); width: 100%; height: 42px; border-radius: 8px; padding: 0 12px; font-family: inherit; font-size: 14px;">
+              <option value="claude-3-5-sonnet-latest">claude-3.5-sonnet (Recommended)</option>
+              <option value="claude-3-5-sonnet-20241022">claude-3.5-sonnet-v2</option>
+              <option value="claude-3-5-haiku-latest">claude-3.5-haiku</option>
+              <option value="claude-3-5-haiku-20241022">claude-3.5-haiku-v1</option>
+              <option value="claude-3-opus-latest">claude-3-opus</option>
+              <option value="claude-3-haiku-20240307">claude-3-haiku</option>
+              <option value="claude-2.1">claude-2.1</option>
+              <option value="claude-2.0">claude-2.0</option>
+              <option value="claude-instant-1.2">claude-instant-1.2</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Groq Cards -->
+        <div id="groq-key-card" class="api-key-card" style="display: none; border: 1px solid rgba(255,255,255,0.08); padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.02); margin-bottom: 20px;">
+          <div class="form-group" style="margin-bottom: 16px; position: relative;">
+            <label class="form-label" style="display: flex; align-items: center; gap: 6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="#eb5757" style="vertical-align: middle; flex-shrink: 0;"><path d="M19.5 2.5L3.5 12.5H11.5L9.5 21.5L20.5 10.5H12.5L19.5 2.5Z"/></svg>
+              Groq API Key
+            </label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input type="password" id="api-groq-key" class="form-input" placeholder="gsk_..." style="padding-right: 40px; width: 100%;" />
+              <button type="button" class="toggle-password-btn" style="position: absolute; right: 10px; background: none; border: none; color: var(--muted); cursor: pointer;">
+                <i class="far fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Model</label>
+            <select id="api-groq-model" class="form-input" style="background: var(--bg1); color: var(--fg); border: 1px solid var(--border); width: 100%; height: 42px; border-radius: 8px; padding: 0 12px; font-family: inherit; font-size: 14px;">
+              <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Recommended)</option>
+              <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+              <option value="llama-3.1-70b-versatile">llama-3.1-70b-versatile</option>
+              <option value="llama3-8b-8192">llama3-8b-8192</option>
+              <option value="llama3-70b-8192">llama3-70b-8192</option>
+              <option value="gemma2-9b-it">gemma2-9b-it</option>
+              <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+              <option value="deepseek-r1-distill-llama-70b">deepseek-r1-distill-llama-70b</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- OpenRouter Cards -->
+        <div id="openrouter-key-card" class="api-key-card" style="display: none; border: 1px solid rgba(255,255,255,0.08); padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.02); margin-bottom: 20px;">
+          <div class="form-group" style="margin-bottom: 16px; position: relative;">
+            <label class="form-label" style="display: flex; align-items: center; gap: 6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="#7c3aed" style="vertical-align: middle; flex-shrink: 0;"><path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.8l7.6 3.8v6.8L12 19.2l-7.6-3.8V8.6L12 4.8zm0 2.8c-2.4 0-4.4 2-4.4 4.4s2 4.4 4.4 4.4 4.4-2 4.4-4.4-2-4.4-4.4-4.4z"/></svg>
+              OpenRouter API Key
+            </label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input type="password" id="api-openrouter-key" class="form-input" placeholder="sk-or-..." style="padding-right: 40px; width: 100%;" />
+              <button type="button" class="toggle-password-btn" style="position: absolute; right: 10px; background: none; border: none; color: var(--muted); cursor: pointer;">
+                <i class="far fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Model</label>
+            <select id="api-openrouter-model" class="form-input" style="background: var(--bg1); color: var(--fg); border: 1px solid var(--border); width: 100%; height: 42px; border-radius: 8px; padding: 0 12px; font-family: inherit; font-size: 14px;">
+              <option value="meta-llama/llama-3.3-70b-instruct">llama-3.3-70b-instruct</option>
+              <option value="meta-llama/llama-3.1-8b-instruct:free">llama-3.1-8b-instruct:free</option>
+              <option value="meta-llama/llama-3.1-70b-instruct">llama-3.1-70b-instruct</option>
+              <option value="meta-llama/llama-3-8b-instruct:free">llama-3-8b-instruct:free</option>
+              <option value="deepseek/deepseek-chat">deepseek/deepseek-chat</option>
+              <option value="deepseek/deepseek-r1:free">deepseek/deepseek-r1:free</option>
+              <option value="deepseek/deepseek-r1">deepseek/deepseek-r1</option>
+              <option value="google/gemini-2.0-flash-exp:free">google/gemini-2.0-flash-exp:free</option>
+              <option value="google/gemma-2-9b-it:free">google/gemma-2-9b-it:free</option>
+              <option value="mistralai/mistral-7b-instruct:free">mistralai/mistral-7b-instruct:free</option>
+              <option value="qwen/qwen-2.5-72b-instruct">qwen/qwen-2.5-72b-instruct</option>
+              <option value="qwen/qwen-2-7b-instruct:free">qwen/qwen-2-7b-instruct:free</option>
+              <option value="anthropic/claude-3.5-sonnet">anthropic/claude-3.5-sonnet</option>
+              <option value="openai/gpt-4o">openai/gpt-4o</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Mistral Cards -->
+        <div id="mistral-key-card" class="api-key-card" style="display: none; border: 1px solid rgba(255,255,255,0.08); padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.02); margin-bottom: 20px;">
+          <div class="form-group" style="margin-bottom: 16px; position: relative;">
+            <label class="form-label" style="display: flex; align-items: center; gap: 6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="#ff7000" style="vertical-align: middle; flex-shrink: 0;"><path d="M2 4h4v12h4V8l4 6 4-6v8h4V4h-4l-4 6-4-6H2z"/></svg>
+              Mistral AI API Key
+            </label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input type="password" id="api-mistral-key" class="form-input" placeholder="Mistral API Key..." style="padding-right: 40px; width: 100%;" />
+              <button type="button" class="toggle-password-btn" style="position: absolute; right: 10px; background: none; border: none; color: var(--muted); cursor: pointer;">
+                <i class="far fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Model</label>
+            <select id="api-mistral-model" class="form-input" style="background: var(--bg1); color: var(--fg); border: 1px solid var(--border); width: 100%; height: 42px; border-radius: 8px; padding: 0 12px; font-family: inherit; font-size: 14px;">
+              <option value="mistral-large-latest">mistral-large-latest (Recommended)</option>
+              <option value="mistral-large-2411">mistral-large-2411</option>
+              <option value="mistral-large-2407">mistral-large-2407</option>
+              <option value="mistral-small-latest">mistral-small-latest</option>
+              <option value="mistral-small-2409">mistral-small-2409</option>
+              <option value="codestral-latest">codestral-latest</option>
+              <option value="open-mistral-nemo">open-mistral-nemo</option>
+              <option value="open-mixtral-8x22">open-mixtral-8x22</option>
+              <option value="open-mixtral-8x7b">open-mixtral-8x7b</option>
+              <option value="open-mistral-7b">open-mistral-7b</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn--secondary" id="api-settings-reset">Reset to Server Default</button>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn--secondary" id="api-settings-cancel">Cancel</button>
+          <button class="btn btn--mint" id="api-settings-save">Save Keys</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal System -->
+  <div id="modal-overlay" class="modal-overlay">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title">Modal Title</h3>
+        <button class="modal-close" id="modal-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- Dynamic content -->
+      </div>
+      <div class="modal-footer" id="modal-footer">
+        <!-- Dynamic buttons -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Jamendo Panel Backdrop Overlay -->
+  <div id="jamendo-panel-backdrop" class="jamendo-panel-backdrop"></div>
+
+  <!-- Jamendo Indie Slide Panel (Widescreen Spotify-Style Desktop Player) -->
+  <div id="jamendo-panel" class="jamendo-panel desktop-player">
+    
+    <!-- Top Windows-Style Header Bar -->
+    <div class="jamendo-window-header">
+      <div class="window-title"><i class="fas fa-music" style="color: var(--mint); margin-right: 6px;"></i> <span id="jamendo-panel-title-text">Music Player</span></div>
+      <button id="jamendo-panel-close" class="btn btn--ghost btn--icon window-close-btn" title="Close Panel" aria-label="Close Panel">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Main Player Workspace (Split Column Layout) -->
+    <div class="jamendo-player-workspace">
+      
+      <!-- Left Sidebar (Clean Empty Panel with Navigations) -->
+      <div class="jamendo-player-sidebar">
+        <!-- Spotify-style Brand Header -->
+        <div class="sidebar-brand">
+          <i class="fas fa-music"></i>
+          <span>Mint Music</span>
+        </div>
+
+        <!-- Vertical Navigation Menu -->
+        <div class="sidebar-nav">
+          <button class="sidebar-nav-item active" id="nav-item-home" title="Home">
+            <i class="fas fa-home"></i> <span>Home</span>
+          </button>
+          <button class="sidebar-nav-item" id="nav-item-library" title="Your Library">
+            <i class="fas fa-layer-group"></i> <span>Library</span>
+          </button>
+          <button class="sidebar-nav-item" id="nav-item-playlists" title="Playlists">
+            <i class="fas fa-list-ul"></i> <span>Playlists</span>
+          </button>
+        </div>
+
+        <div class="sidebar-divider"></div>
+        
+        <!-- Playlist header in sidebar -->
+        <div class="sidebar-playlist-section">
+          <span class="section-title">PLAYLISTS</span>
+          <button class="btn btn--ghost btn--icon add-playlist-btn" title="Create Playlist">
+            <i class="fas fa-plus"></i>
+          </button>
+        </div>
+
+        <!-- Curated Playlists List container -->
+        <div class="sidebar-playlists-list custom-scrollbar" id="sidebar-playlists-list"></div>
+      </div>
+
+      <!-- Right Main Content Area (Active Song Dashboard with Search & Floating Playbar) -->
+      <div class="jamendo-player-dashboard">
+        <!-- Premium Large Album Banner -->
+        <div class="dashboard-banner">
+          <img id="dashboard-large-cover" class="dashboard-large-cover animate-scale-in" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='200' height='200'%3E%3Crect width='100%25' height='100%25' fill='%231f2c3d'/%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z' fill='%2337e6b5'/%3E%3C/svg%3E" alt="Cover Art">
+          <div class="dashboard-banner-metadata">
+            <span class="dashboard-badge">NOW PLAYING</span>
+            <h1 id="dashboard-banner-title" class="animate-fade-in">No track selected</h1>
+            <p id="dashboard-banner-author" class="animate-fade-in">Search and select a song below to begin streaming.</p>
+          </div>
+        </div>
+
+        <!-- Search Box (Moved to wide-right column) -->
+        <div class="jamendo-search-box">
+          <i class="fas fa-search"></i>
+          <input type="text" id="jamendo-search-input" placeholder="Search mainstream tracks or artists..." autocomplete="off">
+          <button id="jamendo-search-clear" class="btn btn--clear" title="Clear search">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <!-- Search Option Filters (Tracks, Artists, Playlists) -->
+        <div class="search-filters">
+          <button class="filter-pill active" data-filter="tracks">Tracks</button>
+          <button class="filter-pill" data-filter="artists">Artists</button>
+          <button class="filter-pill" data-filter="playlists">Playlists</button>
+        </div>
+
+        <!-- Loading Spinner / Status -->
+        <div id="jamendo-status-msg" class="jamendo-status-msg" style="display: none;">
+          <i class="fas fa-spinner fa-spin"></i> Searching Mainstream Library...
+        </div>
+
+        <!-- Search Results List (Moved & Scrollable Queue) -->
+        <div id="jamendo-results-list" class="jamendo-results-list custom-scrollbar">
+          <div class="jamendo-empty-state">
+            <i class="fab fa-youtube" style="font-size: 32px; color: var(--mint); opacity: 0.15; margin-bottom: 8px;"></i>
+            <p>Search over millions of mainstream tracks!</p>
+          </div>
+        </div>
+
+        <!-- Floating Bottom Playbar Footer (Controls & Progress Bar nested on right-side bottom) -->
+        <div class="jamendo-player-footer">
+          <!-- Left Metadata -->
+          <div class="footer-left-meta">
+            <img id="jamendo-player-thumbnail" class="jamendo-player-thumbnail" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='40' height='40'%3E%3Crect width='100%25' height='100%25' fill='%231f2c3d'/%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z' fill='%2337e6b5'/%3E%3C/svg%3E" alt="Thumb">
+            <div class="footer-meta-texts">
+              <h4 id="jamendo-player-title">No track selected</h4>
+              <span id="jamendo-player-author">Search & select</span>
+            </div>
+          </div>
+
+          <!-- Center Controls & Scrubber -->
+          <div class="footer-center-controls">
+            <!-- Time Slider / Scrubber (Swapped to top) -->
+            <div class="jamendo-playback-bar">
+              <span id="jamendo-current-time" class="jamendo-time-label">0:00</span>
+              <div class="jamendo-progress-bar" id="jamendo-progress-bar">
+                <div class="jamendo-progress" id="jamendo-progress" style="width: 0%;"></div>
+              </div>
+              <span id="jamendo-duration" class="jamendo-time-label">0:00</span>
+            </div>
+            <!-- Play / Pause Controls (Swapped to bottom) -->
+            <div class="jamendo-player-controls">
+              <button id="jamendo-shuffle-btn" class="btn btn--control btn--shuffle" title="Toggle Shuffle">
+                <i class="fas fa-random"></i>
+              </button>
+              <button id="jamendo-prev-btn" class="btn btn--control btn--prev" title="Previous Track">
+                <i class="fas fa-step-backward"></i>
+              </button>
+              <button id="jamendo-play-btn" class="btn btn--primary btn--circle btn--play" title="Play">
+                <i class="fas fa-play"></i>
+              </button>
+              <button id="jamendo-next-btn" class="btn btn--control btn--next" title="Next Track">
+                <i class="fas fa-step-forward"></i>
+              </button>
+              <button id="jamendo-repeat-btn" class="btn btn--control btn--repeat" title="Toggle Repeat">
+                <i class="fas fa-redo"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Right Volume Bar -->
+          <div class="footer-right-volume">
+            <div class="jamendo-volume-control">
+              <i class="fas fa-volume-up" id="jamendo-volume-icon" style="color: var(--muted); font-size: 13px;"></i>
+              <div class="jamendo-volume-bar" id="jamendo-volume-bar">
+                <div class="jamendo-volume-level" id="jamendo-volume-level" style="width: 80%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Native Audio Player (Unrestricted browser streaming) -->
+  <audio id="music-audio-player" style="display: none;"></audio>
+
+  <script src="{{ url_for('static', filename='app.js', v='1.0.2') }}"></script>
+  <script src="{{ url_for('static', filename='music_player.js', v='1.0.2') }}"></script>
+
+  <script>
+    // Global fetch interceptor to handle deactivation instantly
+    (function() {
+      const originalFetch = window.fetch;
+      window.fetch = async function(...args) {
+        try {
+          const response = await originalFetch(...args);
+          if (response.status === 403) {
+            const clone = response.clone();
+            try {
+              const body = await clone.json();
+              if (body.error && body.error.toLowerCase().includes('deactivated')) {
+                if (typeof showToast === 'function') {
+                  showToast(body.error, 'error');
+                }
+                setTimeout(() => {
+                  window.location.href = '/login?error=deactivated';
+                }, 2000);
+              }
+            } catch (e) {}
+          }
+          return response;
+        } catch (err) {
+          throw err;
+        }
+      };
+    })();
+
+    // Site-wide Global Announcement Banner Dynamic Loader
+    window.addEventListener('DOMContentLoaded', async () => {
+      // --- Nav Tab Switching ---
+      document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+          e.preventDefault();
+          document.querySelectorAll('.nav-tab').forEach(t => { t.classList.remove('active-tab'); t.removeAttribute('aria-current'); });
+          tab.classList.add('active-tab');
+          tab.setAttribute('aria-current', 'page');
+          const targetId = tab.dataset.tab;
+          document.querySelectorAll('#tab-home, #tab-chat').forEach(el => el.classList.remove('active-tab-content'));
+          const target = document.getElementById(targetId);
+          if (target) target.classList.add('active-tab-content');
+        });
+      });
+
+      try {
+        const res = await fetch('/api/announcement');
+        const data = await res.json();
+        
+        // Disable Music player if disabled by admin in settings
+        if (data.enable_music === false) {
+          const musicBtn = document.getElementById('jamendo-btn');
+          if (musicBtn) {
+            musicBtn.style.display = 'none';
+          }
+        }
+        
+        if (data.announcement && data.announcement.trim() !== '') {
+          const shell = document.querySelector('.shell');
+          if (shell) {
+            const banner = document.createElement('div');
+            banner.className = 'panel glass announcement-banner-card';
+            banner.style.cssText = `
+              background: rgba(55, 230, 181, 0.08);
+              border: 1px solid rgba(55, 230, 181, 0.25);
+              border-radius: var(--radius-lg);
+              padding: 16px 20px;
+              margin-bottom: 24px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              box-shadow: 0 4px 20px rgba(55, 230, 181, 0.08);
+            `;
+            
+            banner.innerHTML = `
+              <div style="display: flex; align-items: center; gap: 14px; text-align: left;">
+                <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(55, 230, 181, 0.12); display: flex; align-items: center; justify-content: center; color: var(--mint); flex-shrink: 0;">
+                  <i class="fas fa-bullhorn"></i>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="font-size: 10px; font-weight: 700; color: var(--mint); text-transform: uppercase; letter-spacing: 0.5px;">Global Announcement</span>
+                  <span style="font-size: 13px; font-weight: 500; color: var(--fg); line-height: 1.4;">${data.announcement}</span>
+                </div>
+              </div>
+              <button onclick="this.parentElement.remove()" class="btn btn--ghost btn--icon" style="width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; color: var(--muted); cursor: pointer; transition: all 0.2s;">
+                <i class="fas fa-times"></i>
+              </button>
+            `;
+            
+            shell.insertBefore(banner, shell.firstChild);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load global broadcast: ", e);
+      }
+
+      // --- Global Notifications Dropdown Logic ---
+      const notificationBtn = document.getElementById('notification-btn');
+      const notificationDropdown = document.getElementById('notification-dropdown');
+      const notificationBadge = document.getElementById('notification-badge-el');
+      const notificationListContainer = document.getElementById('notification-list-container');
+      const clearNotificationsBtn = document.getElementById('clear-notifications-btn');
+
+      if (notificationBtn && notificationDropdown) {
+        let announcementsList = [];
+
+        function getReadIds() {
+          try {
+            const val = localStorage.getItem('read_announcements');
+            return val ? JSON.parse(val) : [];
+          } catch (e) {
+            return [];
+          }
+        }
+
+        function saveReadIds(ids) {
+          try {
+            localStorage.setItem('read_announcements', JSON.stringify(ids));
+          } catch (e) {}
+        }
+
+        function updateNotificationBadge() {
+          const readIds = getReadIds();
+          const unreadCount = announcementsList.filter(item => !readIds.includes(item.id)).length;
+          if (unreadCount > 0) {
+            notificationBadge.textContent = unreadCount;
+            notificationBadge.style.display = 'flex';
+          } else {
+            notificationBadge.style.display = 'none';
+          }
+        }
+
+        function renderAnnouncements() {
+          if (!notificationListContainer) return;
+          if (announcementsList.length === 0) {
+            notificationListContainer.innerHTML = '<div class="notification-empty">No announcements yet</div>';
+            return;
+          }
+          
+          const readIds = getReadIds();
+          notificationListContainer.innerHTML = '';
+          
+          announcementsList.forEach(item => {
+            const isUnread = !readIds.includes(item.id);
+            const itemEl = document.createElement('div');
+            itemEl.className = `notification-item${isUnread ? ' unread' : ''}`;
+            
+            let timeStr = '';
+            try {
+              const dateVal = new Date(item.created_at.replace(' ', 'T') + 'Z');
+              timeStr = dateVal.toLocaleString();
+            } catch (e) {
+              timeStr = item.created_at;
+            }
+
+            itemEl.innerHTML = `
+              <div class="notification-item__time">
+                <span>Announcement</span>
+                <span>${timeStr}</span>
+              </div>
+              <div class="notification-item__content">${item.content}</div>
+            `;
+            
+            itemEl.addEventListener('click', (e) => {
+              e.stopPropagation();
+              itemEl.classList.toggle('expanded');
+            });
+            
+            notificationListContainer.appendChild(itemEl);
+          });
+        }
+
+        function markAllAsRead() {
+          const readIds = getReadIds();
+          const allIds = announcementsList.map(item => item.id);
+          const newReadIds = Array.from(new Set([...readIds, ...allIds]));
+          saveReadIds(newReadIds);
+          updateNotificationBadge();
+          
+          const items = notificationListContainer.querySelectorAll('.notification-item');
+          items.forEach(el => el.classList.remove('unread'));
+        }
+
+        async function fetchAnnouncements() {
+          try {
+            const res = await fetch('/api/announcements');
+            if (!res.ok) return;
+            const data = await res.json();
+            announcementsList = data.history || [];
+            updateNotificationBadge();
+            renderAnnouncements();
+          } catch (e) {
+            console.error('Error fetching announcements history:', e);
+          }
+        }
+
+        notificationBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          notificationDropdown.classList.toggle('show');
+          if (notificationDropdown.classList.contains('show')) {
+            markAllAsRead();
+          }
+        });
+
+        if (clearNotificationsBtn) {
+          clearNotificationsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            markAllAsRead();
+          });
+        }
+
+        const deleteAllNotificationsBtn = document.getElementById('delete-all-notifications-btn');
+        if (deleteAllNotificationsBtn) {
+          deleteAllNotificationsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            announcementsList = [];
+            localStorage.removeItem('read_announcements');
+            updateNotificationBadge();
+            if (notificationListContainer) {
+              notificationListContainer.innerHTML = '<div class="notification-empty">No announcements yet</div>';
+            }
+          });
+        }
+
+        document.addEventListener('click', (e) => {
+          if (!notificationDropdown.contains(e.target) && e.target !== notificationBtn && !notificationBtn.contains(e.target)) {
+            notificationDropdown.classList.remove('show');
+          }
+        });
+
+        // Initialize and setup polling
+        fetchAnnouncements();
+        setInterval(fetchAnnouncements, 10000);
+
+        // Live heartbeat & page close unload signal
+        function sendLiveHeartbeat() {
+          fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
+        }
+        sendLiveHeartbeat();
+        setInterval(sendLiveHeartbeat, 5000);
+
+        window.addEventListener('beforeunload', () => {
+          navigator.sendBeacon('/api/unload');
+        });
+
+        // ── ACCOUNT & INTEGRATIONS DRAWER CONTROLLER ──
+        const accountDrawer = document.getElementById('account-drawer');
+        const accountDrawerOverlay = document.getElementById('account-drawer-overlay');
+        const accountDrawerClose = document.getElementById('account-drawer-close');
+        const profileAccountBtn = document.getElementById('profile-account-btn');
+
+        async function refreshIntegrations() {
+          try {
+            const resp = await fetch('/api/user/integrations');
+            const data = await resp.json();
+            if (data.success) {
+              const ints = data.integrations;
+              
+              // Google
+              const gStatus = document.getElementById('int-google-status');
+              const gBtn = document.getElementById('int-google-btn');
+              if (ints.google.connected) {
+                gStatus.textContent = "Connected";
+                gStatus.style.color = "var(--mint)";
+                gBtn.textContent = "Disconnect";
+                gBtn.className = "btn btn--ghost btn--xs btn--danger";
+                gBtn.onclick = () => toggleIntegration('google', 'disconnect');
+              } else {
+                gStatus.textContent = "Disconnected";
+                gStatus.style.color = "var(--muted)";
+                gBtn.textContent = "Connect";
+                gBtn.className = "btn btn--ghost btn--xs";
+                gBtn.onclick = () => connectGoogle();
+              }
+
+              // Drive
+              const dStatus = document.getElementById('int-drive-status');
+              const dBtn = document.getElementById('int-drive-btn');
+              if (ints.google_drive.connected) {
+                dStatus.textContent = "Connected";
+                dStatus.style.color = "var(--mint)";
+                dBtn.textContent = "Disconnect";
+                dBtn.className = "btn btn--ghost btn--xs btn--danger";
+                dBtn.onclick = () => toggleIntegration('google_drive', 'disconnect');
+              } else {
+                dStatus.textContent = "Disconnected";
+                dStatus.style.color = "var(--muted)";
+                dBtn.textContent = "Connect";
+                dBtn.className = "btn btn--ghost btn--xs";
+                dBtn.onclick = () => toggleIntegration('google_drive', 'connect');
+              }
+
+              // Calendar
+              const cStatus = document.getElementById('int-calendar-status');
+              const cBtn = document.getElementById('int-calendar-btn');
+              if (ints.google_calendar.connected) {
+                cStatus.textContent = "Connected";
+                cStatus.style.color = "var(--mint)";
+                cBtn.textContent = "Disconnect";
+                cBtn.className = "btn btn--ghost btn--xs btn--danger";
+                cBtn.onclick = () => toggleIntegration('google_calendar', 'disconnect');
+              } else {
+                cStatus.textContent = "Disconnected";
+                cStatus.style.color = "var(--muted)";
+                cBtn.textContent = "Connect";
+                cBtn.className = "btn btn--ghost btn--xs";
+                cBtn.onclick = () => toggleIntegration('google_calendar', 'connect');
+              }
+
+              // Location
+              const lStatus = document.getElementById('int-location-status');
+              const lBtn = document.getElementById('int-location-btn');
+              if (ints.location.connected) {
+                lStatus.textContent = "Active";
+                lStatus.style.color = "var(--mint)";
+                lBtn.textContent = "Disable";
+                lBtn.className = "btn btn--ghost btn--xs btn--danger";
+                lBtn.onclick = () => toggleIntegration('location', 'disconnect');
+              } else {
+                lStatus.textContent = "Inactive";
+                lStatus.style.color = "var(--muted)";
+                lBtn.textContent = "Enable";
+                lBtn.className = "btn btn--ghost btn--xs";
+                lBtn.onclick = () => enableLocation();
+              }
+            }
+          } catch (e) {
+            console.error("Failed to load integrations", e);
+          }
+        }
+
+        // Header avatar initialized globally in <head> script
+
+        async function toggleIntegration(provider, action, value = 'active') {
+          try {
+            const resp = await fetch('/api/user/integrations/toggle', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ provider, action, value })
+            });
+            const data = await resp.json();
+            if (data.success) {
+              if (typeof showToast === 'function') {
+                showToast(`${provider} integration updated!`);
+              }
+              refreshIntegrations();
+            } else {
+              if (typeof showToast === 'function') {
+                showToast(data.error || "Integration update failed", 'error');
+              }
+            }
+          } catch (e) {
+            if (typeof showToast === 'function') {
+              showToast("Integration toggle request error", 'error');
+            }
+          }
+        }
+
+        function connectGoogle() {
+          const width = 500;
+          const height = 650;
+          const left = (window.screen.width / 2) - (width / 2);
+          const top = (window.screen.height / 2) - (height / 2);
+          
+          const popup = window.open('/api/google/auth', 'GoogleAuthPopup', `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`);
+          
+          const handleAuthMessage = (event) => {
+            if (event.data && event.data.type === 'google_auth_success') {
+              window.removeEventListener('message', handleAuthMessage);
+              if (typeof showToast === 'function') showToast("Linked Google account successfully!");
+              refreshIntegrations();
+            }
+          };
+          window.addEventListener('message', handleAuthMessage);
+        }
+
+        function enableLocation() {
+          if (!navigator.geolocation) {
+            if (typeof showToast === 'function') showToast("Geolocation is not supported by your browser", 'error');
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const lat = position.coords.latitude;
+              const lon = position.coords.longitude;
+              toggleIntegration('location', 'connect', `${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+            },
+            (error) => {
+              if (typeof showToast === 'function') showToast("Location permission denied", 'error');
+            }
+          );
+        }
+
+        // ── MFA DRAWER CONTROLLER ──
+        const mfaDrawer = document.getElementById('mfa-drawer');
+        const mfaDrawerOverlay = document.getElementById('mfa-drawer-overlay');
+        const mfaDrawerClose = document.getElementById('mfa-drawer-close');
+        const profileMfaBtn = document.getElementById('profile-mfa-btn');
+
+        function openMfaDrawer() {
+          mfaDrawerOverlay.classList.add('show');
+          mfaDrawer.classList.add('show');
+          refreshMfaStatus();
+        }
+
+        function closeMfaDrawer() {
+          mfaDrawerOverlay.classList.remove('show');
+          mfaDrawer.classList.remove('show');
+          document.getElementById('mfa-totp-setup-container').style.display = 'none';
+          document.getElementById('mfa-enable-totp-btn').style.display = 'block';
+        }
+
+        if (profileMfaBtn) {
+          profileMfaBtn.addEventListener('click', () => {
+            const dropdown = document.getElementById('profile-dropdown');
+            if (dropdown) dropdown.style.display = 'none';
+            openMfaDrawer();
+          });
+        }
+
+        if (mfaDrawerClose) mfaDrawerClose.addEventListener('click', closeMfaDrawer);
+        if (mfaDrawerOverlay) mfaDrawerOverlay.addEventListener('click', closeMfaDrawer);
+
+        // Tab Switching Logic
+        const tabPasskeyBtn = document.getElementById('tab-passkey-btn');
+        const tabTotpBtn = document.getElementById('tab-totp-btn');
+        const mfaSlidingPill = document.getElementById('mfa-sliding-pill');
+        const mfaPasskeySection = document.getElementById('mfa-passkey-section');
+        const mfaTotpSection = document.getElementById('mfa-totp-section');
+
+        tabPasskeyBtn.addEventListener('click', () => {
+          tabPasskeyBtn.classList.add('active');
+          tabTotpBtn.classList.remove('active');
+          mfaSlidingPill.style.transform = 'translateX(0)';
+          mfaPasskeySection.classList.add('active');
+          mfaTotpSection.classList.remove('active');
+        });
+
+        tabTotpBtn.addEventListener('click', () => {
+          tabTotpBtn.classList.add('active');
+          tabPasskeyBtn.classList.remove('active');
+          mfaSlidingPill.style.transform = 'translateX(100%)';
+          mfaTotpSection.classList.add('active');
+          mfaPasskeySection.classList.remove('active');
+        });
+
+
+
+        // API Requests: Refresh lists
+        async function refreshMfaStatus() {
+          try {
+            const resp = await fetch('/api/mfa/status');
+            if (!resp.ok) return;
+            const data = await resp.json();
+
+            // Render Passkeys
+            const passkeyContainer = document.getElementById('mfa-passkeys-list');
+            if (passkeyContainer) {
+              if (data.passkeys.length === 0) {
+                passkeyContainer.innerHTML = '<div style="font-size: 0.8rem; opacity: 0.5; padding: 10px 0;">No passkeys registered yet.</div>';
+              } else {
+                passkeyContainer.innerHTML = data.passkeys.map(k => {
+                  const dateStr = new Date(k.created_at + (k.created_at.endsWith('Z') ? '' : 'Z')).toLocaleDateString();
+                  return `
+                    <div class="mfa-list-item">
+                      <div class="mfa-item-info">
+                        <span class="mfa-item-title"><i class="fas fa-key" style="margin-right: 6px; color: var(--mint);"></i> ${k.key_name}</span>
+                        <span class="mfa-item-date">Created on ${dateStr}</span>
+                      </div>
+                      <button class="mfa-delete-btn" onclick="deletePasskey(${k.id})" title="Delete passkey"><i class="fas fa-trash-alt"></i></button>
+                    </div>
+                  `;
+                }).join('');
+              }
+            }
+
+            // Render Authenticators
+            const totpContainer = document.getElementById('mfa-totp-list');
+            if (totpContainer) {
+              if (data.authenticators.length === 0) {
+                totpContainer.innerHTML = '<div style="font-size: 0.8rem; opacity: 0.5; padding: 10px 0;">No authenticator apps linked.</div>';
+              } else {
+                totpContainer.innerHTML = data.authenticators.map(a => {
+                  const dateStr = new Date(a.created_at + (a.created_at.endsWith('Z') ? '' : 'Z')).toLocaleDateString();
+                  return `
+                    <div class="mfa-list-item">
+                      <div class="mfa-item-info">
+                        <span class="mfa-item-title"><i class="fas fa-mobile-alt" style="margin-right: 6px; color: var(--mint);"></i> ${a.device_name}</span>
+                        <span class="mfa-item-date">Enabled on ${dateStr}</span>
+                      </div>
+                      <button class="mfa-delete-btn" onclick="deleteTotp(${a.id})" title="Remove authenticator"><i class="fas fa-trash-alt"></i></button>
+                    </div>
+                  `;
+                }).join('');
+              }
+            }
+          } catch (e) {
+            console.error("MFA sync error:", e);
+          }
+        }
+
+        // WebAuthn Passkey Registration Handler
+        const registerPasskeyBtn = document.getElementById('mfa-register-passkey-btn');
+        if (registerPasskeyBtn) {
+          registerPasskeyBtn.addEventListener('click', async () => {
+            const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(window.location.hostname) || window.location.hostname === '[::1]' || window.location.hostname.includes(':');
+            if (isIP) {
+              const isLoopback = window.location.hostname === '127.0.0.1' || window.location.hostname === '[::1]' || window.location.hostname === 'localhost';
+              if (window.location.hostname === '127.0.0.1' || window.location.hostname === '[::1]') {
+                const accept = await customConfirm("WebAuthn Passkeys do not support IP addresses (127.0.0.1) in modern browsers. Redirect to http://localhost:5001/ to register and use passkeys?");
+                if (accept) {
+                  window.location.href = window.location.href.replace(window.location.hostname, 'localhost');
+                  return;
+                }
+                return;
+              } else {
+                await customAlert("WebAuthn Passkeys do not support IP address access. Please run the server and access it via a domain name (or http://localhost:5001/).");
+                return;
+              }
+            }
+
+            const keyName = await customPrompt("Enter a name for this Passkey:", "My Device Passkey");
+            if (keyName === null) return;
+            const name = keyName.trim() || "My Passkey";
+
+            try {
+              // 1. Get creation options from server
+              const optionsResp = await fetch('/api/mfa/passkey/register/options', { method: 'POST' });
+              if (!optionsResp.ok) throw new Error("Failed to load passkey options");
+              const options = await optionsResp.json();
+
+              // Convert base64 challenge and user ID to ArrayBuffer
+              options.challenge = Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0));
+              options.user.id = Uint8Array.from(atob(options.user.id), c => c.charCodeAt(0));
+
+              // 2. Call navigator.credentials.create
+              if (!navigator.credentials || !navigator.credentials.create) {
+                throw new Error("WebAuthn is not supported by your browser or in non-secure local environment.");
+              }
+
+              const credential = await navigator.credentials.create({ publicKey: options });
+              
+              // 3. Verify on server
+              const verifyResp = await fetch('/api/mfa/passkey/register/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  key_name: name,
+                  credential_id: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
+                  public_key: 'mock_public_key'
+                })
+              });
+
+              const res = await verifyResp.json();
+              if (res.success) {
+                if (typeof showToast === 'function') showToast("Passkey registered successfully!", 'success');
+                refreshMfaStatus();
+              } else {
+                throw new Error(res.error || "Verification failed");
+              }
+            } catch (err) {
+              console.error(err);
+              if (typeof showToast === 'function') showToast(err.message || "Passkey registration failed", 'error');
+            }
+          });
+        }
+
+        // Delete Passkey Handler
+        window.deletePasskey = async function(id) {
+          const accept = await customConfirm("Are you sure you want to revoke this Passkey? You will not be able to log in with it.");
+          if (!accept) return;
+          try {
+            const resp = await fetch('/api/mfa/passkey/delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id })
+            });
+            const res = await resp.json();
+            if (res.success) {
+              if (typeof showToast === 'function') showToast("Passkey revoked successfully", 'success');
+              refreshMfaStatus();
+            } else {
+              if (typeof showToast === 'function') showToast(res.error || "Failed to delete passkey", 'error');
+            }
+          } catch (e) {
+            if (typeof showToast === 'function') showToast("Failed to delete passkey", 'error');
+          }
+        };
+
+        // TOTP App Authenticator Setup
+        const enableTotpBtn = document.getElementById('mfa-enable-totp-btn');
+        const totpSetupContainer = document.getElementById('mfa-totp-setup-container');
+        const totpCancelBtn = document.getElementById('mfa-totp-cancel-btn');
+
+        if (enableTotpBtn) {
+          enableTotpBtn.addEventListener('click', async () => {
+            try {
+              const resp = await fetch('/api/mfa/totp/setup', { method: 'POST' });
+              if (!resp.ok) throw new Error("Failed to initiate TOTP setup");
+              const data = await resp.json();
+
+              document.getElementById('mfa-totp-secret-txt').value = data.secret;
+              document.getElementById('mfa-totp-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(data.otpauth_url)}`;
+              
+              enableTotpBtn.style.display = 'none';
+              totpSetupContainer.style.display = 'block';
+              document.getElementById('mfa-totp-code-input').value = '';
+              document.getElementById('mfa-totp-code-input').focus();
+            } catch (e) {
+              if (typeof showToast === 'function') showToast(e.message || "Failed to initiate TOTP setup", 'error');
+            }
+          });
+        }
+
+        if (totpCancelBtn) {
+          totpCancelBtn.addEventListener('click', () => {
+            totpSetupContainer.style.display = 'none';
+            enableTotpBtn.style.display = 'block';
+          });
+        }
+
+        // Copy Secret Key
+        const totpCopyBtn = document.getElementById('mfa-totp-copy-btn');
+        if (totpCopyBtn) {
+          totpCopyBtn.addEventListener('click', () => {
+            const secretInput = document.getElementById('mfa-totp-secret-txt');
+            secretInput.select();
+            document.execCommand('copy');
+            if (typeof showToast === 'function') showToast("Secret key copied to clipboard!", 'success');
+          });
+        }
+
+        // Verify & Enable App Authenticator
+        const totpVerifyBtn = document.getElementById('mfa-totp-verify-btn');
+        if (totpVerifyBtn) {
+          totpVerifyBtn.addEventListener('click', async () => {
+            const codeInput = document.getElementById('mfa-totp-code-input');
+            const code = codeInput.value.trim();
+            if (code.length !== 6 || isNaN(code)) {
+              if (typeof showToast === 'function') showToast("Please enter a valid 6-digit code", 'warning');
+              return;
+            }
+
+            const deviceName = await customPrompt("Enter a name for this Authenticator device:", "My Authenticator App");
+            if (deviceName === null) return;
+            const devName = deviceName.trim() || "Authenticator App";
+
+            try {
+              const resp = await fetch('/api/mfa/totp/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, device_name: devName })
+              });
+              
+              const res = await resp.json();
+              if (res.success) {
+                if (typeof showToast === 'function') showToast("App Authenticator enabled successfully!", 'success');
+                totpSetupContainer.style.display = 'none';
+                enableTotpBtn.style.display = 'block';
+                refreshMfaStatus();
+              } else {
+                throw new Error(res.error || "Verification failed");
+              }
+            } catch (e) {
+              if (typeof showToast === 'function') showToast(e.message || "Verification failed", 'error');
+            }
+          });
+        }
+
+        // Delete Authenticator
+        window.deleteTotp = async function(id) {
+          const accept = await customConfirm("Are you sure you want to disable this App Authenticator? You will not be able to log in with it.");
+          if (!accept) return;
+          try {
+            const resp = await fetch('/api/mfa/totp/delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id })
+            });
+            const res = await resp.json();
+            if (res.success) {
+              if (typeof showToast === 'function') showToast("App Authenticator disabled successfully", 'success');
+              refreshMfaStatus();
+            } else {
+              if (typeof showToast === 'function') showToast(res.error || "Failed to remove authenticator", 'error');
+            }
+          } catch (e) {
+            if (typeof showToast === 'function') showToast("Failed to remove authenticator", 'error');
+          }
+        };
+      }
+    });
+  </script>
+
+  <!-- ACCOUNT & INTEGRATIONS DRAWER DEPRECATED - HANDLED BY UNIFIED MODAL IN APP.JS -->
+
+  <!-- MFA Sliding Drawer Overlay & Panel -->
+  <div class="mfa-drawer-overlay" id="mfa-drawer-overlay"></div>
+  <div class="mfa-drawer" id="mfa-drawer">
+    <div class="mfa-drawer__header">
+      <h3 class="mfa-drawer__title">
+        <i class="fas fa-shield-alt" style="color: var(--mint);"></i> Multi-Factor Auth
+      </h3>
+      <button class="mfa-drawer__close" id="mfa-drawer-close">&times;</button>
+    </div>
+    
+    <div class="mfa-drawer__body">
+      <!-- Premium Switcher -->
+      <div class="mfa-tabs-switcher">
+        <div class="sliding-pill" id="mfa-sliding-pill"></div>
+        <button class="mfa-tab-btn active" id="tab-passkey-btn">
+          <i class="fas fa-key"></i> Passkeys
+        </button>
+        <button class="mfa-tab-btn" id="tab-totp-btn">
+          <i class="fas fa-mobile-alt"></i> Authenticator
+        </button>
+      </div>
+
+      <!-- Passkeys Tab -->
+      <div class="mfa-tab-content active" id="mfa-passkey-section">
+        <p style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5; margin-bottom: 20px;">
+          Passkeys allow you to log in securely using your device credentials (biometrics, PIN, or hardware security keys) via WebAuthn.
+        </p>
+        
+        <button class="btn btn--mint" id="mfa-register-passkey-btn" style="width: 100%; height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--radius-md); font-weight: 600;">
+          <i class="fas fa-plus-circle"></i> Register New Passkey
+        </button>
+
+        <h4 style="margin: 24px 0 10px 0; font-size: 0.9rem; font-weight: 600;">Your Registered Passkeys</h4>
+        <div class="mfa-list" id="mfa-passkeys-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- App Authenticator Tab -->
+      <div class="mfa-tab-content" id="mfa-totp-section">
+        <p style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5; margin-bottom: 20px;">
+          Use an authenticator app (like Google Authenticator or Authy) to generate 6-digit verification codes.
+        </p>
+
+        <!-- Setup steps (initially hidden, shown on click) -->
+        <div id="mfa-totp-setup-container" style="display: none; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 16px; border-radius: var(--radius-md); margin-bottom: 20px;">
+          <h5 style="margin: 0 0 12px 0; color: var(--mint); font-weight: 600;">Set up Authenticator</h5>
+          
+          <div style="text-align: center; margin-bottom: 16px;">
+            <p style="font-size: 0.8rem; text-align: left; margin: 0 0 10px 0;">1. Scan this QR Code in your app:</p>
+            <img id="mfa-totp-qr" src="" alt="Scan QR Code" style="background: white; padding: 10px; border-radius: 8px; width: 140px; height: 140px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" />
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <p style="font-size: 0.8rem; margin: 0 0 6px 0;">Or enter this secret key manually:</p>
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="mfa-totp-secret-txt" readonly class="input" style="flex: 1; font-family: 'Fira Code', monospace; font-size: 0.85rem; height: 36px; padding: 0 8px; border-radius: 6px; text-align: center;" />
+              <button id="mfa-totp-copy-btn" class="btn btn--secondary" style="padding: 0 10px; height: 36px; border-radius: 6px;" title="Copy to clipboard"><i class="fas fa-copy"></i></button>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <p style="font-size: 0.8rem; margin: 0 0 6px 0;">2. Enter the 6-digit code shown in your app:</p>
+            <input type="text" id="mfa-totp-code-input" placeholder="e.g. 123456" class="input" style="text-align: center; font-size: 1.1rem; letter-spacing: 0.1em; height: 40px; border-radius: 8px; font-weight: 600;" maxlength="6" />
+          </div>
+          
+          <div style="display: flex; gap: 8px;">
+            <button id="mfa-totp-verify-btn" class="btn btn--mint" style="flex: 2; height: 36px; border-radius: 6px;">Verify & Enable</button>
+            <button id="mfa-totp-cancel-btn" class="btn btn--secondary" style="flex: 1; height: 36px; border-radius: 6px;">Cancel</button>
+          </div>
+        </div>
+
+        <button class="btn btn--mint" id="mfa-enable-totp-btn" style="width: 100%; height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--radius-md); font-weight: 600;">
+          <i class="fas fa-mobile"></i> Set Up Authenticator App
+        </button>
+
+        <h4 style="margin: 24px 0 10px 0; font-size: 0.9rem; font-weight: 600;">Your Registered Authenticators</h4>
+        <div class="mfa-list" id="mfa-totp-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email Composer Modal -->
+  <div class="mfa-drawer-overlay" id="email-modal-overlay"></div>
+  <div class="mfa-drawer" id="email-modal" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.95); opacity: 0; pointer-events: none; z-index: 10000; transition: all 0.3s ease; width: 600px; max-width: 90vw; border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column;">
+    <div class="mfa-drawer__header" style="background: rgba(15, 22, 32, 0.95); border-bottom: 1px solid var(--border); padding: 15px 20px;">
+      <h3 class="mfa-drawer__title" style="font-size: 1.1rem; color: var(--fg); margin: 0; display: flex; align-items: center; gap: 8px;">
+        <i class="fas fa-envelope" style="color: var(--mint);"></i> New Message
+      </h3>
+      <button class="mfa-drawer__close" id="email-modal-close" style="color: var(--muted); background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+    </div>
+    <div class="mfa-drawer__body" style="padding: 20px; background: var(--bg-0); flex: 1; display: flex; flex-direction: column; gap: 15px;">
+      <div style="display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <span style="color: var(--muted); font-size: 0.9rem; width: 60px;">From</span>
+        <input type="email" id="email-from" placeholder="Your email address (for replies)..." style="flex: 1; background: transparent; border: none; color: var(--fg); font-size: 0.95rem; outline: none;" />
+      </div>
+      <div style="display: flex; gap: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+          <span style="color: var(--muted); font-size: 0.9rem; width: 60px;">Category</span>
+          <select id="email-category" style="flex: 1; background: var(--bg-1); border: 1px solid var(--border); color: var(--fg); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 0.9rem; outline: none; cursor: pointer; border-color: rgba(255,255,255,0.1);">
+            <option value="General">General Inquiry</option>
+            <option value="Technical">Technical Issue</option>
+            <option value="Billing">Billing & Account</option>
+            <option value="Feedback">Feedback / Suggestions</option>
+          </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+          <span style="color: var(--muted); font-size: 0.9rem; width: 60px;">Priority</span>
+          <select id="email-priority" style="flex: 1; background: var(--bg-1); border: 1px solid var(--border); color: var(--fg); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 0.9rem; outline: none; cursor: pointer; border-color: rgba(255,255,255,0.1);">
+            <option value="Low">Low</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="High">High</option>
+          </select>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <span style="color: var(--muted); font-size: 0.9rem; width: 60px;">Subject</span>
+        <input type="text" id="email-subject" placeholder="What is this regarding?" style="flex: 1; background: transparent; border: none; color: var(--fg); font-size: 0.95rem; outline: none;" />
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; min-height: 250px;">
+        <textarea id="email-body" placeholder="Write your message here..." style="flex: 1; background: transparent; border: none; color: var(--fg); font-size: 0.95rem; resize: none; outline: none; padding-top: 10px;"></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-start; gap: 10px; margin-top: 10px; padding-top: 15px; border-top: 1px solid var(--border);">
+        <button class="btn btn--mint" id="email-send-btn" style="padding: 0 24px; height: 40px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+          <i class="fas fa-paper-plane"></i> Send
+        </button>
+        <button class="btn btn--secondary" id="email-discard-btn" style="padding: 0 20px; height: 40px;">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Email Modal Logic
+    document.addEventListener('DOMContentLoaded', () => {
+      const openEmailBtn = document.getElementById('open-email-modal-btn');
+      const emailModal = document.getElementById('email-modal');
+      const emailOverlay = document.getElementById('email-modal-overlay');
+      const closeEmailBtn = document.getElementById('email-modal-close');
+      const discardEmailBtn = document.getElementById('email-discard-btn');
+      const sendEmailBtn = document.getElementById('email-send-btn');
+
+      function openEmail() {
+        emailOverlay.style.opacity = '1';
+        emailOverlay.style.pointerEvents = 'auto';
+        emailModal.style.opacity = '1';
+        emailModal.style.pointerEvents = 'auto';
+        emailModal.style.transform = 'translate(-50%, -50%) scale(1)';
+      }
+
+      function closeEmail() {
+        emailOverlay.style.opacity = '0';
+        emailOverlay.style.pointerEvents = 'none';
+        emailModal.style.opacity = '0';
+        emailModal.style.pointerEvents = 'none';
+        emailModal.style.transform = 'translate(-50%, -50%) scale(0.95)';
+      }
+
+      if (openEmailBtn) openEmailBtn.addEventListener('click', (e) => { e.preventDefault(); openEmail(); });
+      if (closeEmailBtn) closeEmailBtn.addEventListener('click', closeEmail);
+      if (emailOverlay) emailOverlay.addEventListener('click', closeEmail);
+      if (discardEmailBtn) discardEmailBtn.addEventListener('click', async () => {
+        const accept = await customConfirm("Discard message?");
+        if (accept) {
+          document.getElementById('email-subject').value = '';
+          document.getElementById('email-body').value = '';
+          closeEmail();
+        }
+      });
+      if (sendEmailBtn) sendEmailBtn.addEventListener('click', async () => {
+        const sender = document.getElementById('email-from').value;
+        const subject = document.getElementById('email-subject').value;
+        const body = document.getElementById('email-body').value;
+        const category = document.getElementById('email-category').value;
+        const priority = document.getElementById('email-priority').value;
+        if (!sender.trim() || !sender.includes('@')) {
+          if(typeof showToast === 'function') showToast('Please enter a valid email address.', 'error');
+          return;
+        }
+        if (!body.trim()) {
+          if(typeof showToast === 'function') showToast('Please write a message before sending.', 'error');
+          return;
+        }
+
+        sendEmailBtn.disabled = true;
+        sendEmailBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+        try {
+          const res = await fetch('/api/support/send', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ sender, subject, message: body, category, priority })
+          });
+          const data = await res.json();
+          if(res.ok) {
+            if(typeof showToast === 'function') showToast('Message successfully sent! A receipt has been sent to your email.', 'success');
+            document.getElementById('email-from').value = '';
+            document.getElementById('email-subject').value = '';
+            document.getElementById('email-body').value = '';
+            closeEmail();
+          } else {
+            if(typeof showToast === 'function') showToast('Error: ' + (data.error || 'Failed to send message'), 'error');
+          }
+        } catch (e) {
+          if(typeof showToast === 'function') showToast('Network error while sending message', 'error');
+        } finally {
+          sendEmailBtn.disabled = false;
+          sendEmailBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+        }
+      });
+
+      // Newsletter subscribe
+      const newsletterBtn = document.getElementById('newsletter-subscribe-btn');
+      if (newsletterBtn) {
+        newsletterBtn.addEventListener('click', () => {
+          const email = document.getElementById('newsletter-email').value;
+          if (!email || !email.includes('@')) {
+            if(typeof showToast === 'function') showToast('Please enter a valid email address', 'error');
+            return;
+          }
+          if(typeof showToast === 'function') showToast('Successfully subscribed to the daily newsletter!', 'success');
+          document.getElementById('newsletter-email').value = '';
+        });
+      }
+    });
+  </script>
+</body>
+
+</html>

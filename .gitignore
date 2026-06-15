@@ -1,0 +1,14 @@
+# Archive files
+*.zip
+
+# Local scratch space
+scratch/
+
+# Stale versions
+Mint-Frost-AI_V4.0/
+
+# Vercel proxy configuration (handling redirect separately)
+Mint-Frost-AI_Vercel/
+
+# Large JSON key databases
+yt_contents_keys.json

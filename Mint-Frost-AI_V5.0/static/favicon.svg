@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="mintGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#37e6b5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1ccaa0;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="16" cy="16" r="14" fill="url(#mintGradient)" opacity="0.1"/>
+  
+  <!-- AI Brain/Circuit pattern -->
+  <g fill="url(#mintGradient)" filter="url(#glow)">
+    <!-- Central node -->
+    <circle cx="16" cy="16" r="3"/>
+    
+    <!-- Connection nodes -->
+    <circle cx="8" cy="10" r="1.5"/>
+    <circle cx="24" cy="10" r="1.5"/>
+    <circle cx="8" cy="22" r="1.5"/>
+    <circle cx="24" cy="22" r="1.5"/>
+    
+    <!-- Connection lines -->
+    <line x1="16" y1="16" x2="8" y2="10" stroke="url(#mintGradient)" stroke-width="1.5" opacity="0.7"/>
+    <line x1="16" y1="16" x2="24" y2="10" stroke="url(#mintGradient)" stroke-width="1.5" opacity="0.7"/>
+    <line x1="16" y1="16" x2="8" y2="22" stroke="url(#mintGradient)" stroke-width="1.5" opacity="0.7"/>
+    <line x1="16" y1="16" x2="24" y2="22" stroke="url(#mintGradient)" stroke-width="1.5" opacity="0.7"/>
+    
+    <!-- Frost crystals -->
+    <path d="M12 6 L14 8 L12 10 L10 8 Z" opacity="0.6"/>
+    <path d="M26 14 L28 16 L26 18 L24 16 Z" opacity="0.6"/>
+    <path d="M6 18 L8 20 L6 22 L4 20 Z" opacity="0.6"/>
+  </g>
+</svg>

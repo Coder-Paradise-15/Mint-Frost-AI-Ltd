@@ -1,0 +1,7 @@
+# Enforce binary formatting for database files to prevent corruption from CRLF/LF translations
+*.db binary
+*.db-journal binary
+*.db-wal binary
+*.db-shm binary
+*.sqlite binary
+*.sqlite3 binary
