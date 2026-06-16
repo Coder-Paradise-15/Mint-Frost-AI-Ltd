@@ -1608,7 +1608,8 @@ def get_support_inbox():
                 'message': r[3],
                 'category': r[4],
                 'priority': r[5],
-                'created_at': r[6]
+                'created_at': r[6],
+                'timestamp': r[6]
             } for r in rows]
     except Exception as e:
         import logging
