@@ -25,6 +25,11 @@ from urllib.parse import urlencode
 # Create Flask app with simple logging (working setup)
 app = Flask(__name__)
 
+# Enable ProxyFix middleware to respect X-Forwarded-Host and X-Forwarded-Proto headers from Vercel
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+
 # Persist secret key so sessions survive server restarts
 _key_path = os.path.join(os.path.dirname(__file__), '.flask_secret')
 if os.path.exists(_key_path):
