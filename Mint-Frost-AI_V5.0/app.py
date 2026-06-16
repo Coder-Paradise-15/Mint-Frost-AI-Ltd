@@ -1317,12 +1317,20 @@ def _refresh_google_token_for_account(account_id):
     return False
 
 
+def get_google_redirect_uri():
+    url_root = request.url_root or request.host_url
+    if not any(x in url_root for x in ['localhost', '127.0.0.1', '[::1]']):
+        if url_root.startswith('http://'):
+            url_root = 'https://' + url_root[7:]
+    return url_root.rstrip('/') + '/api/google/callback'
+
+
 @app.route('/api/google/auth')
 def google_auth():
     if not google_client_id or not google_client_secret:
         return jsonify({'error': 'Google credentials not configured on server'}), 500
 
-    redirect_uri = (request.url_root or request.host_url).rstrip('/') + '/api/google/callback'
+    redirect_uri = get_google_redirect_uri()
     scope = 'openid email profile'
     params = {
         'client_id': google_client_id,
@@ -1350,7 +1358,7 @@ def google_callback():
         return jsonify({'error': 'Google credentials not configured on server'}), 500
 
     token_url = 'https://oauth2.googleapis.com/token'
-    redirect_uri = (request.url_root or request.host_url).rstrip('/') + '/api/google/callback'
+    redirect_uri = get_google_redirect_uri()
 
     data = {
         'code': code,
