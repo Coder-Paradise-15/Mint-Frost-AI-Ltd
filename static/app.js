@@ -2689,7 +2689,24 @@ function initAPISettings() {
   
   // Show settings
   apiSettingsBtn.addEventListener('click', () => {
-    showAccountDetailsModal('api');
+    // Populate keys from localStorage
+    apiProviderSelect.value = localStorage.getItem('apiProvider') || 'default';
+    apiOpenAIKeyInput.value = localStorage.getItem('apiOpenAIKey') || '';
+    apiOpenAIModelSelect.value = localStorage.getItem('apiOpenAIModel') || 'gpt-4o-mini';
+    apiGeminiKeyInput.value = localStorage.getItem('apiGeminiKey') || '';
+    apiGeminiModelSelect.value = localStorage.getItem('apiGeminiModel') || 'gemini-1.5-flash';
+    
+    document.getElementById('api-anthropic-key').value = localStorage.getItem('apiAnthropicKey') || '';
+    document.getElementById('api-anthropic-model').value = localStorage.getItem('apiAnthropicModel') || 'claude-3-5-sonnet-20241022';
+    document.getElementById('api-groq-key').value = localStorage.getItem('apiGroqKey') || '';
+    document.getElementById('api-groq-model').value = localStorage.getItem('apiGroqModel') || 'llama3-8b-8192';
+    document.getElementById('api-openrouter-key').value = localStorage.getItem('apiOpenRouterKey') || '';
+    document.getElementById('api-openrouter-model').value = localStorage.getItem('apiOpenRouterModel') || 'meta-llama/llama-3-8b-instruct:free';
+    document.getElementById('api-mistral-key').value = localStorage.getItem('apiMistralKey') || '';
+    document.getElementById('api-mistral-model').value = localStorage.getItem('apiMistralModel') || 'mistral-small-latest';
+    
+    updateAPIKeyCards();
+    showAPISettings();
   });
   
   // Toggle password eye visibility for all key fields
@@ -3215,277 +3232,141 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Handle Account Modal
-  async function showAccountDetailsModal(initialTab = 'profile') {
-    if (typeof initialTab !== 'string') {
-      initialTab = 'profile';
+  async function showAccountDetailsModal() {
+    let googleLinked = true; // Connected by default!
+    let googleEmail = 'connected@gmail.com';
+
+    try {
+      const resp = await fetch('/api/accounts/linked');
+      if (resp.ok) {
+        const data = await resp.json();
+        const googleLink = (data.linked || []).find(l => l.provider === 'google');
+        if (googleLink) {
+          googleEmail = googleLink.account_id;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load linked accounts:', e);
     }
+
     const username = window.currentUser || 'Guest';
     const displayName = window.currentUserDisplayName || 'Not Set';
     const avatarChar = username.charAt(0).toUpperCase();
 
     const contentHtml = `
-      <div class="account-modal-container" style="display: flex; flex-direction: column; gap: 15px; min-height: 380px;">
-        <!-- Tab switch capsule -->
-        <div class="mfa-tabs-switcher" style="margin-bottom: 20px; display: flex; background: rgba(0, 0, 0, 0.3); border-radius: var(--radius-md); padding: 4px; border: 1px solid var(--border); position: relative;">
-          <button class="mfa-tab-btn" id="modal-tab-profile" style="flex: 1; border: none; background: none; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; z-index: 2; transition: color 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px;">
-            <i class="fas fa-user"></i> Profile
-          </button>
-          <button class="mfa-tab-btn" id="modal-tab-api" style="flex: 1; border: none; background: none; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; z-index: 2; transition: color 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px;">
-            <i class="fas fa-key"></i> API Keys
-          </button>
-          <button class="mfa-tab-btn" id="modal-tab-integrations" style="flex: 1; border: none; background: none; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; z-index: 2; transition: color 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px;">
-            <i class="fas fa-plug"></i> Integrations
-          </button>
-          <div id="modal-toggle-slider" style="position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(33.333% - 5px); background: var(--mint); border-radius: calc(var(--radius-md) - 2px); z-index: 1; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); box-shadow: 0 4px 12px rgba(55, 230, 181, 0.3);"></div>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <div style="width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, var(--mint) 0%, rgba(64, 224, 208, 0.8) 100%); display: flex; align-items: center; justify-content: center; font-size: 2.2em; font-weight: 700; color: #1a1a1a; margin: 0 auto 12px auto; box-shadow: 0 4px 14px rgba(55, 230, 181, 0.3);">
+          ${avatarChar}
         </div>
+        <h3 style="margin: 0; font-size: 1.4em; color: var(--fg); font-weight: 600;">${username}</h3>
+        <p style="margin: 4px 0 0 0; font-size: 0.9em; color: var(--muted);">Display Name: <strong style="color: var(--mint);">${displayName}</strong></p>
+      </div>
 
-        <!-- Profile Section -->
-        <div id="modal-sect-profile" class="modal-tab-section" style="display: block;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <div id="modal-profile-avatar-container" style="position: relative; width: 80px; height: 80px; margin: 0 auto 12px auto; cursor: pointer; border-radius: 50%; overflow: hidden; border: 2px solid var(--mint); box-shadow: 0 4px 14px rgba(55, 230, 181, 0.3); display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03);">
-              <span id="modal-avatar-char" style="font-size: 2.2em; font-weight: 700; color: var(--fg);">${avatarChar}</span>
-              <img id="modal-avatar-img" style="display: none; width: 100%; height: 100%; object-fit: cover;" />
+      <div class="glass" style="padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); margin-bottom: 16px;">
+        <h4 style="margin: 0 0 12px 0; font-size: 1em; font-weight: 600; color: var(--fg); display: flex; align-items: center; gap: 8px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" style="vertical-align: middle; flex-shrink: 0;"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.67-.35-1.37-.35-2.09l.81 1.46z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg> Google Integration
+        </h4>
+        
+        ${googleLinked ? `
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+              <span style="display: inline-block; font-size: 0.8em; padding: 2px 8px; border-radius: 12px; background: rgba(55,230,181,0.15); color: var(--mint); font-weight: 500;">Connected</span>
             </div>
-            <h3 style="margin: 0; font-size: 1.4em; color: var(--fg); font-weight: 600;">${username}</h3>
-            <p style="margin: 4px 0 0 0; font-size: 0.9em; color: var(--muted);">Display Name: <strong id="modal-display-name-text" style="color: var(--mint);">${displayName}</strong></p>
-          </div>
-
-          <!-- Actions -->
-          <div style="display: flex; flex-direction: column; gap: 10px;">
-            <button id="modal-change-name-btn" class="btn btn--ghost btn--sm" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: 8px;">
-              <i class="fas fa-user-edit"></i> Edit Display Name
-            </button>
-            <button id="modal-upload-pic-btn" class="btn btn--ghost btn--sm" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: 8px;">
-              <i class="fas fa-upload"></i> Upload Custom Avatar
-            </button>
-            <button id="modal-google-pic-btn" class="btn btn--ghost btn--sm" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: 8px; display: none;">
-              <i class="fab fa-google"></i> Set to Google Avatar
-            </button>
-            <button id="modal-remove-pic-btn" class="btn btn--ghost btn--sm btn--danger" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; border-radius: 8px; display: none;">
-              <i class="fas fa-trash-alt"></i> Remove Avatar
+            <button id="modal-unlink-google-btn" class="btn btn--danger btn--sm" style="padding: 6px 12px; font-size: 0.85em; display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+              <i class="fas fa-unlink"></i> Disconnect
             </button>
           </div>
-          <input type="file" id="modal-avatar-file-input" style="display: none;" accept="image/*" />
-        </div>
-
-        <!-- API Keys Section -->
-        <div id="modal-sect-api" class="modal-tab-section" style="display: none; max-height: 50vh; overflow-y: auto; padding-right: 4px;">
-          <!-- API Settings Inputs Container -->
-          <div id="modal-api-inputs-container"></div>
-        </div>
-
-        <!-- Integrations Section -->
-        <div id="modal-sect-integrations" class="modal-tab-section" style="display: none;">
-          <!-- Connected Addons Cards Grid -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="modal-integrations-grid">
-            <!-- Google Card -->
-            <div class="card glass" style="padding: 12px; display: flex; flex-direction: column; align-items: center; text-align: center; border-radius: var(--radius-md); border: 1px solid var(--border); transition: all 0.2s;" id="m-int-google-card">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" style="margin-bottom: 6px;"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.67-.35-1.37-.35-2.09l.81 1.46z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
-              <span style="font-weight: 700; font-size: 12px; margin-bottom: 2px;">Google</span>
-              <span style="font-size: 10px; margin-bottom: 6px; font-weight: 600;" id="m-int-google-status">Disconnected</span>
-              <button class="btn btn--ghost btn--xs" id="m-int-google-btn" style="padding: 2px 6px; font-size: 10px;">Connect</button>
-            </div>
-
-            <!-- Location Card -->
-            <div class="card glass" style="padding: 12px; display: flex; flex-direction: column; align-items: center; text-align: center; border-radius: var(--radius-md); border: 1px solid var(--border); transition: all 0.2s;" id="m-int-location-card">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" style="margin-bottom: 6px;"><path fill="#EA4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-              <span style="font-weight: 700; font-size: 12px; margin-bottom: 2px;">Location</span>
-              <span style="font-size: 10px; margin-bottom: 6px; font-weight: 600;" id="m-int-location-status">Disconnected</span>
-              <button class="btn btn--ghost btn--xs" id="m-int-location-btn" style="padding: 2px 6px; font-size: 10px;">Enable</button>
-            </div>
+        ` : `
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <div style="font-size: 0.9em; color: var(--muted); flex: 1;">Link your Google account for single sign-on.</div>
+            <button id="modal-link-google-btn" class="btn btn--mint btn--sm" style="padding: 6px 12px; font-size: 0.85em; display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" style="vertical-align: middle; flex-shrink: 0;"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.67-.35-1.37-.35-2.09l.81 1.46z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg> Connect
+            </button>
           </div>
-        </div>
+        `}
+      </div>
+
+      <div style="display: flex; justify-content: space-between; gap: 10px;">
+        <button id="modal-api-shortcut-btn" class="btn btn--ghost btn--sm" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">
+          <i class="fas fa-key"></i> API Settings
+        </button>
+        <button id="modal-profile-shortcut-btn" class="btn btn--ghost btn--sm" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">
+          <i class="fas fa-user-edit"></i> Profile
+        </button>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; gap: 10px; margin-top: 10px;">
+        <button id="modal-backup-data-btn" class="btn btn--ghost btn--sm" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">
+          <i class="fas fa-download"></i> Backup My Data
+        </button>
+        <button id="modal-delete-account-btn" class="btn btn--danger btn--sm" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <i class="fas fa-trash-alt"></i> Delete My Account
+        </button>
       </div>
     `;
 
-    showModal('Account Center', contentHtml, []);
+    showModal('Account Profile', contentHtml, []);
 
-    const modalClose = document.getElementById('modal-close');
-    if (modalClose) modalClose.style.display = 'none';
+    const closeBtn = document.getElementById('modal-close');
+    if (closeBtn) closeBtn.style.display = 'none';
 
-    const tabProfileBtn = document.getElementById('modal-tab-profile');
-    const tabApiBtn = document.getElementById('modal-tab-api');
-    const tabIntegrationsBtn = document.getElementById('modal-tab-integrations');
-
-    const sectProfile = document.getElementById('modal-sect-profile');
-    const sectApi = document.getElementById('modal-sect-api');
-    const sectIntegrations = document.getElementById('modal-sect-integrations');
-
-    const switchTab = (tab) => {
-      tabProfileBtn.style.color = 'var(--muted)';
-      tabApiBtn.style.color = 'var(--muted)';
-      tabIntegrationsBtn.style.color = 'var(--muted)';
-      
-      tabProfileBtn.classList.remove('active');
-      tabApiBtn.classList.remove('active');
-      tabIntegrationsBtn.classList.remove('active');
-      sectProfile.style.display = 'none';
-      sectApi.style.display = 'none';
-      sectIntegrations.style.display = 'none';
-
-      const slider = document.getElementById('modal-toggle-slider');
-
-      if (tab === 'profile') {
-        tabProfileBtn.classList.add('active');
-        tabProfileBtn.style.color = 'var(--bg-0)';
-        sectProfile.style.display = 'block';
-        if (slider) slider.style.transform = 'translateX(0%)';
-      } else if (tab === 'api') {
-        tabApiBtn.classList.add('active');
-        tabApiBtn.style.color = 'var(--bg-0)';
-        sectApi.style.display = 'block';
-        if (slider) slider.style.transform = 'translateX(100%)';
-        initTabApiKeys();
-      } else if (tab === 'integrations') {
-        tabIntegrationsBtn.classList.add('active');
-        tabIntegrationsBtn.style.color = 'var(--bg-0)';
-        sectIntegrations.style.display = 'block';
-        if (slider) slider.style.transform = 'translateX(200%)';
-        refreshModalIntegrations();
-      }
-    };
-
-    tabProfileBtn.addEventListener('click', () => switchTab('profile'));
-    tabApiBtn.addEventListener('click', () => switchTab('api'));
-    tabIntegrationsBtn.addEventListener('click', () => switchTab('integrations'));
-
-    // --- Tab Profile Setup ---
-    const updateModalAvatarDisplay = () => {
-      const avatarCharSpan = document.getElementById('modal-avatar-char');
-      const avatarImg = document.getElementById('modal-avatar-img');
-      const removeBtn = document.getElementById('modal-remove-pic-btn');
-      
-      if (window.currentUserProfilePic) {
-        avatarImg.src = window.currentUserProfilePic;
-        avatarImg.style.display = 'block';
-        avatarCharSpan.style.display = 'none';
-        if (removeBtn) removeBtn.style.display = 'flex';
-      } else {
-        avatarImg.style.display = 'none';
-        avatarCharSpan.style.display = 'block';
-        if (removeBtn) removeBtn.style.display = 'none';
-      }
-    };
-    updateModalAvatarDisplay();
-
-    // Check if google is linked to show Google Avatar option
-    try {
-      const resp = await fetch('/api/user/integrations');
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.success && data.integrations.google.connected) {
-          const googlePicBtn = document.getElementById('modal-google-pic-btn');
-          if (googlePicBtn) {
-            googlePicBtn.style.display = 'flex';
-            googlePicBtn.onclick = async () => {
-              try {
-                const meResp = await fetch('/api/google/me');
-                if (meResp.ok) {
-                  const meData = await meResp.json();
-                  const picture = meData.picture;
-                  if (picture) {
-                    const updateResp = await fetch('/api/accounts/profile', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ profile_pic: picture })
-                    });
-                    if (updateResp.ok) {
-                      window.currentUserProfilePic = picture;
-                      updateModalAvatarDisplay();
-                      if (typeof window.updateHeaderAvatar === 'function') {
-                        window.updateHeaderAvatar(picture);
-                      }
-                      showToast('Avatar set to Google profile picture!', 'success');
-                    } else {
-                      showToast('Failed to update profile picture', 'error');
-                    }
-                  } else {
-                    showToast('No profile picture found on your Google Account', 'warning');
-                  }
-                } else {
-                  showToast('Failed to retrieve Google profile data', 'error');
-                }
-              } catch (err) {
-                showToast('Failed to retrieve Google profile data', 'error');
-              }
-            };
+    // Attach shortcut action listeners inside modal
+    const linkBtn = document.getElementById('modal-link-google-btn');
+    if (linkBtn) {
+      linkBtn.addEventListener('click', () => {
+        const width = 500;
+        const height = 650;
+        const left = (window.screen.width / 2) - (width / 2);
+        const top = (window.screen.height / 2) - (height / 2);
+        
+        const popup = window.open('/api/google/auth', 'GoogleLinkPopup', `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`);
+        
+        const handleLinkMessage = (event) => {
+          if (event.data && event.data.type === 'google_auth_success') {
+            window.removeEventListener('message', handleLinkMessage);
+            showToast('Google account connected successfully!');
+            hideModal();
+            setTimeout(showAccountDetailsModal, 300);
           }
-        }
-      }
-    } catch (e) {
-      console.warn(e);
-    }
-
-    // Hidden input file handler
-    const fileInput = document.getElementById('modal-avatar-file-input');
-    const uploadBtn = document.getElementById('modal-upload-pic-btn');
-    if (uploadBtn && fileInput) {
-      uploadBtn.addEventListener('click', () => fileInput.click());
-      fileInput.addEventListener('change', () => {
-        const file = fileInput.files[0];
-        if (file) {
-          if (file.size > 1024 * 1024 * 2) {
-            showToast('Image size exceeds 2MB limit', 'warning');
-            return;
-          }
-          const reader = new FileReader();
-          reader.onload = async (e) => {
-            const base64 = e.target.result;
-            try {
-              const resp = await fetch('/api/accounts/profile', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ profile_pic: base64 })
-              });
-              if (resp.ok) {
-                window.currentUserProfilePic = base64;
-                updateModalAvatarDisplay();
-                if (typeof window.updateHeaderAvatar === 'function') {
-                  window.updateHeaderAvatar(base64);
-                }
-                showToast('Profile picture uploaded successfully!', 'success');
-              } else {
-                showToast('Failed to upload profile picture', 'error');
-              }
-            } catch (err) {
-              showToast('Failed to upload profile picture', 'error');
-            }
-          };
-          reader.readAsDataURL(file);
-        }
+        };
+        
+        window.addEventListener('message', handleLinkMessage);
       });
     }
 
-    // Remove avatar handler
-    const removeBtn = document.getElementById('modal-remove-pic-btn');
-    if (removeBtn) {
-      removeBtn.addEventListener('click', async () => {
+    const unlinkBtn = document.getElementById('modal-unlink-google-btn');
+    if (unlinkBtn) {
+      unlinkBtn.addEventListener('click', async () => {
         try {
-          const resp = await fetch('/api/accounts/profile', {
+          const ures = await fetch('/api/accounts/unlink', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profile_pic: null })
+            body: JSON.stringify({ provider: 'google' })
           });
-          if (resp.ok) {
-            window.currentUserProfilePic = '';
-            updateModalAvatarDisplay();
-            if (typeof window.updateHeaderAvatar === 'function') {
-              window.updateHeaderAvatar(null);
-            }
-            showToast('Profile picture removed successfully', 'info');
+          if (ures.ok) {
+            showToast('Google account unlinked successfully');
+            hideModal();
+            setTimeout(showAccountDetailsModal, 300);
           } else {
-            showToast('Failed to remove profile picture', 'error');
+            showToast('Failed to unlink account', 'error');
           }
         } catch (err) {
-          showToast('Failed to remove profile picture', 'error');
+          showToast('Failed to unlink account', 'error');
         }
       });
     }
 
-    // Change display name handler
-    const changeNameBtn = document.getElementById('modal-change-name-btn');
-    if (changeNameBtn) {
-      changeNameBtn.addEventListener('click', () => {
+    const apiBtn = document.getElementById('modal-api-shortcut-btn');
+    if (apiBtn) {
+      apiBtn.addEventListener('click', () => {
+        hideModal();
+        showAPISettings();
+      });
+    }
+
+    const profileBtn = document.getElementById('modal-profile-shortcut-btn');
+    if (profileBtn) {
+      profileBtn.addEventListener('click', () => {
         hideModal();
         showInputModal(
           'Edit Display Name',
@@ -3499,7 +3380,6 @@ document.addEventListener('DOMContentLoaded', () => {
               });
               if (res.ok) {
                 window.currentUserDisplayName = newName;
-                document.getElementById('modal-display-name-text').textContent = newName;
                 showToast('Display name updated successfully!');
               } else {
                 showToast('Failed to update display name', 'error');
@@ -3507,7 +3387,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
               showToast('Failed to update display name', 'error');
             }
-            setTimeout(() => showAccountDetailsModal('profile'), 300);
+            setTimeout(showAccountDetailsModal, 300);
           },
           {
             defaultValue: window.currentUserDisplayName || '',
@@ -3519,203 +3399,46 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // --- Tab API Keys Setup ---
-    function initTabApiKeys() {
-      const apiInputsContainer = document.getElementById('modal-api-inputs-container');
-      if (!apiInputsContainer || apiInputsContainer.children.length > 0) return;
+    const backupBtn = document.getElementById('modal-backup-data-btn');
+    if (backupBtn) {
+      backupBtn.addEventListener('click', () => {
+        window.location.href = '/api/user/backup';
+      });
+    }
 
-      const apiModalBody = document.querySelector('#api-settings-overlay .modal-body');
-      if (apiModalBody) {
-        apiInputsContainer.innerHTML = apiModalBody.innerHTML;
-        
-        apiInputsContainer.querySelectorAll('.toggle-password-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const input = btn.previousElementSibling;
-            const icon = btn.querySelector('i');
-            if (input.type === 'password') {
-              input.type = 'text';
-              icon.className = 'far fa-eye-slash';
-            } else {
-              input.type = 'password';
-              icon.className = 'far fa-eye';
+    const deleteBtn = document.getElementById('modal-delete-account-btn');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        hideModal();
+        showConfirmModal(
+          'Delete Account',
+          'Are you absolutely sure you want to permanently delete your account? This action is irreversible and will erase all your chats, configurations, settings, and authenticators.',
+          async () => {
+            try {
+              const res = await fetch('/api/user/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+              });
+              if (res.ok) {
+                showToast('Your account has been deleted.', 'success');
+                setTimeout(() => {
+                  window.location.href = '/login';
+                }, 1000);
+              } else {
+                const data = await res.json();
+                showToast(data.error || 'Failed to delete account.', 'error');
+              }
+            } catch (err) {
+              showToast('An error occurred during deletion.', 'error');
             }
-          });
-        });
-        
-        const provSelect = apiInputsContainer.querySelector('#api-provider');
-        provSelect.value = localStorage.getItem('apiProvider') || 'default';
-        
-        const keyFields = {
-          'api-openai-key': 'apiOpenAIKey',
-          'api-openai-model': 'apiOpenAIModel',
-          'api-gemini-key': 'apiGeminiKey',
-          'api-gemini-model': 'apiGeminiModel',
-          'api-anthropic-key': 'apiAnthropicKey',
-          'api-anthropic-model': 'apiAnthropicModel',
-          'api-groq-key': 'apiGroqKey',
-          'api-groq-model': 'apiGroqModel',
-          'api-openrouter-key': 'apiOpenRouterKey',
-          'api-openrouter-model': 'apiOpenRouterModel',
-          'api-mistral-key': 'apiMistralKey',
-          'api-mistral-model': 'apiMistralModel'
-        };
-        
-        for (const [id, storageKey] of Object.entries(keyFields)) {
-          const el = apiInputsContainer.querySelector('#' + id);
-          if (el) el.value = localStorage.getItem(storageKey) || '';
-        }
-        
-        const btnRow = document.createElement('div');
-        btnRow.style = "display: flex; gap: 10px; margin-top: 20px;";
-        btnRow.innerHTML = `
-          <button class="btn btn--secondary btn--sm" id="modal-api-reset" style="flex: 1;">Reset</button>
-          <button class="btn btn--mint btn--sm" id="modal-api-save" style="flex: 1;">Save Keys</button>
-        `;
-        apiInputsContainer.appendChild(btnRow);
-        
-        const updateModalKeyCards = () => {
-          const provider = provSelect.value;
-          apiInputsContainer.querySelectorAll('.api-key-card').forEach(card => card.style.display = 'none');
-          const activeCard = apiInputsContainer.querySelector(`#${provider}-key-card`) || apiInputsContainer.querySelector(`#api-${provider}-key-card`) || apiInputsContainer.querySelector(`[id*="${provider}-key-card"]`);
-          if (activeCard) activeCard.style.display = 'block';
-        };
-        
-        provSelect.addEventListener('change', updateModalKeyCards);
-        updateModalKeyCards();
-        
-        apiInputsContainer.querySelector('#modal-api-save').addEventListener('click', () => {
-          localStorage.setItem('apiProvider', provSelect.value);
-          for (const [id, storageKey] of Object.entries(keyFields)) {
-            const el = apiInputsContainer.querySelector('#' + id);
-            if (el) localStorage.setItem(storageKey, el.value.trim());
+          },
+          {
+            danger: true,
+            confirmText: 'Delete Permanently'
           }
-          showToast('API Key settings saved successfully!');
-          document.dispatchEvent(new CustomEvent('apikeysSaved'));
-        });
-        
-        apiInputsContainer.querySelector('#modal-api-reset').addEventListener('click', () => {
-          Object.values(keyFields).concat(['apiProvider']).forEach(k => localStorage.removeItem(k));
-          provSelect.value = 'default';
-          for (const id of Object.keys(keyFields)) {
-            const el = apiInputsContainer.querySelector('#' + id);
-            if (el) el.value = '';
-          }
-          updateModalKeyCards();
-          showToast('API configurations reset to default', 'info');
-          document.dispatchEvent(new CustomEvent('apikeysSaved'));
-        });
-      }
+        );
+      });
     }
-
-    // --- Tab Integrations Setup ---
-    async function refreshModalIntegrations() {
-      try {
-        const resp = await fetch('/api/user/integrations');
-        const data = await resp.json();
-        if (data.success) {
-          const ints = data.integrations;
-          
-          // Google Card
-          const gStatus = document.getElementById('m-int-google-status');
-          const gBtn = document.getElementById('m-int-google-btn');
-          if (ints.google.connected) {
-            gStatus.textContent = "Connected";
-            gStatus.style.color = "var(--mint)";
-            gBtn.textContent = "Disconnect";
-            gBtn.className = "btn btn--ghost btn--xs btn--danger";
-            gBtn.onclick = () => toggleModalIntegration('google', 'disconnect');
-            const googlePicBtn = document.getElementById('modal-google-pic-btn');
-            if (googlePicBtn) googlePicBtn.style.display = 'flex';
-          } else {
-            gStatus.textContent = "Disconnected";
-            gStatus.style.color = "var(--muted)";
-            gBtn.textContent = "Connect";
-            gBtn.className = "btn btn--ghost btn--xs";
-            gBtn.onclick = () => connectGoogleModal();
-            const googlePicBtn = document.getElementById('modal-google-pic-btn');
-            if (googlePicBtn) googlePicBtn.style.display = 'none';
-          }
-
-          // Drive Card and Calendar Card removed
-
-          // Location Card
-          const lStatus = document.getElementById('m-int-location-status');
-          const lBtn = document.getElementById('m-int-location-btn');
-          if (ints.location.connected) {
-            lStatus.textContent = "Active";
-            lStatus.style.color = "var(--mint)";
-            lBtn.textContent = "Disable";
-            lBtn.className = "btn btn--ghost btn--xs btn--danger";
-            lBtn.onclick = () => toggleModalIntegration('location', 'disconnect');
-          } else {
-            lStatus.textContent = "Inactive";
-            lStatus.style.color = "var(--muted)";
-            lBtn.textContent = "Enable";
-            lBtn.className = "btn btn--ghost btn--xs";
-            lBtn.onclick = () => enableModalLocation();
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load integrations in modal", e);
-      }
-    }
-
-    async function toggleModalIntegration(provider, action, value = 'active') {
-      try {
-        const resp = await fetch('/api/user/integrations/toggle', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider, action, value })
-        });
-        const data = await resp.json();
-        if (data.success) {
-          showToast(`${provider} integration updated!`);
-          refreshModalIntegrations();
-        } else {
-          showToast(data.error || "Integration update failed", 'error');
-        }
-      } catch (e) {
-        showToast("Integration toggle request error", 'error');
-      }
-    }
-
-    function connectGoogleModal() {
-      const width = 500;
-      const height = 650;
-      const left = (window.screen.width / 2) - (width / 2);
-      const top = (window.screen.height / 2) - (height / 2);
-      
-      const popup = window.open('/api/google/auth', 'GoogleLinkPopup', `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`);
-      
-      const handleLinkMessage = (event) => {
-        if (event.data && event.data.type === 'google_auth_success') {
-          window.removeEventListener('message', handleLinkMessage);
-          showToast('Google account connected successfully!');
-          refreshModalIntegrations();
-        }
-      };
-      window.addEventListener('message', handleLinkMessage);
-    }
-
-    function enableModalLocation() {
-      if (!navigator.geolocation) {
-        showToast("Geolocation is not supported by your browser", 'error');
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-          toggleModalIntegration('location', 'connect', `${lat.toFixed(4)}, ${lon.toFixed(4)}`);
-        },
-        (error) => {
-          showToast("Location permission failed", 'error');
-        }
-      );
-    }
-
-    // Select initial tab
-    switchTab(initialTab);
   }
 });
 

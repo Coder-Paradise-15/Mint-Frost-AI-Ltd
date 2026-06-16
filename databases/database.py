@@ -5,32 +5,8 @@ import os
 
 DATABASE_PATH = os.path.join(os.path.dirname(__file__), '..', 'chat.db')
 
-class SQLiteConnectionWrapper:
-    def __init__(self, conn):
-        self.conn = conn
-    def cursor(self):
-        return self.conn.cursor()
-    def commit(self):
-        self.conn.commit()
-    def rollback(self):
-        self.conn.rollback()
-    def close(self):
-        self.conn.close()
-    def execute(self, *args, **kwargs):
-        return self.conn.execute(*args, **kwargs)
-    def __enter__(self):
-        return self
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        try:
-            if exc_type is not None:
-                self.conn.rollback()
-            else:
-                self.conn.commit()
-        finally:
-            self.conn.close()
-
 def connect_db():
-    """Get an optimized SQLite connection with WAL mode and synchronous tuning, closed on exit"""
+    """Get an optimized SQLite connection with WAL mode and synchronous tuning"""
     conn = sqlite3.connect(DATABASE_PATH, timeout=10.0)
     try:
         conn.execute('PRAGMA journal_mode=WAL;')
@@ -39,7 +15,7 @@ def connect_db():
         conn.execute('PRAGMA temp_store=MEMORY;')
     except Exception:
         pass
-    return SQLiteConnectionWrapper(conn)
+    return conn
 
 
 def init_db():
@@ -110,7 +86,6 @@ def init_db():
                     id TEXT PRIMARY KEY,
                     password_hash TEXT,
                     display_name TEXT,
-                    profile_pic TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -206,11 +181,6 @@ def init_db():
                 pass
 
             try:
-                cursor.execute('ALTER TABLE users ADD COLUMN profile_pic TEXT')
-            except sqlite3.OperationalError:
-                pass
-
-            try:
                 cursor.execute('ALTER TABLE chat_sessions ADD COLUMN user_id TEXT REFERENCES users(id)')
             except sqlite3.OperationalError:
                 pass
@@ -249,19 +219,6 @@ def init_db():
                     details TEXT,
                     ip_address TEXT DEFAULT '127.0.0.1',
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-
-            # Create support_inbox table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS support_inbox (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sender_email TEXT NOT NULL,
-                    subject TEXT,
-                    message TEXT NOT NULL,
-                    category TEXT,
-                    priority TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
 
@@ -824,7 +781,7 @@ def create_user(user_id, display_name=None):
     try:
         with connect_db() as conn:
             cursor = conn.cursor()
-            cursor.execute('INSERT OR IGNORE INTO users (id, display_name) VALUES (?, ?)', (user_id, display_name))
+            cursor.execute('INSERT OR REPLACE INTO users (id, display_name) VALUES (?, ?)', (user_id, display_name))
             conn.commit()
             return True
     except Exception as e:
@@ -939,11 +896,11 @@ def create_user_secure(username, password_hash, display_name=None, is_admin=0):
         return False
 
 def get_user_secure(username):
-    """Retrieve user secure context (details, password hash, status, is_admin, profile_pic)"""
+    """Retrieve user secure context (details, password hash, status, is_admin)"""
     try:
         with connect_db() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT id, password_hash, display_name, status, COALESCE(is_admin, 0), profile_pic FROM users WHERE id = ?', (username,))
+            cursor.execute('SELECT id, password_hash, display_name, status, COALESCE(is_admin, 0) FROM users WHERE id = ?', (username,))
             row = cursor.fetchone()
             if row:
                 return {
@@ -951,8 +908,7 @@ def get_user_secure(username):
                     'password_hash': row[1],
                     'display_name': row[2],
                     'status': row[3] or 'active',
-                    'is_admin': row[4],
-                    'profile_pic': row[5]
+                    'is_admin': row[4]
                 }
             return None
     except Exception as e:
@@ -1224,8 +1180,7 @@ def get_user_full_details_admin(username):
                        COALESCE(last_login_ip, '127.0.0.1'),
                        COALESCE(last_login_location, 'Localhost Network'),
                        COALESCE(home_address, 'Not Provided'),
-                       COALESCE(birth_date, 'Not Verified'),
-                       profile_pic
+                       COALESCE(birth_date, 'Not Verified')
                 FROM users 
                 WHERE id = ?
             ''', (username,))
@@ -1258,7 +1213,6 @@ def get_user_full_details_admin(username):
                 'last_login_location': user_row[6],
                 'home_address': user_row[7],
                 'birth_date': user_row[8],
-                'profile_pic': user_row[9],
                 'sessions': sessions
             }
     except Exception as e:
@@ -1577,73 +1531,51 @@ def get_active_sessions_admin():
         logging.error(f"Error getting active sessions: {e}")
         return []
 
-def update_user_profile_pic(username, profile_pic):
-    """Update user's profile picture URL or base64 string"""
+
+def delete_user_self(username):
+    """Cleanly delete the user's own profile, settings, chat history, sessions, passkeys, and authenticators."""
     try:
         with connect_db() as conn:
             cursor = conn.cursor()
-            cursor.execute('UPDATE users SET profile_pic = ? WHERE id = ?', (profile_pic, username))
+            
+            # Delete messages first
+            cursor.execute('''
+                DELETE FROM messages 
+                WHERE session_id IN (SELECT id FROM chat_sessions WHERE user_id = ?)
+            ''', (username,))
+            
+            # Delete chat sessions
+            cursor.execute('DELETE FROM chat_sessions WHERE user_id = ?', (username,))
+            
+            # Delete settings
+            cursor.execute('DELETE FROM user_settings WHERE id = ?', (username,))
+            
+            # Delete linked accounts
+            cursor.execute('DELETE FROM linked_accounts WHERE user_id = ?', (username,))
+            
+            # Delete custom themes (if exists)
+            try:
+                cursor.execute('DELETE FROM custom_themes WHERE user_id = ?', (username,))
+            except Exception:
+                pass
+                
+            # Delete passkeys and authenticators
+            cursor.execute('DELETE FROM user_passkeys WHERE user_id = ?', (username,))
+            cursor.execute('DELETE FROM user_authenticators WHERE user_id = ?', (username,))
+            
+            # Delete active sessions
+            cursor.execute('DELETE FROM active_sessions WHERE user_id = ?', (username,))
+            
+            # Delete user record
+            cursor.execute('DELETE FROM users WHERE id = ?', (username,))
+            
             conn.commit()
             return True
     except Exception as e:
         import logging
-        logging.error(f"Error updating profile pic for {username}: {e}")
+        logging.error(f"Error self-deleting user: {e}")
         return False
 
-def get_support_inbox():
-    """Retrieve all support tickets from the database, sorted by created_at DESC"""
-    try:
-        with connect_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT id, sender_email, subject, message, category, priority, created_at
-                FROM support_inbox
-                ORDER BY created_at DESC
-            ''')
-            rows = cursor.fetchall()
-            return [{
-                'id': r[0],
-                'sender_email': r[1],
-                'subject': r[2],
-                'message': r[3],
-                'category': r[4],
-                'priority': r[5],
-                'created_at': r[6],
-                'timestamp': r[6]
-            } for r in rows]
-    except Exception as e:
-        import logging
-        logging.error(f"Error getting support inbox: {e}")
-        return []
-
-def delete_support_message(msg_id):
-    """Delete a support ticket from the database by ID"""
-    try:
-        with connect_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM support_inbox WHERE id = ?', (msg_id,))
-            conn.commit()
-            return cursor.rowcount > 0
-    except Exception as e:
-        import logging
-        logging.error(f"Error deleting support message {msg_id}: {e}")
-        return False
-
-def get_user_integrations(user_id):
-    """Retrieve all linked accounts/integrations for a user"""
-    try:
-        with connect_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT provider, account_id FROM linked_accounts WHERE user_id = ?', (user_id,))
-            rows = cursor.fetchall()
-            integrations = {}
-            for row in rows:
-                integrations[row[0]] = row[1]
-            return integrations
-    except Exception as e:
-        import logging
-        logging.error(f"Error getting user integrations for {user_id}: {e}")
-        return {}
 
 
 

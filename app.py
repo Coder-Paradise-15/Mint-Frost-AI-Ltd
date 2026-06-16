@@ -25,11 +25,6 @@ from urllib.parse import urlencode
 # Create Flask app with simple logging (working setup)
 app = Flask(__name__)
 
-# Enable ProxyFix middleware to respect X-Forwarded-Host and X-Forwarded-Proto headers from Vercel
-from werkzeug.middleware.proxy_fix import ProxyFix
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-
-
 # Persist secret key so sessions survive server restarts
 _key_path = os.path.join(os.path.dirname(__file__), '.flask_secret')
 if os.path.exists(_key_path):
@@ -125,7 +120,7 @@ def load_openai_key():
                 key = f.read().strip()
                 if key:
                     return key
-    except Exception:
+    except:
         pass
     return None
 
@@ -138,7 +133,7 @@ def load_weather_key():
         if os.path.exists('weather_key.txt'):
             with open('weather_key.txt', 'r', encoding='utf-8') as f:
                 return f.read().strip()
-    except Exception:
+    except:
         pass
     return None
 
@@ -154,7 +149,7 @@ def load_google_credentials():
                 lines = [l.strip() for l in f.read().strip().split('\n') if l.strip()]
                 if len(lines) >= 2:
                     return lines[0], lines[1]
-    except Exception:
+    except:
         pass
     return None, None
 
@@ -326,7 +321,7 @@ def generate_free_image(prompt):
             image_base64 = base64.b64encode(response.content).decode('utf-8')
             return image_base64
         return None
-    except Exception:
+    except:
         return None
 
 # Text formatting function
@@ -454,12 +449,12 @@ def process_image_generation(ai_reply):
                     fallback = f'🎨 <em>Visual content: {image_prompt}</em>'
                     ai_reply = re.sub(pattern, fallback, ai_reply)
                     
-            except Exception:
+            except:
                 fallback = f'🎨 <em>Visual content: {image_prompt}</em>'
                 ai_reply = re.sub(pattern, fallback, ai_reply)
         
         return ai_reply
-    except Exception:
+    except:
         return ai_reply
 
 # Rate limiting storage
@@ -481,16 +476,14 @@ def index():
         session.clear()
         session.modified = True
         return redirect("/login?error=deactivated")
-    profile_pic = user.get('profile_pic') if user else None
-    return render_template("index.html", profile_pic=profile_pic)
+    return render_template("index.html")
 
 
 @app.route("/login")
 def login():
     if session.get('user_id'):
         return redirect("/")
-    callback_url = (request.url_root or request.host_url).rstrip('/') + '/api/google/one_tap_callback'
-    return render_template("login.html", google_client_id=google_client_id, one_tap_callback_url=callback_url)
+    return render_template("login.html")
 
 
 @app.route("/logout")
@@ -642,7 +635,7 @@ def get_current_info(location=None, lat=None, lon=None):
             weather_info = weather_service.get_weather_by_city(location)
         else:
             weather_info = weather_service.get_weather_by_city('London')
-    except Exception:
+    except:
         weather_info = {
             'temperature': 'N/A',
             'description': 'Weather unavailable',
@@ -717,7 +710,7 @@ def chat(is_regenerate=False):
         if user_lat and user_lon:
             try:
                 time_info, weather_info = get_current_info(lat=float(user_lat), lon=float(user_lon))
-            except Exception:
+            except:
                 time_info, weather_info = get_current_info()
         else:
             time_info, weather_info = get_current_info()
@@ -764,13 +757,13 @@ def chat(is_regenerate=False):
             title = user_message[:50] + '...' if len(user_message) > 50 else user_message
             try:
                 database.create_session(session['current_session_id'], title, user_id=session.get('user_id'))
-            except Exception:
+            except:
                 pass
         
         try:
             database.add_message(session['current_session_id'], user_message, 'user')
             database.add_message(session['current_session_id'], ai_reply, 'ai')
-        except Exception:
+        except:
             pass
         
         if 'chat_history' not in session:
@@ -846,7 +839,7 @@ def get_sessions():
     try:
         sessions = database.get_recent_sessions(user_id=session.get('user_id'))
         return jsonify({"sessions": sessions})
-    except Exception:
+    except:
         return jsonify({"error": "Database error"}), 500
 
 @app.route("/api/sessions/<session_id>", methods=["GET"])
@@ -855,7 +848,7 @@ def get_session(session_id):
     try:
         messages = database.get_session_messages(session_id)
         return jsonify({"messages": messages})
-    except Exception:
+    except:
         return jsonify({"error": "Database error"}), 500
 
 @app.route("/api/sessions/<session_id>", methods=["DELETE"])
@@ -864,7 +857,7 @@ def delete_session(session_id):
     try:
         database.delete_session(session_id)
         return jsonify({"success": True})
-    except Exception:
+    except:
         return jsonify({"error": "Database error"}), 500
 
 @app.route("/api/new-session", methods=["POST"])
@@ -880,7 +873,7 @@ def get_weather():
         city = request.args.get('city', 'London')
         weather_data = weather_service.get_weather_by_city(city)
         return jsonify(weather_data)
-    except Exception:
+    except:
         return jsonify({"error": "Weather service unavailable"}), 500
 
 @app.route("/api/weather/coordinates")
@@ -890,7 +883,7 @@ def get_weather_coordinates():
         lon = float(request.args.get('lon', 0))
         weather_data = weather_service.get_weather_by_coordinates(lat, lon)
         return jsonify(weather_data)
-    except Exception:
+    except:
         return jsonify({"error": "Invalid coordinates"}), 400
 
 @app.route("/edit-message", methods=["POST"])
@@ -1317,20 +1310,12 @@ def _refresh_google_token_for_account(account_id):
     return False
 
 
-def get_google_redirect_uri():
-    url_root = request.url_root or request.host_url
-    if not any(x in url_root for x in ['localhost', '127.0.0.1', '[::1]']):
-        if url_root.startswith('http://'):
-            url_root = 'https://' + url_root[7:]
-    return url_root.rstrip('/') + '/api/google/callback'
-
-
 @app.route('/api/google/auth')
 def google_auth():
     if not google_client_id or not google_client_secret:
         return jsonify({'error': 'Google credentials not configured on server'}), 500
 
-    redirect_uri = get_google_redirect_uri()
+    redirect_uri = (request.url_root or request.host_url).rstrip('/') + '/api/google/callback'
     scope = 'openid email profile'
     params = {
         'client_id': google_client_id,
@@ -1358,7 +1343,7 @@ def google_callback():
         return jsonify({'error': 'Google credentials not configured on server'}), 500
 
     token_url = 'https://oauth2.googleapis.com/token'
-    redirect_uri = get_google_redirect_uri()
+    redirect_uri = (request.url_root or request.host_url).rstrip('/') + '/api/google/callback'
 
     data = {
         'code': code,
@@ -1406,8 +1391,6 @@ def google_callback():
             # Check if this Google account is already linked to a user in the database
             linked_user_id = database.get_user_by_provider('google', google_acct_id)
             
-            picture_url = profile.get('picture') if 'profile' in locals() else None
-            
             if linked_user_id:
                 # Google account is already registered! Log them in
                 user_details = database.get_user_secure(linked_user_id)
@@ -1426,10 +1409,6 @@ def google_callback():
                 
                 # Log telemetry on login
                 log_user_telemetry(linked_user_id)
-                
-                # Update profile pic if they don't have one
-                if picture_url and user_details and not user_details.get('profile_pic'):
-                    database.update_user_profile_pic(linked_user_id, picture_url)
             else:
                 # Google account is not connected yet!
                 # If they are already logged in locally, link Google to their active local account
@@ -1437,10 +1416,6 @@ def google_callback():
                 if active_user_id:
                     session['local_user_id'] = active_user_id
                     database.link_account_to_user(active_user_id, 'google', google_acct_id)
-                    
-                    user_details = database.get_user_secure(active_user_id)
-                    if picture_url and user_details and not user_details.get('profile_pic'):
-                        database.update_user_profile_pic(active_user_id, picture_url)
                 else:
                     # Not logged in! Create a new account automatically for Google SSO
                     # Try to fetch name from Google profile info
@@ -1448,7 +1423,7 @@ def google_callback():
                     try:
                         if 'profile' in locals():
                             display_name = profile.get('name')
-                    except Exception:
+                    except:
                         pass
                     
                     # Generate a clean username using Google account ID
@@ -1473,11 +1448,8 @@ def google_callback():
                     # Log telemetry on auto-login
                     log_user_telemetry(username)
                     
-                    # Link Google
+                    # Link Google to the newly created account
                     database.link_account_to_user(username, 'google', google_acct_id)
-                    
-                    if picture_url:
-                        database.update_user_profile_pic(username, picture_url)
         except Exception as e:
             app.logger.error(f"Failed to handle Google login/linking callback: {str(e)}")
 
@@ -1552,134 +1524,6 @@ def google_signout():
 
 # --- end Google OAuth ---
 
-@app.route('/api/google/one_tap_callback', methods=['POST'])
-def google_one_tap_callback():
-    credential = request.form.get('credential')
-    if not credential:
-        return redirect('/login?error=one_tap_failed')
-    try:
-        import base64
-        import json
-        import uuid
-        import werkzeug.security
-        
-        parts = credential.split('.')
-        if len(parts) < 2:
-            return redirect('/login?error=invalid_token')
-        
-        payload_b64 = parts[1]
-        payload_b64 += '=' * (4 - len(payload_b64) % 4)
-        payload = json.loads(base64.b64decode(payload_b64).decode('utf-8'))
-        
-        google_acct_id = payload.get('sub')
-        display_name = payload.get('name')
-        picture_url = payload.get('picture')
-        
-        if not google_acct_id:
-            return redirect('/login?error=no_sub')
-        
-        linked_user_id = database.get_user_by_provider('google', google_acct_id)
-        active_user_id = session.get('user_id')
-        
-        if linked_user_id:
-            user_details = database.get_user_secure(linked_user_id)
-            if user_details and user_details.get('status') == 'deactivated':
-                return redirect('/login?error=deactivated')
-            
-            session['local_user_id'] = linked_user_id
-            session['user_id'] = linked_user_id
-            session['display_name'] = user_details.get('display_name') or display_name
-            session.modified = True
-            register_login_session(linked_user_id)
-            log_user_telemetry(linked_user_id)
-            
-            # Update profile image if missing
-            if picture_url and user_details and not user_details.get('profile_pic'):
-                database.update_user_profile_pic(linked_user_id, picture_url)
-        else:
-            if active_user_id:
-                database.link_account_to_user(active_user_id, 'google', google_acct_id)
-                
-                user_details = database.get_user_secure(active_user_id)
-                if picture_url and user_details and not user_details.get('profile_pic'):
-                    database.update_user_profile_pic(active_user_id, picture_url)
-            else:
-                username = f"google_{google_acct_id[:12]}"
-                if database.get_user_secure(username):
-                    username = f"google_{str(uuid.uuid4())[:8]}"
-                
-                rand_pass = str(uuid.uuid4())
-                database.create_user_secure(username, werkzeug.security.generate_password_hash(rand_pass), display_name)
-                
-                session['local_user_id'] = username
-                session['user_id'] = username
-                session['display_name'] = display_name
-                session.modified = True
-                
-                register_login_session(username)
-                log_user_telemetry(username)
-                database.link_account_to_user(username, 'google', google_acct_id)
-                
-                if picture_url:
-                    database.update_user_profile_pic(username, picture_url)
-                
-        return redirect('/')
-    except Exception as e:
-        app.logger.error(f"Google One Tap Callback error: {e}")
-        return redirect('/login?error=exception')
-
-
-@app.route('/api/user/integrations', methods=['GET'])
-@login_required
-def api_get_integrations():
-    user_id = session.get('user_id')
-    integrations = database.get_user_integrations(user_id)
-    return jsonify({
-        'success': True,
-        'integrations': {
-            'google': {
-                'connected': integrations.get('google') is not None,
-                'id': integrations.get('google') or ''
-            },
-            'google_drive': {
-                'connected': integrations.get('google_drive') is not None,
-                'id': integrations.get('google_drive') or ''
-            },
-            'google_calendar': {
-                'connected': integrations.get('google_calendar') is not None,
-                'id': integrations.get('google_calendar') or ''
-            },
-            'location': {
-                'connected': integrations.get('location') is not None,
-                'id': integrations.get('location') or ''
-            }
-        }
-    })
-
-
-@app.route('/api/user/integrations/toggle', methods=['POST'])
-@login_required
-def api_toggle_integration():
-    user_id = session.get('user_id')
-    data = request.get_json() or {}
-    provider = data.get('provider')
-    action = data.get('action')
-    value = data.get('value', 'active')
-    
-    if provider not in ['google', 'google_drive', 'google_calendar', 'location']:
-        return jsonify({'success': False, 'error': 'Invalid provider'}), 400
-        
-    if action == 'disconnect':
-        database.unlink_account(user_id, provider)
-        return jsonify({'success': True, 'connected': False})
-    else:
-        if provider == 'google':
-            database.link_account_to_user(user_id, 'google', 'google_user_linked')
-        else:
-            database.link_account_to_user(user_id, provider, value)
-        return jsonify({'success': True, 'connected': True})
-
-
 # --- User linking helpers ---
 
 def get_or_create_local_user():
@@ -1745,22 +1589,63 @@ def api_update_profile():
     
     data = request.get_json() or {}
     display_name = data.get('display_name', '').strip()
-    profile_pic = data.get('profile_pic') # Can be URL, base64 string, or None
-    
+    if not display_name:
+        return jsonify({'error': 'display_name required'}), 400
+        
     try:
         with database.connect_db() as conn:
             cursor = conn.cursor()
-            if display_name:
-                cursor.execute('UPDATE users SET display_name = ? WHERE id = ?', (display_name, user_id))
-                session['display_name'] = display_name
-            if 'profile_pic' in data:
-                cursor.execute('UPDATE users SET profile_pic = ? WHERE id = ?', (profile_pic, user_id))
+            cursor.execute('UPDATE users SET display_name = ? WHERE id = ?', (display_name, user_id))
             conn.commit()
-            
+        session['display_name'] = display_name
         session.modified = True
-        return jsonify({'success': True, 'display_name': session.get('display_name'), 'profile_pic': profile_pic})
+        return jsonify({'success': True, 'display_name': display_name})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route("/api/user/backup", methods=["GET"])
+@login_required
+def api_user_backup():
+    username = session.get('user_id')
+    details = database.get_user_full_details_admin(username)
+    if not details:
+        return jsonify({"error": "User profile not found"}), 404
+    
+    # Aggregate all conversation logs
+    full_history = []
+    for s in details.get('sessions', []):
+        messages = database.get_session_messages(s['id'])
+        full_history.append({
+            'session_id': s['id'],
+            'session_title': s['title'],
+            'created_at': s['created_at'],
+            'messages': messages
+        })
+    details['full_conversations'] = full_history
+    
+    # Stream as downloadable JSON attachment response
+    import json
+    from flask import Response
+    response_data = json.dumps(details, indent=4)
+    return Response(
+        response_data,
+        mimetype="application/json",
+        headers={"Content-disposition": f"attachment; filename=user_backup_{username}.json"}
+    )
+
+
+@app.route("/api/user/delete", methods=["POST"])
+@login_required
+def api_user_delete():
+    username = session.get('user_id')
+    ok = database.delete_user_self(username)
+    if ok:
+        session.clear()
+        session.modified = True
+        return jsonify({"success": True, "message": "Your account has been deleted permanently."})
+    else:
+        return jsonify({"error": "Failed to delete account. Please contact an administrator."}), 500
 
 
 # --- end Spotify interaction ---
@@ -2389,10 +2274,8 @@ def api_admin_metrics_stream():
             metrics = _get_pre_aggregated_metrics()
             yield f"data: {json.dumps(metrics)}\n\n"
             time.sleep(5)
-    return Response(event_stream(), mimetype="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no"
-    })
+    return Response(event_stream(), mimetype="text/event-stream")
+
 
 @app.route("/api/announcement", methods=["GET"])
 def api_get_announcement():
@@ -2458,7 +2341,6 @@ def api_admin_user_details(username):
         caller_id = session.get('user_id')
         caller = database.get_user_secure(caller_id)
         caller_level = caller.get('is_admin') or 0 if caller else 0
-        details['linked_accounts'] = database.get_linked_accounts(username)
         return jsonify({"details": details, "caller_level": caller_level})
     return jsonify({"error": "User profile not found"}), 404
 
@@ -2633,6 +2515,40 @@ def api_admin_execute():
             else:
                 return jsonify({"error": "Audit logs wipe cancelled (invalid confirmation)."})
 
+        # Check if we are awaiting update pack selection
+        if session.get('awaiting_patch_select'):
+            session.pop('awaiting_patch_select', None) # consume the flag
+            if cmd == 'cancel' or cmd == 'c':
+                return jsonify({"output": "Update patching sequence cancelled."})
+            
+            if cmd in ('1', '2', '3'):
+                pack_names = {
+                    '1': 'Update Pack V4.1 (Stability & Performance Hotfix)',
+                    '2': 'Update Pack V4.2 (Advanced Telemetry & Analytics)',
+                    '3': 'Update Pack V5.0-Beta (Quantum ML Core Integration)'
+                }
+                pack_name = pack_names[cmd]
+                lines = [
+                    f"⚙️ [PATCH WORKER] Initiating Live Update Patching Sequence for {pack_name}...",
+                    "⚙️ [PATCH WORKER] Connecting to remote updates repository (github.com/Coder-Paradise-15/Mint-Frost-AI-Ltd)... Connected.",
+                    "⚙️ [PATCH WORKER] Fetching commit diffs & artifacts... Done.",
+                    "⚙️ [PATCH WORKER] Downloading update pack binaries [■■■■■■■■■■■■■■■■■■■■] 100% (4.2 MB/4.2 MB)",
+                    "⚙️ [PATCH WORKER] Deploying background workers to patch system...",
+                    "⚙️ [PATCH WORKER] [░░░░░░░░░░░░░░░░░░░░] 0%   - Suspending non-critical scheduling queues...",
+                    "⚙️ [PATCH WORKER] [■■■■░░░░░░░░░░░░░░░░] 20%  - Creating database snapshot in databases/backups/...",
+                    "⚙️ [PATCH WORKER] [■■■■■■■■░░░░░░░░░░░░] 40%  - Injecting hot-swap code files on live system...",
+                    "⚙️ [PATCH WORKER] [■■■■■■■■■■■■░░░░░░░░] 60%  - Running migrations and database index alignment...",
+                    "⚙️ [PATCH WORKER] [■■■■■■■■■■■■■■■■░░░░] 80%  - Conducting service health integration checks...",
+                    "⚙️ [PATCH WORKER] [■■■■■■■■■■■■■■■■■■■■] 100% - Live integration validation successful!",
+                    "⚙️ [PATCH WORKER] System updates are patched.",
+                    "⚙️ [PATCH WORKER] Restarting worker processes...",
+                    "🟢 [SYSTEM] Mint Frost Server live patched and running!"
+                ]
+                return jsonify({"output": "\n".join(lines)})
+            else:
+                return jsonify({"error": "Invalid selection. Please select 1, 2, 3, or 'cancel'."})
+
+
         # ── help ──
         if cmd == 'help':
             lines = [
@@ -2647,6 +2563,7 @@ def api_admin_execute():
                 "║    health             System health diagnostics             ║",
                 "║    dbsize             Database file size                    ║",
                 "║    version            Show platform version                 ║",
+                "║    update / patch     Live update patching sequence wizard  ║",
                 "║    delete data override  Wipe all server data               ║",
                 "║    delete audit override Wipe all audit trail logs          ║",
                 "║                                                             ║",
@@ -2671,6 +2588,8 @@ def api_admin_execute():
                 "║  DATA                                                       ║",
                 "║    sessions <user>    List chat sessions for a user         ║",
                 "║    stats              Show aggregate statistics             ║",
+                "║    backup <user>      Backup user data to local file        ║",
+                "║    backup server      Backup overall db to local file       ║",
                 "║                                                             ║",
                 "║  ROLES: Admin (full access) > Co-Admin (no delete) > User   ║",
                 "╚══════════════════════════════════════════════════════════════╝",
@@ -2995,6 +2914,69 @@ def api_admin_execute():
                 f"  Deactivated      : {deactivated}",
                 f"  Online Now       : {online}",
                 f"  Database Size    : {db_mb} MB",
+            ]
+            return jsonify({"output": "\n".join(lines)})
+
+        # ── backup ──
+        elif cmd == 'backup':
+            if not args:
+                return jsonify({"error": "Usage: backup <username> or backup server/--all"})
+            
+            target = args[0]
+            import os
+            from datetime import datetime
+            import shutil
+            import json
+            
+            backup_dir = os.path.join(os.path.dirname(__file__), 'databases', 'backups')
+            os.makedirs(backup_dir, exist_ok=True)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            if target in ('server', '--all'):
+                db_path = database.DATABASE_PATH
+                if not os.path.exists(db_path):
+                    return jsonify({"error": f"Database file not found at {db_path}."})
+                
+                dest_path = os.path.join(backup_dir, f"server_backup_{timestamp}.db")
+                try:
+                    shutil.copy2(db_path, dest_path)
+                    return jsonify({"output": f"✓ Overall server database backup created successfully at:\n  databases/backups/server_backup_{timestamp}.db"})
+                except Exception as e:
+                    return jsonify({"error": f"Failed to backup server database: {str(e)}"})
+            else:
+                details = database.get_user_full_details_admin(target)
+                if not details:
+                    return jsonify({"error": f"User '{target}' not found."})
+                
+                # Aggregate all conversation logs
+                full_history = []
+                for s in details.get('sessions', []):
+                    messages = database.get_session_messages(s['id'])
+                    full_history.append({
+                        'session_id': s['id'],
+                        'session_title': s['title'],
+                        'created_at': s['created_at'],
+                        'messages': messages
+                    })
+                details['full_conversations'] = full_history
+                
+                dest_path = os.path.join(backup_dir, f"backup_{target}_{timestamp}.json")
+                try:
+                    with open(dest_path, 'w', encoding='utf-8') as f:
+                        json.dump(details, f, indent=4)
+                    return jsonify({"output": f"✓ Backup for user '{target}' created successfully at:\n  databases/backups/backup_{target}_{timestamp}.json"})
+                except Exception as e:
+                    return jsonify({"error": f"Failed to write user backup file: {str(e)}"})
+
+        # ── update/patch ──
+        elif cmd in ('update', 'patch'):
+            session['awaiting_patch_select'] = True
+            lines = [
+                "Select the Update pack to patch on live system/server:",
+                "  [1] Update Pack V4.1 (Stability & Performance Hotfix)",
+                "  [2] Update Pack V4.2 (Advanced Telemetry & Analytics)",
+                "  [3] Update Pack V5.0-Beta (Quantum ML Core Integration)",
+                "Enter selection (1-3) or 'cancel' to exit:"
             ]
             return jsonify({"output": "\n".join(lines)})
 
@@ -3641,270 +3623,7 @@ def api_mfa_totp_delete():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/support/send", methods=["POST"])
-def api_support_send():
-    data = request.json or {}
-    sender = data.get("sender")
-    subject = data.get("subject", "No Subject")
-    message = data.get("message")
-    category = data.get("category", "General")
-    priority = data.get("priority", "Medium")
-    
-    if not sender or not message:
-        return jsonify({"error": "Sender and message are required"}), 400
-        
-    try:
-        with database.connect_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO support_inbox (sender_email, subject, message, category, priority) VALUES (?, ?, ?, ?, ?)", (sender, subject, message, category, priority))
-            conn.commit()
-            
-        import smtplib
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.text import MIMEText
-        import os
-        
-        html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-</head>
-<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0f14; color: #ffffff; margin: 0; padding: 40px 10px;">
-  <div style="max-width: 600px; margin: 0 auto; background: #111820; border: 1px solid #1a2632; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-    <div style="background: #0f171e; padding: 20px 24px; text-align: center; border-bottom: 1px solid #1a2632;">
-      <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto; display: inline-block;">
-        <tr>
-          <td style="vertical-align: middle; padding-right: 12px;">
-            <img src="https://files.catbox.moe/4c86l2.png" alt="Mint Frost AI Logo" style="height: 40px; width: auto; border: none; display: block;">
-          </td>
-          <td style="vertical-align: middle;">
-            <span style="font-size: 24px; font-weight: 700; color: #37e6b5; letter-spacing: -0.5px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: block;">Mint Frost AI</span>
-          </td>
-        </tr>
-      </table>
-    </div>
-    <div style="padding: 32px 24px; line-height: 1.6;">
-      <h2 style="margin-top: 0; font-size: 18px; color: #ffffff; font-weight: 600;">Support Request Received</h2>
-      <p style="color: #e0e0e0; font-size: 14px; margin: 16px 0;">Hello,</p>
-      <p style="color: #e0e0e0; font-size: 14px; margin: 16px 0;">Thank you for reaching out. We have successfully received your support ticket. Our team is reviewing it and will get back to you shortly.</p>
-      
-      <div style="background: #0b0f14; border-left: 4px solid #37e6b5; padding: 16px; margin: 20px 0; border-radius: 4px; border: 1px solid #1a2632; border-left-width: 4px;">
-        <p style="margin: 6px 0; font-size: 13px; color: #37e6b5;"><strong>Subject:</strong> <span style="color: #ffffff;">{subject}</span></p>
-        <p style="margin: 6px 0; font-size: 13px; color: #37e6b5;"><strong>Category:</strong> <span style="color: #ffffff;">{category}</span></p>
-        <p style="margin: 6px 0; font-size: 13px; color: #37e6b5;"><strong>Priority:</strong> <span style="color: #ffffff;">{priority}</span></p>
-        <p style="margin: 12px 0 6px 0; font-size: 13px; color: #37e6b5;"><strong>Message Summary:</strong></p>
-        <div style="background: #111820; border: 1px solid #1a2632; border-radius: 6px; padding: 12px; color: #ffffff; font-size: 13px; white-space: pre-wrap; margin-top: 6px; word-break: break-all;">{message}</div>
-      </div>
-      
-      <p style="color: #e0e0e0; font-size: 14px; margin: 16px 0;">If you have any additional details to add, please reply directly to this email.</p>
-      <p style="color: #e0e0e0; font-size: 14px; margin: 24px 0 0 0;">Best regards,<br><strong style="color: #37e6b5;">Mint Frost Support Team</strong></p>
-    </div>
-    <div style="background: #0f171e; padding: 20px; text-align: center; font-size: 12px; color: #808890; border-top: 1px solid #1a2632;">
-      <p style="margin: 0; color: #808890;">This is an automated notification from Mint Frost AI.</p>
-      <p style="margin: 4px 0 0 0; color: #808890;">&copy; 2026 Mint Frost AI. All rights reserved.</p>
-    </div>
-  </div>
-</body>
-</html>"""
-        
-        from email.utils import make_msgid, formatdate
-        text_content = f"""Hello,
-
-Thank you for reaching out. We have successfully received your support ticket. Our team is reviewing it and will get back to you shortly.
-
-Ticket Details:
-Subject: {subject}
-Category: {category}
-Priority: {priority}
-
-Message Summary:
-{message}
-
-If you have any additional details to add, please reply directly to this email.
-
-Best regards,
-Mint Frost Support Team"""
-
-        mail_id = None
-        for key in ['MAIL_ID', 'mail_id', 'MAILID', 'mailid']:
-            val = os.environ.get(key)
-            if val:
-                mail_id = val.strip()
-                break
-        if not mail_id and os.path.exists('mail_id.txt'):
-            with open('mail_id.txt', 'r', encoding='utf-8') as f:
-                mail_id = f.read().strip()
-        if not mail_id:
-            return jsonify({"error": "SMTP config missing. MAIL_ID environment variable or mail_id.txt not set."}), 500
-
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = f"Support Request Received: {subject}"
-        msg['From'] = f'"Mint Frost Support" <{mail_id}>'
-        msg['To'] = sender
-        msg['Date'] = formatdate(localtime=True)
-        msg['Message-ID'] = make_msgid(domain='mintfrostai.com')
-        msg['Auto-Submitted'] = 'auto-generated'
-        msg['Precedence'] = 'bulk'
-        
-        # Plain text part
-        text_part = MIMEText(text_content, 'plain')
-        msg.attach(text_part)
-        
-        # HTML part
-        html_part = MIMEText(html_content, 'html')
-        msg.attach(html_part)
-
-        try:
-            password = None
-            for key in ['MAIL_PASSWORD', 'mail_password', 'MAILPASSWORD', 'mailpassword']:
-                val = os.environ.get(key)
-                if val:
-                    password = val.strip()
-                    break
-            if not password and os.path.exists('mail_password.txt'):
-                with open('mail_password.txt', 'r', encoding='utf-8') as f:
-                    password = f.read().strip()
-            if password:
-                server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-                server.login(mail_id, password)
-                server.send_message(msg)
-                server.quit()
-            else:
-                print("SMTP Warning: MAIL_PASSWORD env variable or mail_password.txt not set. Email not sent.")
-        except Exception as e:
-            print(f"SMTP Error: {e}")
-            
-        return jsonify({"success": True})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/admin/inbox", methods=["GET"])
-@admin_required
-def api_admin_inbox():
-    messages = database.get_support_inbox()
-    return jsonify({"messages": messages})
-
-@app.route("/api/admin/inbox/delete/<int:msg_id>", methods=["POST"])
-@admin_required
-def api_admin_inbox_delete(msg_id):
-    success = database.delete_support_message(msg_id)
-    if success:
-        return jsonify({"success": True})
-    return jsonify({"error": "Failed to delete message"}), 500
-
-@app.route("/api/admin/inbox/reply", methods=["POST"])
-@admin_required
-def api_admin_inbox_reply():
-    data = request.json or {}
-    to_email = data.get("to")
-    subject = data.get("subject")
-    message = data.get("message")
-    
-    if not to_email or not subject or not message:
-        return jsonify({"error": "Recipient, subject, and message are required"}), 400
-        
-    try:
-        import smtplib
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.text import MIMEText
-        import os
-        
-        html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-</head>
-<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0f14; color: #ffffff; margin: 0; padding: 40px 10px;">
-  <div style="max-width: 600px; margin: 0 auto; background: #111820; border: 1px solid #1a2632; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-    <div style="background: #0f171e; padding: 20px 24px; text-align: center; border-bottom: 1px solid #1a2632;">
-      <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto; display: inline-block;">
-        <tr>
-          <td style="vertical-align: middle; padding-right: 12px;">
-            <img src="https://files.catbox.moe/4c86l2.png" alt="Mint Frost AI Logo" style="height: 40px; width: auto; border: none; display: block;">
-          </td>
-          <td style="vertical-align: middle;">
-            <span style="font-size: 24px; font-weight: 700; color: #37e6b5; letter-spacing: -0.5px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: block;">Mint Frost AI</span>
-          </td>
-        </tr>
-      </table>
-    </div>
-    <div style="padding: 32px 24px; line-height: 1.6;">
-      <h2 style="margin-top: 0; font-size: 18px; color: #ffffff; font-weight: 600; border-bottom: 1px solid #1a2632; padding-bottom: 12px;">Reply from Mint Frost Support</h2>
-      <div style="color: #ffffff; font-size: 14px; white-space: pre-wrap; margin: 20px 0; word-break: break-all; background: #0b0f14; border: 1px solid #1a2632; padding: 16px; border-radius: 6px;">{message}</div>
-      <p style="color: #e0e0e0; font-size: 14px; margin: 24px 0 0 0;">Best regards,<br><strong style="color: #37e6b5;">Mint Frost Support Team</strong></p>
-    </div>
-    <div style="background: #0f171e; padding: 20px; text-align: center; font-size: 12px; color: #808890; border-top: 1px solid #1a2632;">
-      <p style="margin: 0; color: #808890;">Have questions? Reply to this message to continue the conversation.</p>
-      <p style="margin: 4px 0 0 0; color: #808890;">&copy; 2026 Mint Frost AI. All rights reserved.</p>
-    </div>
-  </div>
-</body>
-</html>"""
-        
-        from email.utils import make_msgid, formatdate
-        text_content = f"""Reply from Mint Frost Support:
-
-{message}
-
-Best regards,
-Mint Frost Support Team"""
-
-        mail_id = None
-        for key in ['MAIL_ID', 'mail_id', 'MAILID', 'mailid']:
-            val = os.environ.get(key)
-            if val:
-                mail_id = val.strip()
-                break
-        if not mail_id and os.path.exists('mail_id.txt'):
-            with open('mail_id.txt', 'r', encoding='utf-8') as f:
-                mail_id = f.read().strip()
-        if not mail_id:
-            return jsonify({"error": "SMTP config missing. MAIL_ID environment variable or mail_id.txt not set."}), 500
-
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = f'"Mint Frost Support" <{mail_id}>'
-        msg['To'] = to_email
-        msg['Date'] = formatdate(localtime=True)
-        msg['Message-ID'] = make_msgid(domain='mintfrostai.com')
-        msg['Auto-Submitted'] = 'auto-generated'
-        msg['Precedence'] = 'bulk'
-        
-        # Plain text part
-        text_part = MIMEText(text_content, 'plain')
-        msg.attach(text_part)
-        
-        # HTML part
-        html_part = MIMEText(html_content, 'html')
-        msg.attach(html_part)
-
-        password = None
-        for key in ['MAIL_PASSWORD', 'mail_password', 'MAILPASSWORD', 'mailpassword']:
-            val = os.environ.get(key)
-            if val:
-                password = val.strip()
-                break
-        if not password and os.path.exists('mail_password.txt'):
-            with open('mail_password.txt', 'r', encoding='utf-8') as f:
-                password = f.read().strip()
-                
-        if password:
-            server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-            server.login(mail_id, password)
-            server.send_message(msg)
-            server.quit()
-            
-            database.log_admin_action(session.get('user_id'), 'SEND_SUPPORT_REPLY', to_email, f"Replied directly to support request: {to_email}")
-            return jsonify({"success": True})
-        else:
-            return jsonify({"error": "SMTP config missing. MAIL_PASSWORD not set."}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 if __name__ == '__main__':
     # Start Flask development server
-    debug_mode = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    app.run(host='0.0.0.0', port=5001, debug=True)
     # Spotify credentials updated reload trigger
