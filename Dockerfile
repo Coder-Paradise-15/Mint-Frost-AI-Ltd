@@ -29,5 +29,5 @@ RUN rm -f databases/chat.db databases/chat_database.db
 # Expose the container port
 EXPOSE 8080
 
-# Start the application using the Flask server
-CMD ["python", "main.py"]
+# Start the application using Waitress WSGI server (multi-threaded production server)
+CMD ["waitress-serve", "--host=0.0.0.0", "--port=8080", "--threads=50", "main:app"]

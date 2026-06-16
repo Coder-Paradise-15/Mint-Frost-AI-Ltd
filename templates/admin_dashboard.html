@@ -3361,18 +3361,19 @@
     }
 
     function initMetricsStream() {
-      try {
-        const eventSource = new EventSource('/api/admin/metrics/stream');
-        eventSource.onmessage = function(event) {
-          const metrics = JSON.parse(event.data);
-          updateMetricsCards(metrics);
-        };
-        eventSource.onerror = function() {
-          console.warn('[SSE] Metrics event stream disconnected. Re-connecting...');
-        };
-      } catch (e) {
-        console.error('[SSE] Failed to initialize metrics event stream:', e);
+      async function fetchMetrics() {
+        try {
+          const res = await fetch('/api/admin/metrics/cards');
+          if (res.ok) {
+            const metrics = await res.json();
+            updateMetricsCards(metrics);
+          }
+        } catch (e) {
+          console.warn('[Polling] Failed to fetch metrics cards:', e);
+        }
       }
+      fetchMetrics();
+      setInterval(fetchMetrics, 10000); // Poll every 10 seconds
     }
 
     function updateMetricsCards(metrics) {
