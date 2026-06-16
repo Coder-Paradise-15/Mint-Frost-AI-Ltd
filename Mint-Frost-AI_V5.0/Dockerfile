@@ -4,7 +4,7 @@ FROM python:3.12-slim
 # Prevent Python from writing .pyc files and enable unbuffered logging
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PORT=5001
+ENV PORT=8080
 
 # Set the working directory in the container
 WORKDIR /app
@@ -27,7 +27,7 @@ COPY . .
 RUN rm -f databases/chat.db databases/chat_database.db
 
 # Expose the default port
-EXPOSE 5001
+EXPOSE 8080
 
 # Start the application using the Flask server
 CMD ["python", "app.py"]
