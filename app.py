@@ -3725,7 +3725,12 @@ If you have any additional details to add, please reply directly to this email.
 Best regards,
 Mint Frost Support Team"""
 
-        mail_id = os.environ.get('MAIL_ID')
+        mail_id = None
+        for key in ['MAIL_ID', 'mail_id', 'MAILID', 'mailid']:
+            val = os.environ.get(key)
+            if val:
+                mail_id = val.strip()
+                break
         if not mail_id and os.path.exists('mail_id.txt'):
             with open('mail_id.txt', 'r', encoding='utf-8') as f:
                 mail_id = f.read().strip()
@@ -3750,7 +3755,12 @@ Mint Frost Support Team"""
         msg.attach(html_part)
 
         try:
-            password = os.environ.get('MAIL_PASSWORD')
+            password = None
+            for key in ['MAIL_PASSWORD', 'mail_password', 'MAILPASSWORD', 'mailpassword']:
+                val = os.environ.get(key)
+                if val:
+                    password = val.strip()
+                    break
             if not password and os.path.exists('mail_password.txt'):
                 with open('mail_password.txt', 'r', encoding='utf-8') as f:
                     password = f.read().strip()
@@ -3839,7 +3849,12 @@ def api_admin_inbox_reply():
 Best regards,
 Mint Frost Support Team"""
 
-        mail_id = os.environ.get('MAIL_ID')
+        mail_id = None
+        for key in ['MAIL_ID', 'mail_id', 'MAILID', 'mailid']:
+            val = os.environ.get(key)
+            if val:
+                mail_id = val.strip()
+                break
         if not mail_id and os.path.exists('mail_id.txt'):
             with open('mail_id.txt', 'r', encoding='utf-8') as f:
                 mail_id = f.read().strip()
@@ -3863,7 +3878,12 @@ Mint Frost Support Team"""
         html_part = MIMEText(html_content, 'html')
         msg.attach(html_part)
 
-        password = os.environ.get('MAIL_PASSWORD')
+        password = None
+        for key in ['MAIL_PASSWORD', 'mail_password', 'MAILPASSWORD', 'mailpassword']:
+            val = os.environ.get(key)
+            if val:
+                password = val.strip()
+                break
         if not password and os.path.exists('mail_password.txt'):
             with open('mail_password.txt', 'r', encoding='utf-8') as f:
                 password = f.read().strip()
