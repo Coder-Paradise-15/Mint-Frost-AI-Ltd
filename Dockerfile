@@ -14,14 +14,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements from the V5.0 folder to leverage caching
-COPY Mint-Frost-AI_V5.0/requirements.txt .
+# Copy requirements first to leverage caching
+COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire V5.0 application files into the working directory
-COPY Mint-Frost-AI_V5.0/ .
+# Copy the entire application files into the working directory
+COPY . .
 
 # Ensure stale database files are not bundled if they exist in databases/
 RUN rm -f databases/chat.db databases/chat_database.db
@@ -30,4 +30,4 @@ RUN rm -f databases/chat.db databases/chat_database.db
 EXPOSE 8080
 
 # Start the application using the Flask server
-CMD ["python", "app.py"]
+CMD ["python", "main.py"]

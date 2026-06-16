@@ -4,6 +4,7 @@
 # Local scratch space and stale versions
 scratch/
 Mint-Frost-AI_V4.0/
+Mint-Frost-AI_V5.0/
 Mint-Frost-AI_Vercel/
 yt_contents_keys.json
 
@@ -15,10 +16,10 @@ __pycache__/
 .venv/
 venv/
 
-# Database files
+# Database files (prevent copying active or malformed databases)
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
-Mint-Frost-AI_V5.0/databases/*.db
-Mint-Frost-AI_V5.0/*.db
+databases/*.db
+databases/*.sqlite
