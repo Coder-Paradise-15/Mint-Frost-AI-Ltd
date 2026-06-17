@@ -1384,7 +1384,7 @@
           tab.classList.add('active-tab');
           tab.setAttribute('aria-current', 'page');
           const targetId = tab.dataset.tab;
-          document.querySelectorAll('#tab-home, #tab-chat').forEach(el => el.classList.remove('active-tab-content'));
+          document.querySelectorAll('#tab-home, #tab-chat, #tab-support').forEach(el => el.classList.remove('active-tab-content'));
           const target = document.getElementById(targetId);
           if (target) target.classList.add('active-tab-content');
         });
