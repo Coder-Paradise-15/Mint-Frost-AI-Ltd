@@ -1198,6 +1198,7 @@ def youtube_stream():
 
     try:
         import yt_dlp
+        import urllib.parse
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         
         ydl_opts = {
@@ -1207,7 +1208,10 @@ def youtube_stream():
             'nocheckcertificate': True,
             'skip_download': True,
             'youtube_include_dash_manifest': False,
-            'youtube_include_hls_manifest': False
+            'youtube_include_hls_manifest': False,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1215,12 +1219,57 @@ def youtube_stream():
             stream_url = info.get('url')
             
             if stream_url:
-                return jsonify({"url": stream_url})
+                proxy_url = f"/api/youtube/proxy?url={urllib.parse.quote(stream_url)}"
+                return jsonify({"url": proxy_url})
             else:
                 return jsonify({"error": "Failed to extract stream URL"}), 500
     except Exception as e:
         app.logger.error("YouTube stream extraction error: %s", e)
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/youtube/proxy')
+@login_required
+def youtube_proxy():
+    from flask import Response
+    url = request.args.get('url')
+    if not url:
+        return "Missing url", 400
+    
+    if not url.startswith('https://') or '.googlevideo.com/' not in url:
+        return "Invalid url", 400
+
+    # User-Agent matching the one used in yt_dlp to resolve signatures
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
+    # Forward range headers if sent by the browser
+    range_header = request.headers.get('Range')
+    if range_header:
+        headers['Range'] = range_header
+
+    try:
+        r = requests.get(url, headers=headers, stream=True, timeout=15)
+        
+        # Build response headers
+        resp_headers = {}
+        for h in ['Content-Type', 'Content-Length', 'Accept-Ranges', 'Content-Range']:
+            if h in r.headers:
+                resp_headers[h] = r.headers[h]
+                
+        def generate():
+            try:
+                for chunk in r.iter_content(chunk_size=4096 * 8):
+                    if chunk:
+                        yield chunk
+            except Exception:
+                # Connection might close early by browser, ignore
+                pass
+                
+        return Response(generate(), status=r.status_code, headers=resp_headers)
+    except Exception as e:
+        app.logger.error("YouTube stream proxy error: %s", e)
+        return "Proxy error", 500
 
 # --- end YouTube endpoints ---
 
