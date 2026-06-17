@@ -1364,10 +1364,16 @@ def google_auth():
     if not google_client_id or not google_client_secret:
         return jsonify({'error': 'Google credentials not configured on server'}), 500
 
-    url_base = request.url_root or request.host_url
-    if request.headers.get('X-Forwarded-Proto') == 'https':
-        if url_base.startswith('http://'):
-            url_base = 'https://' + url_base[7:]
+    forwarded_host = request.headers.get('X-Forwarded-Host', '').split(',')[0].strip()
+    forwarded_proto = request.headers.get('X-Forwarded-Proto')
+    if forwarded_host:
+        proto = forwarded_proto or 'http'
+        url_base = f"{proto}://{forwarded_host}/"
+    else:
+        url_base = request.url_root or request.host_url
+        if forwarded_proto == 'https':
+            if url_base.startswith('http://'):
+                url_base = 'https://' + url_base[7:]
     redirect_uri = url_base.rstrip('/') + '/api/google/callback'
     scope = 'openid email profile'
     params = {
@@ -1396,10 +1402,16 @@ def google_callback():
         return jsonify({'error': 'Google credentials not configured on server'}), 500
 
     token_url = 'https://oauth2.googleapis.com/token'
-    url_base = request.url_root or request.host_url
-    if request.headers.get('X-Forwarded-Proto') == 'https':
-        if url_base.startswith('http://'):
-            url_base = 'https://' + url_base[7:]
+    forwarded_host = request.headers.get('X-Forwarded-Host', '').split(',')[0].strip()
+    forwarded_proto = request.headers.get('X-Forwarded-Proto')
+    if forwarded_host:
+        proto = forwarded_proto or 'http'
+        url_base = f"{proto}://{forwarded_host}/"
+    else:
+        url_base = request.url_root or request.host_url
+        if forwarded_proto == 'https':
+            if url_base.startswith('http://'):
+                url_base = 'https://' + url_base[7:]
     redirect_uri = url_base.rstrip('/') + '/api/google/callback'
 
     data = {
