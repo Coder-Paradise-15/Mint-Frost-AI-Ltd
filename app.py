@@ -1365,7 +1365,8 @@ def google_callback():
     try:
         resp = requests.post(token_url, data=data, headers=headers, timeout=10)
         if resp.status_code != 200:
-            return jsonify({'error': 'Token exchange failed', 'details': resp.text}), 400
+            err_msg = f"Token exchange failed: {resp.text}"
+            return render_template('google_callback.html', error=err_msg) if 'text/html' in request.headers.get('Accept', '') else jsonify({'error': err_msg}), 400
         tok = resp.json()
         access_token = tok.get('access_token')
         refresh_token = tok.get('refresh_token')
@@ -1378,92 +1379,91 @@ def google_callback():
         session.modified = True
 
         # fetch userinfo and persist tokens
+        headers = {'Authorization': f'Bearer {access_token}'}
+        me_resp = requests.get('https://openidconnect.googleapis.com/v1/userinfo', headers=headers, timeout=10)
+        if me_resp.status_code != 200:
+            raise Exception(f"Google userinfo request failed with status {me_resp.status_code}: {me_resp.text}")
+            
+        profile = me_resp.json()
+        account_id = profile.get('sub') or profile.get('email')
+        if not account_id:
+            raise Exception("No user identity found in Google profile.")
+            
+        session['google_account_id'] = account_id
+        session.modified = True
         try:
-            headers = {'Authorization': f'Bearer {access_token}'}
-            me_resp = requests.get('https://openidconnect.googleapis.com/v1/userinfo', headers=headers, timeout=10)
-            if me_resp.status_code == 200:
-                profile = me_resp.json()
-                account_id = profile.get('sub') or profile.get('email')
-                session['google_account_id'] = account_id
-                session.modified = True
-                try:
-                    database.save_oauth_token('google', account_id, access_token, refresh_token, expires_at)
-                except Exception:
-                    pass
+            database.save_oauth_token('google', account_id, access_token, refresh_token, expires_at)
         except Exception:
             pass
 
         # Link account to local user or log in via Google SSO
-        try:
-            google_acct_id = session['google_account_id']
-            # Check if this Google account is already linked to a user in the database
-            linked_user_id = database.get_user_by_provider('google', google_acct_id)
+        google_acct_id = session.get('google_account_id')
+        if not google_acct_id:
+            raise Exception("No Google account identity in session.")
             
-            if linked_user_id:
-                # Google account is already registered! Log them in
-                user_details = database.get_user_secure(linked_user_id)
-                if user_details and user_details.get('status') == 'deactivated':
-                    session.clear()
-                    session.modified = True
-                    return render_template('google_callback.html', error='Your account has been deactivated by an administrator.') if 'text/html' in request.headers.get('Accept', '') else jsonify({'success': False, 'error': 'Your account has been deactivated by an administrator.'}), 403
+        # Check if this Google account is already linked to a user in the database
+        linked_user_id = database.get_user_by_provider('google', google_acct_id)
+        
+        if linked_user_id:
+            # Google account is already registered! Log them in
+            user_details = database.get_user_secure(linked_user_id)
+            if user_details and user_details.get('status') == 'deactivated':
+                session.clear()
+                session.modified = True
+                return render_template('google_callback.html', error='Your account has been deactivated by an administrator.') if 'text/html' in request.headers.get('Accept', '') else jsonify({'success': False, 'error': 'Your account has been deactivated by an administrator.'}), 403
+            
+            session['local_user_id'] = linked_user_id
+            session['user_id'] = linked_user_id
+            if user_details:
+                session['display_name'] = user_details.get('display_name')
+            
+            # Register active session
+            register_login_session(linked_user_id)
+            
+            # Log telemetry on login
+            log_user_telemetry(linked_user_id)
+        else:
+            # Google account is not connected yet!
+            # If they are already logged in locally, link Google to their active local account
+            active_user_id = session.get('user_id')
+            if active_user_id:
+                session['local_user_id'] = active_user_id
+                database.link_account_to_user(active_user_id, 'google', google_acct_id)
+            else:
+                # Not logged in! Create a new account automatically for Google SSO
+                # Try to fetch name from Google profile info
+                display_name = profile.get('name')
                 
-                session['local_user_id'] = linked_user_id
-                session['user_id'] = linked_user_id
-                if user_details:
-                    session['display_name'] = user_details.get('display_name')
+                # Generate a clean username using Google account ID
+                import uuid
+                import werkzeug.security
+                username = f"google_{google_acct_id[:12]}"
+                # Check if username exists, otherwise add random suffix
+                if database.get_user_secure(username):
+                    username = f"google_{str(uuid.uuid4())[:8]}"
+                
+                # Create the secure user in the users table
+                rand_pass = str(uuid.uuid4())
+                database.create_user_secure(username, werkzeug.security.generate_password_hash(rand_pass), display_name)
+                
+                session['local_user_id'] = username
+                session['user_id'] = username
+                session['display_name'] = display_name
                 
                 # Register active session
-                register_login_session(linked_user_id)
+                register_login_session(username)
                 
-                # Log telemetry on login
-                log_user_telemetry(linked_user_id)
-            else:
-                # Google account is not connected yet!
-                # If they are already logged in locally, link Google to their active local account
-                active_user_id = session.get('user_id')
-                if active_user_id:
-                    session['local_user_id'] = active_user_id
-                    database.link_account_to_user(active_user_id, 'google', google_acct_id)
-                else:
-                    # Not logged in! Create a new account automatically for Google SSO
-                    # Try to fetch name from Google profile info
-                    display_name = None
-                    try:
-                        if 'profile' in locals():
-                            display_name = profile.get('name')
-                    except:
-                        pass
-                    
-                    # Generate a clean username using Google account ID
-                    import uuid
-                    import werkzeug.security
-                    username = f"google_{google_acct_id[:12]}"
-                    # Check if username exists, otherwise add random suffix
-                    if database.get_user_secure(username):
-                        username = f"google_{str(uuid.uuid4())[:8]}"
-                    
-                    # Create the secure user in the users table
-                    rand_pass = str(uuid.uuid4())
-                    database.create_user_secure(username, werkzeug.security.generate_password_hash(rand_pass), display_name)
-                    
-                    session['local_user_id'] = username
-                    session['user_id'] = username
-                    session['display_name'] = display_name
-                    
-                    # Register active session
-                    register_login_session(username)
-                    
-                    # Log telemetry on auto-login
-                    log_user_telemetry(username)
-                    
-                    # Link Google to the newly created account
-                    database.link_account_to_user(username, 'google', google_acct_id)
-        except Exception as e:
-            app.logger.error(f"Failed to handle Google login/linking callback: {str(e)}")
+                # Log telemetry on auto-login
+                log_user_telemetry(username)
+                
+                # Link Google to the newly created account
+                database.link_account_to_user(username, 'google', google_acct_id)
 
         return render_template('google_callback.html') if 'text/html' in request.headers.get('Accept', '') else jsonify({'success': True})
     except Exception as e:
-        return jsonify({'error': 'Token exchange exception', 'details': str(e)}), 500
+        app.logger.error(f"Failed to handle Google login/linking callback: {str(e)}")
+        err_msg = f"Google authentication failed: {str(e)}"
+        return render_template('google_callback.html', error=err_msg) if 'text/html' in request.headers.get('Accept', '') else jsonify({'error': err_msg}), 500
 
 
 @app.route('/api/google/me')
