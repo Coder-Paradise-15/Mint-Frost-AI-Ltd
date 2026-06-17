@@ -1451,6 +1451,7 @@ def google_callback():
             raise Exception("No user identity found in Google profile.")
             
         session['google_account_id'] = account_id
+        session['profile_pic'] = profile.get('picture')
         session.modified = True
         try:
             database.save_oauth_token('google', account_id, access_token, refresh_token, expires_at)

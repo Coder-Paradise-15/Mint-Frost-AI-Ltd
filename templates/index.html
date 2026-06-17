@@ -9,7 +9,7 @@
   <script>
     window.currentUser = "{{ session.get('user_id', '') }}";
     window.currentUserDisplayName = "{{ session.get('display_name', '') or '' }}";
-    window.currentUserProfilePic = "{{ profile_pic or '' }}";
+    window.currentUserProfilePic = "{{ session.get('profile_pic', '') }}";
     window.currentSessionId = "{{ session.get('current_session_id', '') }}";
     function updateHeaderAvatar(url) {
       const icon = document.getElementById('profile-menu-icon');

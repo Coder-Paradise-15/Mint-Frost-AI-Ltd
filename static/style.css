@@ -5236,9 +5236,9 @@ body,
   width: 320px;
   height: 640px; /* Ratio 1:2 */
   max-height: calc(100vh - 120px);
-  background: rgba(10, 16, 26, 0.96);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgba(15, 22, 32, 0.98) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
@@ -5249,6 +5249,10 @@ body,
   pointer-events: none;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 9999;
+}
+
+[data-theme="light"] .notification-dropdown {
+  background: rgba(255, 255, 255, 0.98) !important;
 }
 
 .notification-dropdown.show {

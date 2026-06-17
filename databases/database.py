@@ -10,9 +10,19 @@ if DATABASE_PATH:
 else:
     DATABASE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'chat.db'))
 
+class CoercedConnection(sqlite3.Connection):
+    def __enter__(self):
+        return super().__enter__()
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            super().__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            self.close()
+
 def connect_db():
     """Get an optimized SQLite connection with WAL mode and synchronous tuning"""
-    conn = sqlite3.connect(DATABASE_PATH, timeout=10.0)
+    conn = sqlite3.connect(DATABASE_PATH, timeout=10.0, factory=CoercedConnection)
     try:
         conn.execute('PRAGMA journal_mode=WAL;')
         conn.execute('PRAGMA synchronous=NORMAL;')
@@ -111,6 +121,7 @@ def init_db():
             # Create indices for instant O(1) query lookups (avoids full-table scans on load)
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_linked_accounts_user_id ON linked_accounts(user_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id)')
 
             # Dynamic migrations to ensure schema is fully upgraded for existing databases safely
             try:
