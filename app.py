@@ -3038,6 +3038,225 @@ def api_admin_db_reset():
     except Exception as e:
         return jsonify({"error": f"Failed to reset database: {str(e)}"}), 500
 
+# ─── FILE EXPLORER BACKEND APIS ───
+
+def get_safe_whitelisted_path(file_rel_path):
+    if not file_rel_path:
+        return None
+        
+    # Prevent path traversal tricks by resolving absolute paths
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    
+    # We clean up the input path
+    cleaned_rel_path = file_rel_path.replace('\\', '/').lstrip('/')
+    target_abs = os.path.abspath(os.path.join(base_dir, cleaned_rel_path))
+    
+    # Whitelisted config files (exact matches)
+    whitelisted_configs = [
+        'mail_id.txt',
+        'mail_password.txt',
+        'weather_key.txt',
+        'google.txt',
+        'google_credentials.txt',
+        'OpenAI-Key.txt'
+    ]
+    
+    for conf in whitelisted_configs:
+        conf_abs = os.path.abspath(os.path.join(base_dir, conf))
+        if target_abs == conf_abs:
+            return target_abs
+            
+    # Whitelisted directory databases/backups/ (must be strictly inside)
+    backups_dir_abs = os.path.abspath(os.path.join(base_dir, 'databases', 'backups'))
+    if target_abs.startswith(backups_dir_abs + os.sep) or target_abs == backups_dir_abs:
+        return target_abs
+        
+    return None
+
+@app.route("/api/admin/files", methods=["GET"])
+@admin_required
+def api_admin_list_files():
+    try:
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+        
+        # 1. Gather configuration files
+        whitelisted_configs = [
+            'mail_id.txt',
+            'mail_password.txt',
+            'weather_key.txt',
+            'google.txt',
+            'google_credentials.txt',
+            'OpenAI-Key.txt'
+        ]
+        
+        configs = []
+        for name in whitelisted_configs:
+            file_abs = os.path.join(base_dir, name)
+            exists = os.path.exists(file_abs)
+            size = os.path.getsize(file_abs) if exists else 0
+            mtime = os.path.getmtime(file_abs) if exists else 0
+            configs.append({
+                "name": name,
+                "path": name,
+                "type": "config",
+                "exists": exists,
+                "size": size,
+                "modified": mtime
+            })
+            
+        # 2. Gather backups files
+        backups_dir = os.path.join(base_dir, 'databases', 'backups')
+        os.makedirs(backups_dir, exist_ok=True)
+        
+        backups = []
+        for entry in os.scandir(backups_dir):
+            if entry.is_file():
+                backups.append({
+                    "name": entry.name,
+                    "path": f"databases/backups/{entry.name}",
+                    "type": "backup",
+                    "exists": True,
+                    "size": entry.stat().st_size,
+                    "modified": entry.stat().st_mtime
+                })
+                
+        # Sort backups by modified time descending (newest first)
+        backups.sort(key=lambda x: x['modified'], reverse=True)
+        
+        return jsonify({
+            "configs": configs,
+            "backups": backups
+        })
+    except Exception as e:
+        return jsonify({"error": f"Failed to list files: {str(e)}"}), 500
+
+@app.route("/api/admin/files/read", methods=["GET"])
+@admin_required
+def api_admin_read_file():
+    filepath_input = request.args.get("path")
+    safe_path = get_safe_whitelisted_path(filepath_input)
+    if not safe_path:
+        return jsonify({"error": "Access Denied: Path not authorized"}), 403
+        
+    if not os.path.exists(safe_path):
+        # Return empty string for config files that don't exist yet rather than 404
+        if os.path.basename(safe_path) in ['google.txt', 'google_credentials.txt', 'OpenAI-Key.txt']:
+            return jsonify({"content": "", "exists": False})
+        return jsonify({"error": "File not found"}), 404
+        
+    try:
+        # Check if it's binary (like .db database backups)
+        is_binary = safe_path.endswith('.db')
+        if is_binary:
+            return jsonify({"content": "[Binary Database File]", "is_binary": True, "exists": True})
+            
+        with open(safe_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        return jsonify({"content": content, "is_binary": False, "exists": True})
+    except Exception as e:
+        return jsonify({"error": f"Failed to read file: {str(e)}"}), 500
+
+@app.route("/api/admin/files/write", methods=["POST"])
+@admin_required
+def api_admin_write_file():
+    data = request.json or {}
+    filepath_input = data.get("path")
+    content = data.get("content", "")
+    
+    safe_path = get_safe_whitelisted_path(filepath_input)
+    if not safe_path:
+        return jsonify({"error": "Access Denied: Path not authorized"}), 403
+        
+    # Prevent editing binary backup files directly
+    if safe_path.endswith('.db'):
+        return jsonify({"error": "Cannot edit binary database files directly"}), 400
+        
+    try:
+        # Ensure parent dir exists
+        os.makedirs(os.path.dirname(safe_path), exist_ok=True)
+        with open(safe_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+            
+        database.log_admin_action(session.get('user_id'), 'FILE_EDIT', filepath_input, f'Modified file content: {filepath_input}')
+        return jsonify({"success": True, "message": "File saved successfully"})
+    except Exception as e:
+        return jsonify({"error": f"Failed to write file: {str(e)}"}), 500
+
+@app.route("/api/admin/files/download", methods=["GET"])
+@admin_required
+def api_admin_download_file():
+    filepath_input = request.args.get("path")
+    safe_path = get_safe_whitelisted_path(filepath_input)
+    if not safe_path:
+        return jsonify({"error": "Access Denied: Path not authorized"}), 403
+        
+    if not os.path.exists(safe_path):
+        return jsonify({"error": "File not found"}), 404
+        
+    try:
+        from flask import send_file
+        database.log_admin_action(session.get('user_id'), 'FILE_DOWNLOAD', filepath_input, f'Downloaded file: {filepath_input}')
+        return send_file(
+            safe_path,
+            as_attachment=True,
+            download_name=os.path.basename(safe_path)
+        )
+    except Exception as e:
+        return jsonify({"error": f"Failed to download file: {str(e)}"}), 500
+
+@app.route("/api/admin/files/delete", methods=["POST"])
+@admin_required
+def api_admin_delete_file():
+    data = request.json or {}
+    filepath_input = data.get("path")
+    
+    safe_path = get_safe_whitelisted_path(filepath_input)
+    if not safe_path:
+        return jsonify({"error": "Access Denied: Path not authorized"}), 403
+        
+    # RESTRICTION: Only allow deletion under databases/backups folder to protect system config files
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    backups_dir_abs = os.path.abspath(os.path.join(base_dir, 'databases', 'backups'))
+    if not safe_path.startswith(backups_dir_abs + os.sep):
+        return jsonify({"error": "Access Denied: Configuration files cannot be deleted"}), 403
+        
+    if not os.path.exists(safe_path):
+        return jsonify({"error": "File not found"}), 404
+        
+    try:
+        os.remove(safe_path)
+        database.log_admin_action(session.get('user_id'), 'FILE_DELETE', filepath_input, f'Deleted file: {filepath_input}')
+        return jsonify({"success": True, "message": "File deleted successfully"})
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete file: {str(e)}"}), 500
+
+@app.route("/api/admin/files/upload", methods=["POST"])
+@admin_required
+def api_admin_upload_file():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file part in the request"}), 400
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+            
+        # Standardize and secure filename
+        from werkzeug.utils import secure_filename
+        filename = secure_filename(file.filename)
+        
+        # Only allow uploading to backups directory
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+        backups_dir = os.path.join(base_dir, 'databases', 'backups')
+        os.makedirs(backups_dir, exist_ok=True)
+        
+        dest_path = os.path.join(backups_dir, filename)
+        file.save(dest_path)
+        
+        database.log_admin_action(session.get('user_id'), 'FILE_UPLOAD', filename, f'Uploaded backup file: {filename}')
+        return jsonify({"success": True, "message": f"File '{filename}' uploaded successfully to backups"})
+    except Exception as e:
+        return jsonify({"error": f"Failed to upload file: {str(e)}"}), 500
+
 
 @app.route("/api/admin/sessions", methods=["GET"])
 @admin_required

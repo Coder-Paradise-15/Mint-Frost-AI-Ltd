@@ -3,7 +3,12 @@ from datetime import datetime
 import os
 
 
-DATABASE_PATH = os.path.join(os.path.dirname(__file__), '..', 'chat.db')
+DATABASE_PATH = os.environ.get('DATABASE_PATH')
+if DATABASE_PATH:
+    DATABASE_PATH = os.path.abspath(DATABASE_PATH)
+    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+else:
+    DATABASE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'chat.db'))
 
 def connect_db():
     """Get an optimized SQLite connection with WAL mode and synchronous tuning"""

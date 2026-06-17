@@ -6,13 +6,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
   <title>Mint Frost • Admin Console</title>
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" media="(prefers-color-scheme: light)">
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-dark.svg') }}" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;600&family=Outfit:wght@600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
-  <script src="{{ url_for('static', filename='custom_modals.js') }}"></script>
   
   <style>
     /* ─── FULL VIEWPORT RESET & OVERRIDES ───────────────── */
@@ -58,18 +56,15 @@
 
     /* ─── FLOATING NAVBAR ─────────────────────────────── */
     .nav {
-      position: absolute;
+      position: fixed !important;
       top: var(--nav-gap) !important;
-      left: 500px;
+      left: var(--nav-gap) !important;
+      right: var(--nav-gap) !important;
       height: var(--nav-height) !important;
       margin: 0 !important;
-      top: 0;
-      left: 0;
-      width: 100%;
-      z-index: 1000;
       display: flex !important;
       align-items: center !important;
-      justify-content: space-between;
+      justify-content: space-between !important;
       padding: 16px 22px !important;
       border-radius: var(--radius-xl) !important;
       background: var(--glass) !important;
@@ -79,9 +74,6 @@
       box-shadow: var(--shadow) !important;
       z-index: 1000 !important;
       transition: var(--transition) !important;
-      flex-direction: row;
-      flex-wrap: nowrap;
-      align-content: stretch;
     }
 
     .nav__left {
@@ -2016,9 +2008,6 @@
           <i class="fas fa-database"></i> <span>Database Sandbox</span>
         </button>
         {% endif %}
-        <button class="menu-item" data-tab="tab-inbox">
-          <i class="fas fa-inbox"></i> <span>Support Inbox</span>
-        </button>
         <button class="menu-item" data-tab="tab-simulation">
           <i class="fas fa-bolt"></i> <span>Operations Simulator</span>
         </button>
@@ -2036,6 +2025,9 @@
         </button>
         <button class="menu-item" data-tab="tab-audit">
           <i class="fas fa-history"></i> <span>Audit Logs</span>
+        </button>
+        <button class="menu-item" data-tab="tab-files">
+          <i class="fas fa-folder-open"></i> <span>File Explorer</span>
         </button>
       </nav>
 
@@ -2518,6 +2510,100 @@
           </div>
         </section>
 
+        <!-- FILE EXPLORER TAB -->
+        <section id="tab-files" class="dashboard-tab-panel">
+          <div class="dashboard-header-widget">
+            <div>
+              <h1>Security File Manager</h1>
+              <p>Direct view, modification, and import/export capabilities for environment configuration parameters and platform database backups.</p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button onclick="loadFileExplorer()" class="btn btn--secondary" title="Refresh files" style="border-radius: 8px; font-weight: 700; height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.05); color: var(--fg); cursor: pointer;">
+                <i class="fas fa-sync-alt"></i> Refresh
+              </button>
+              <button onclick="document.getElementById('fileUploadInput').click()" class="btn btn--mint" style="border-radius: 8px; font-weight: 700; height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; cursor: pointer;">
+                <i class="fas fa-upload"></i> Import/Upload Backup
+              </button>
+              <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFileExplorer(this)" />
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 20px; height: calc(100vh - 280px); min-height: 500px; margin-top: 15px;">
+            <!-- Left Pane: File List -->
+            <div style="width: 300px; display: flex; flex-direction: column; gap: 15px; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 15px; box-sizing: border-box; overflow-y: auto;">
+              
+              <div>
+                <h3 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                  <i class="fas fa-cog" style="color: var(--mint);"></i> Configuration Files
+                </h3>
+                <div id="explorerConfigsList" style="display: flex; flex-direction: column; gap: 4px;">
+                  <!-- Dynamically populated config files -->
+                </div>
+              </div>
+              
+              <hr style="border: 0; border-top: 1px solid var(--border); margin: 5px 0;" />
+              
+              <div style="flex: 1; display: flex; flex-direction: column;">
+                <h3 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                  <i class="fas fa-database" style="color: var(--mint);"></i> Database Backups
+                </h3>
+                <div id="explorerBackupsList" style="display: flex; flex-direction: column; gap: 4px; overflow-y: auto; flex: 1;">
+                  <!-- Dynamically populated backup files -->
+                </div>
+              </div>
+              
+            </div>
+
+            <!-- Right Pane: File Editor -->
+            <div style="flex: 1; display: flex; flex-direction: column; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 20px; box-sizing: border-box; position: relative;">
+              <div id="editorEmptyState" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: var(--muted); gap: 15px;">
+                <i class="fas fa-folder-open" style="font-size: 48px; color: rgba(55, 230, 181, 0.2);"></i>
+                <div>
+                  <h3 style="color: var(--fg); margin-bottom: 4px;">No File Selected</h3>
+                  <p style="font-size: 12px; max-width: 320px;">Select a configuration file or database backup from the left pane to read, modify, or download it.</p>
+                </div>
+              </div>
+
+              <div id="editorActiveState" style="display: none; flex-direction: column; height: 100%; gap: 15px;">
+                <!-- Editor Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                  <div>
+                    <h3 id="editorFileName" style="margin: 0; color: var(--fg); font-size: 16px; font-family: 'Outfit', sans-serif;">file_name.txt</h3>
+                    <span id="editorFileMeta" style="font-size: 11px; color: var(--muted); font-family: 'Fira Code', monospace;">Type: Config | Size: 124 bytes | Path: config.txt</span>
+                  </div>
+                  <div style="display: flex; gap: 8px;">
+                    <button onclick="downloadSelectedFile()" class="btn btn--secondary btn--sm" style="border-radius: 6px; display: flex; align-items: center; gap: 4px; height: 34px;">
+                      <i class="fas fa-download"></i> Download
+                    </button>
+                    <button id="editorSaveBtn" onclick="saveSelectedFile()" class="btn btn--mint btn--sm" style="border-radius: 6px; display: flex; align-items: center; gap: 4px; height: 34px;">
+                      <i class="fas fa-save"></i> Save Changes
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Editor Textarea Area -->
+                <div style="flex: 1; display: flex; border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(0,0,0,0.25); overflow: hidden; position: relative;">
+                  <!-- Row Numbers -->
+                  <div id="editorLineNumbers" style="width: 45px; background: rgba(0,0,0,0.15); border-right: 1px solid var(--border); padding: 12px 0; box-sizing: border-box; text-align: right; padding-right: 10px; font-family: 'Fira Code', monospace; font-size: 12px; color: rgba(255,255,255,0.15); line-height: 1.5; select-none;">
+                    1
+                  </div>
+                  
+                  <textarea id="editorTextarea" onscroll="syncEditorScroll()" oninput="updateEditorLineNumbers()" placeholder="Write file contents here..." style="flex: 1; background: transparent; border: 0; outline: none; resize: none; padding: 12px; font-family: 'Fira Code', monospace; font-size: 12px; color: var(--fg); line-height: 1.5; box-sizing: border-box; height: 100%; white-space: pre; overflow: auto;"></textarea>
+                  
+                  <!-- Overlay status for binary files -->
+                  <div id="editorBinaryMessage" style="display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; color: var(--muted); z-index: 5;">
+                    <i class="fas fa-file-invoice" style="font-size: 36px; color: var(--mint);"></i>
+                    <div>
+                      <h4 style="color: var(--fg); margin-bottom: 2px;">Binary Database File</h4>
+                      <p style="font-size: 11px;">This file is a binary SQLite database and cannot be edited in the browser.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- ACTIVE SESSIONS TAB -->
         <section id="tab-sessions" class="dashboard-tab-panel">
           <div class="dashboard-header-widget">
@@ -2706,44 +2792,6 @@
           </div>
         </section>
 
-        <!-- Support Inbox Tab -->
-        <section id="tab-inbox" class="dashboard-tab-panel">
-          <div class="dashboard-header-widget">
-            <div>
-              <h1>Support Inbox</h1>
-              <p>Review customer queries, feedback, and support tickets sent from the user panel.</p>
-            </div>
-            <div>
-              <button onclick="fetchSupportInbox()" class="btn btn--secondary" title="Refresh list" style="border-radius: 8px; font-weight: 700; height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.05); color: var(--fg); cursor: pointer;">
-                <i class="fas fa-sync-alt"></i> Refresh
-              </button>
-            </div>
-          </div>
-
-          <div class="table-container">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Sender Email</th>
-                  <th>Category</th>
-                  <th>Priority</th>
-                  <th>Subject</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="inboxTableBody">
-                <tr>
-                  <td colspan="7" style="text-align:center; padding:40px; color:var(--muted);">
-                    Loading messages...
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
       </div>
 
       <!-- FOOTER -->
@@ -2811,14 +2859,6 @@
             <span class="drawer-info-label">Registered Since</span>
             <span class="drawer-info-value" id="drawerCreatedDate">2026-06-02</span>
           </div>
-        </div>
-      </div>
-
-      <!-- Linked Account Integrations -->
-      <div style="margin-top: 15px; padding: 15px; border-radius: 12px; background: rgba(11,14,20,0.45); border: 1px solid rgba(0, 240, 255, 0.08); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-        <span class="drawer-section-title" style="margin-top: 0; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-link" style="color: var(--mint);"></i> Linked Account Integrations</span>
-        <div id="drawerIntegrationsList" style="display: flex; flex-direction: column; gap: 8px;">
-          <div style="font-size: 11px; color: var(--muted); text-align: center; padding: 10px;">Loading integrations...</div>
         </div>
       </div>
       <!-- Global security rules policy panel -->
@@ -3101,59 +3141,6 @@
     </div>
   </div>
 
-  <!-- SUPPORT MESSAGE DETAIL & FOLLOW-UP MODAL -->
-  <div class="modal-overlay" id="supportMessageModal">
-    <div class="modal-card" style="width: 550px;">
-      <div class="modal-card-header">
-        <div class="modal-card-icon">
-          <i class="fas fa-envelope-open-text"></i>
-        </div>
-        <div>
-          <h3 class="modal-title">Support Ticket Details</h3>
-          <span style="font-size: 11px; color: var(--muted);" id="supportModalTime"></span>
-        </div>
-        <button class="modal-close-btn" onclick="closeModal('supportMessageModal')">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-card-body" style="display: flex; flex-direction: column; gap: 15px;">
-        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-          <div>
-            <span style="font-size: 11px; color: var(--muted); display: block;">From</span>
-            <span style="font-weight: 600;" id="supportModalFrom"></span>
-          </div>
-          <div>
-            <span style="font-size: 11px; color: var(--muted); display: block;">Category</span>
-            <span class="filter-tag" style="background:rgba(55,230,181,0.05); border-color:rgba(55,230,181,0.15); color:var(--mint); padding:2px 8px; border-radius:4px; font-size: 10px;" id="supportModalCategory">General</span>
-          </div>
-          <div>
-            <span style="font-size: 11px; color: var(--muted); display: block;">Priority</span>
-            <span class="filter-tag" style="background:rgba(255,107,107,0.05); border-color:rgba(255,107,107,0.15); color:var(--error); padding:2px 8px; border-radius:4px; font-size: 10px;" id="supportModalPriority">Medium</span>
-          </div>
-        </div>
-        
-        <div>
-          <span style="font-size: 11px; color: var(--muted); display: block; margin-bottom: 4px;">Subject</span>
-          <span style="font-weight: 600; color: var(--fg);" id="supportModalSubject"></span>
-        </div>
-
-        <div>
-          <span style="font-size: 11px; color: var(--muted); display: block; margin-bottom: 4px;">Message</span>
-          <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius-md); font-size: 13px; color: var(--fg); white-space: pre-wrap; max-height: 150px; overflow-y: auto;" id="supportModalMessage"></div>
-        </div>
-
-        <div style="border-top: 1px solid var(--border); padding-top: 15px;">
-          <span style="font-size: 11px; color: var(--muted); display: block; margin-bottom: 6px;"><i class="fas fa-reply" style="margin-right: 4px;"></i> Direct Follow-up Reply</span>
-          <textarea id="supportModalReplyText" placeholder="Write your follow-up reply message here. This will be sent directly to the user's email." style="width: 100%; height: 100px; background: rgba(0,0,0,0.1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 12px; color: var(--fg); font-size: 13px; resize: none; outline: none; box-sizing: border-box;"></textarea>
-        </div>
-      </div>
-      <div class="modal-card-footer">
-        <button class="btn btn--ghost btn--sm" onclick="closeModal('supportMessageModal')" style="border-radius: 8px;">Close</button>
-        <button class="btn btn--mint btn--sm" id="btnSendSupportReply" onclick="sendSupportReply()" style="border-radius: 8px;"><i class="fas fa-paper-plane" style="margin-right:4px;"></i> Send Reply</button>
-      </div>
-    </div>
-  </div>
-
   <!-- THEME SELECTOR -->
   <div id="theme-selector" class="theme-selector">
     <div class="theme-selector__header">
@@ -3361,19 +3348,18 @@
     }
 
     function initMetricsStream() {
-      async function fetchMetrics() {
-        try {
-          const res = await fetch('/api/admin/metrics/cards');
-          if (res.ok) {
-            const metrics = await res.json();
-            updateMetricsCards(metrics);
-          }
-        } catch (e) {
-          console.warn('[Polling] Failed to fetch metrics cards:', e);
-        }
+      try {
+        const eventSource = new EventSource('/api/admin/metrics/stream');
+        eventSource.onmessage = function(event) {
+          const metrics = JSON.parse(event.data);
+          updateMetricsCards(metrics);
+        };
+        eventSource.onerror = function() {
+          console.warn('[SSE] Metrics event stream disconnected. Re-connecting...');
+        };
+      } catch (e) {
+        console.error('[SSE] Failed to initialize metrics event stream:', e);
       }
-      fetchMetrics();
-      setInterval(fetchMetrics, 10000); // Poll every 10 seconds
     }
 
     function updateMetricsCards(metrics) {
@@ -3571,9 +3557,6 @@
         if (targetTab === 'tab-database') {
           loadDatabaseTables();
         }
-        if (targetTab === 'tab-inbox') {
-          fetchSupportInbox();
-        }
         if (targetTab === 'tab-health') {
           fetchSystemHealth();
         }
@@ -3586,6 +3569,9 @@
         }
         if (targetTab === 'tab-audit') {
           fetchAuditLogs();
+        }
+        if (targetTab === 'tab-files') {
+          loadFileExplorer();
         }
       });
     });
@@ -3709,165 +3695,6 @@
         }
       } catch (err) {
         appendTerminalLog('Failed to fetch platform config parameters.', 'error');
-      }
-    }
-
-    let cachedSupportMessages = [];
-
-    async function fetchSupportInbox() {
-      try {
-        const response = await fetch('/api/admin/inbox');
-        if (response.ok) {
-          const data = await response.json();
-          const messages = data.messages || [];
-          cachedSupportMessages = messages;
-          const tbody = document.getElementById('inboxTableBody');
-          if (!tbody) return;
-          
-          if (messages.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--muted);">No support tickets received.</td></tr>`;
-            return;
-          }
-          
-          tbody.innerHTML = messages.map(msg => {
-            const dateVal = msg.timestamp.includes('T') ? msg.timestamp : msg.timestamp.replace(' ', 'T');
-            const date = new Date(dateVal + (dateVal.endsWith('Z') ? '' : 'Z'));
-            const dateStr = date.toLocaleString();
-            
-            // Priority Tag styling
-            let priorityBadgeColor = 'rgba(55, 230, 181, 0.15)';
-            let priorityTextColor = 'var(--mint)';
-            if (msg.priority === 'High') {
-              priorityBadgeColor = 'rgba(255, 107, 107, 0.15)';
-              priorityTextColor = 'var(--error)';
-            } else if (msg.priority === 'Medium') {
-              priorityBadgeColor = 'rgba(255, 201, 101, 0.15)';
-              priorityTextColor = '#ffc965';
-            }
-
-            return `
-              <tr>
-                <td style="font-family:'Fira Code', monospace; font-size:11px; color:var(--mint);">${dateStr}</td>
-                <td><span style="font-weight:600; color:var(--fg);">${msg.sender_email}</span></td>
-                <td><span class="filter-tag" style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.15); color:var(--fg); padding:2px 8px; border-radius:4px; font-size:10px;">${msg.category || 'General'}</span></td>
-                <td><span class="filter-tag" style="background:${priorityBadgeColor}; border-color:${priorityBadgeColor}; color:${priorityTextColor}; padding:2px 8px; border-radius:4px; font-size:10px;">${msg.priority || 'Medium'}</span></td>
-                <td><span style="font-weight:600; color:var(--fg);">${msg.subject}</span></td>
-                <td><span class="filter-tag" style="background:rgba(55,230,181,0.05); border-color:rgba(55,230,181,0.15); color:var(--mint); padding:2px 8px; border-radius:4px; font-size:10px;">${msg.status || 'unread'}</span></td>
-                <td>
-                  <button onclick="viewSupportMessage(${msg.id})" class="btn btn--secondary btn--sm" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; cursor: pointer; height: auto;">
-                    <i class="fas fa-eye"></i> View
-                  </button>
-                  <button onclick="deleteSupportMessage(${msg.id})" class="btn btn--danger btn--sm" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; cursor: pointer; height: auto; margin-left: 5px; background: rgba(255, 107, 107, 0.15); border: 1px solid rgba(255, 107, 107, 0.3); color: var(--error);">
-                    <i class="fas fa-trash-alt"></i> Delete
-                  </button>
-                </td>
-              </tr>
-            `;
-          }).join('');
-        }
-      } catch (err) {
-        showToast('Failed to load support inbox.', true);
-        appendTerminalLog('Failed to resolve support inbox from SQLite database.', 'error');
-      }
-    }
-
-    let activeReplyRecipient = '';
-    let activeReplySubject = '';
-
-    function viewSupportMessage(id) {
-      const msg = cachedSupportMessages.find(m => m.id === id);
-      if (!msg) return;
-
-      activeReplyRecipient = msg.sender_email;
-      activeReplySubject = msg.subject.startsWith('Re:') ? msg.subject : 'Re: ' + msg.subject;
-
-      const dateVal = msg.timestamp.includes('T') ? msg.timestamp : msg.timestamp.replace(' ', 'T');
-      const date = new Date(dateVal + (dateVal.endsWith('Z') ? '' : 'Z'));
-      
-      document.getElementById('supportModalTime').innerText = date.toLocaleString();
-      document.getElementById('supportModalFrom').innerText = msg.sender_email;
-      document.getElementById('supportModalCategory').innerText = msg.category || 'General';
-      document.getElementById('supportModalPriority').innerText = msg.priority || 'Medium';
-      document.getElementById('supportModalSubject').innerText = msg.subject;
-      document.getElementById('supportModalMessage').innerText = msg.message;
-      document.getElementById('supportModalReplyText').value = '';
-
-      // Set priority badge color contextually
-      const priorityEl = document.getElementById('supportModalPriority');
-      if (msg.priority === 'High') {
-        priorityEl.style.background = 'rgba(255, 107, 107, 0.1)';
-        priorityEl.style.borderColor = 'rgba(255, 107, 107, 0.2)';
-        priorityEl.style.color = 'var(--error)';
-      } else if (msg.priority === 'Medium') {
-        priorityEl.style.background = 'rgba(255, 201, 101, 0.1)';
-        priorityEl.style.borderColor = 'rgba(255, 201, 101, 0.2)';
-        priorityEl.style.color = '#ffc965';
-      } else {
-        priorityEl.style.background = 'rgba(55, 230, 181, 0.1)';
-        priorityEl.style.borderColor = 'rgba(55, 230, 181, 0.2)';
-        priorityEl.style.color = 'var(--mint)';
-      }
-
-      openModal('supportMessageModal');
-    }
-
-    async function sendSupportReply() {
-      const replyBody = document.getElementById('supportModalReplyText').value;
-      if (!replyBody.trim()) {
-        showToast('Please enter a reply message.', true);
-        return;
-      }
-
-      const btn = document.getElementById('btnSendSupportReply');
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-
-      try {
-        const response = await fetch('/api/admin/inbox/reply', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            to: activeReplyRecipient,
-            subject: activeReplySubject,
-            message: replyBody
-          })
-        });
-
-        if (response.ok) {
-          showToast('Reply successfully sent to the user!', false);
-          appendTerminalLog(`Sent support follow-up reply email to: ${activeReplyRecipient}`);
-          closeModal('supportMessageModal');
-        } else {
-          const errData = await response.json();
-          showToast(errData.error || 'Failed to send reply.', true);
-        }
-      } catch (err) {
-        showToast('SMTP network error occurred.', true);
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-paper-plane" style="margin-right:4px;"></i> Send Reply';
-      }
-    }
-
-    async function deleteSupportMessage(id) {
-      const accept = await customConfirm('Are you sure you want to permanently delete this support ticket?');
-      if (!accept) {
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/admin/inbox/delete/${id}`, {
-          method: 'POST'
-        });
-
-        if (response.ok) {
-          showToast('Support ticket deleted successfully.');
-          fetchSupportInbox();
-        } else {
-          showToast('Failed to delete ticket.', true);
-        }
-      } catch (err) {
-        showToast('Error deleting ticket.', true);
       }
     }
 
@@ -4504,45 +4331,6 @@
           }
         }
         document.getElementById('drawerCreatedDate').innerText = formattedCreatedDate;
-
-        // Populate integrations list
-        const integrationsListDiv = document.getElementById('drawerIntegrationsList');
-        integrationsListDiv.innerHTML = '';
-        if (user.linked_accounts && user.linked_accounts.length > 0) {
-          user.linked_accounts.forEach(acc => {
-            const accDiv = document.createElement('div');
-            accDiv.style = 'display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:8px; margin-bottom:4px;';
-            
-            let providerName = acc.provider;
-            let iconClass = 'fas fa-plug';
-            if (acc.provider === 'google') {
-              providerName = 'Google Auth';
-              iconClass = 'fab fa-google';
-            } else if (acc.provider === 'google_drive') {
-              providerName = 'Google Drive';
-              iconClass = 'fab fa-google-drive';
-            } else if (acc.provider === 'google_calendar') {
-              providerName = 'Google Calendar';
-              iconClass = 'far fa-calendar-alt';
-            } else if (acc.provider === 'location') {
-              providerName = 'Location Services';
-              iconClass = 'fas fa-map-marker-alt';
-            }
-            
-            accDiv.innerHTML = `
-              <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--fg);">
-                <i class="${iconClass}" style="color:var(--mint); width:16px;"></i>
-                <span>${providerName}</span>
-              </div>
-              <div style="font-family:monospace; font-size:11px; color:var(--muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:180px;" title="${acc.account_id}">
-                ${acc.account_id}
-              </div>
-            `;
-            integrationsListDiv.appendChild(accDiv);
-          });
-        } else {
-          integrationsListDiv.innerHTML = '<div style="font-size:11px; color:var(--muted); text-align:center; padding:10px;">No active integrations</div>';
-        }
 
         // --- Fetch and populate Global Security Policies (RBAC) ---
         try {
@@ -5335,8 +5123,7 @@
     }
 
     async function revokeSession(token) {
-      const accept = await customConfirm('Are you sure you want to terminate this login session? The user will be instantly logged out.');
-      if (!accept) return;
+      if (!confirm('Are you sure you want to terminate this login session? The user will be instantly logged out.')) return;
       try {
         const response = await fetch('/api/admin/sessions/revoke', {
           method: 'POST',
@@ -5356,8 +5143,7 @@
     }
 
     async function confirmRevokeAllSessions() {
-      const accept = await customConfirm('Are you sure you want to terminate ALL other active sessions? This will log out all other administrators and users immediately.');
-      if (!accept) return;
+      if (!confirm('Are you sure you want to terminate ALL other active sessions? This will log out all other administrators and users immediately.')) return;
       try {
         const response = await fetch('/api/admin/sessions/revoke-all', { method: 'POST' });
         const data = await response.json();
@@ -5589,8 +5375,7 @@
     }
 
     async function triggerPurgeSimulation() {
-      const accept = await customConfirm('Are you sure you want to wipe all simulated data? This deletes all users with "sim_" username prefix and clears latency overrides.');
-      if (!accept) return;
+      if (!confirm('Are you sure you want to wipe all simulated data? This deletes all users with "sim_" username prefix and clears latency overrides.')) return;
       try {
         const response = await fetch('/api/admin/simulate', {
           method: 'POST',
@@ -5704,17 +5489,10 @@
       window.setTelemetryPreset = setTelemetryPreset;
       window.setRegistryPreset = setRegistryPreset;
 
-      // Expose Support Inbox functions
-      window.fetchSupportInbox = fetchSupportInbox;
-      window.viewSupportMessage = viewSupportMessage;
-      window.deleteSupportMessage = deleteSupportMessage;
-      window.sendSupportReply = sendSupportReply;
-
       initCharts();
       initMetricsStream();
       fetchUsers();
       setInterval(fetchUsers, 5000); // Live refresh registry table every 5 seconds
-      setInterval(fetchSupportInbox, 5000); // Live refresh support inbox every 5 seconds
 
       // Force recalculation of chart scaling after page load layout transition animation (0.4s) finishes
       setTimeout(() => {
@@ -5737,6 +5515,262 @@
       window.addEventListener('beforeunload', () => {
         navigator.sendBeacon('/api/unload');
       });
+      // ─── FILE EXPLORER JS CONTROLLERS ───
+      let currentSelectedFilePath = null;
+
+      async function loadFileExplorer() {
+        try {
+          const res = await fetch('/api/admin/files');
+          if (!res.ok) throw new Error('Failed to fetch files');
+          const data = await res.json();
+          
+          const configsList = document.getElementById('explorerConfigsList');
+          const backupsList = document.getElementById('explorerBackupsList');
+          if (!configsList || !backupsList) return;
+          
+          // 1. Render configuration files list
+          configsList.innerHTML = data.configs.map(file => {
+            const sizeStr = file.exists ? formatBytes(file.size) : 'Not Configured';
+            const indicator = file.exists 
+              ? `<span style="width:6px; height:6px; border-radius:50%; background:var(--mint); display:inline-block;" title="File Active"></span>` 
+              : `<span style="width:6px; height:6px; border-radius:50%; background:var(--muted); display:inline-block;" title="File Inactive/Empty"></span>`;
+            const activeStyle = currentSelectedFilePath === file.path ? 'background: rgba(55, 230, 181, 0.08); border-color: rgba(55, 230, 181, 0.2);' : '';
+            
+            return `
+              <div onclick="selectFile('${file.path}')" style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:8px; border:1px solid transparent; cursor:pointer; transition:all 0.2s ease; ${activeStyle}" class="file-item-hover">
+                <div style="display:flex; align-items:center; gap:8px; overflow:hidden; width: calc(100% - 20px);">
+                  <i class="far fa-file-alt" style="color:var(--mint); flex-shrink:0;"></i>
+                  <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    <div style="font-size:12px; font-weight:600; color:var(--fg);">${file.name}</div>
+                    <div style="font-size:10px; color:var(--muted); font-family:monospace;">${sizeStr}</div>
+                  </div>
+                </div>
+                ${indicator}
+              </div>
+            `;
+          }).join('');
+          
+          // 2. Render backups files list
+          if (data.backups.length === 0) {
+            backupsList.innerHTML = `<div style="font-size:11px; color:var(--muted); text-align:center; padding:15px; border:1px dashed var(--border); border-radius:8px;">No backup files found. Run a backup in the console to create one.</div>`;
+          } else {
+            backupsList.innerHTML = data.backups.map(file => {
+              const sizeStr = formatBytes(file.size);
+              const activeStyle = currentSelectedFilePath === file.path ? 'background: rgba(55, 230, 181, 0.08); border-color: rgba(55, 230, 181, 0.2);' : '';
+              const isDb = file.name.endsWith('.db');
+              const fileIcon = isDb ? 'fas fa-database' : 'far fa-file-code';
+              
+              return `
+                <div onclick="selectFile('${file.path}')" style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:8px; border:1px solid transparent; cursor:pointer; transition:all 0.2s ease; ${activeStyle}" class="file-item-hover">
+                  <div style="display:flex; align-items:center; gap:8px; overflow:hidden; width: calc(100% - 40px);">
+                    <i class="${fileIcon}" style="color:var(--mint); flex-shrink:0;"></i>
+                    <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                      <div style="font-size:12px; font-weight:600; color:var(--fg);" title="${file.name}">${file.name}</div>
+                      <div style="font-size:10px; color:var(--muted); font-family:monospace;">${sizeStr}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:4px; align-items:center;">
+                    <button onclick="event.stopPropagation(); deleteSelectedBackup('${file.path}')" class="btn-icon" style="background:transparent; border:0; padding:2px; color:var(--error); cursor:pointer; opacity:0.6; transition:opacity 0.2s;" title="Delete backup">
+                      <i class="fas fa-trash-alt" style="font-size:10px;"></i>
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('');
+          }
+        } catch (err) {
+          showToast('Failed to load File Explorer.', true);
+          appendTerminalLog('Failed to fetch file system registry from API.', 'error');
+        }
+      }
+
+      async function selectFile(path) {
+        currentSelectedFilePath = path;
+        
+        // Update UI active states in the file list
+        loadFileExplorer();
+        
+        const res = await fetch(`/api/admin/files/read?path=${encodeURIComponent(path)}`);
+        if (!res.ok) {
+          showToast('Failed to load file contents.', true);
+          return;
+        }
+        
+        const fileData = await res.json();
+        
+        document.getElementById('editorEmptyState').style.display = 'none';
+        document.getElementById('editorActiveState').style.display = 'flex';
+        
+        const parts = path.split('/');
+        const fileName = parts[parts.length - 1];
+        document.getElementById('editorFileName').innerText = fileName;
+        
+        let typeLabel = path.includes('databases/backups') ? 'Backup File' : 'Config File';
+        document.getElementById('editorFileMeta').innerText = `Type: ${typeLabel} | Path: ${path}`;
+        
+        const saveBtn = document.getElementById('editorSaveBtn');
+        const textarea = document.getElementById('editorTextarea');
+        const binaryOverlay = document.getElementById('editorBinaryMessage');
+        
+        if (fileData.is_binary) {
+          binaryOverlay.style.display = 'flex';
+          textarea.value = '';
+          saveBtn.disabled = true;
+          saveBtn.style.opacity = 0.5;
+          saveBtn.style.cursor = 'not-allowed';
+        } else {
+          binaryOverlay.style.display = 'none';
+          textarea.value = fileData.content;
+          saveBtn.disabled = false;
+          saveBtn.style.opacity = 1;
+          saveBtn.style.cursor = 'pointer';
+        }
+        
+        updateEditorLineNumbers();
+      }
+
+      async function saveSelectedFile() {
+        if (!currentSelectedFilePath) return;
+        const content = document.getElementById('editorTextarea').value;
+        
+        const btn = document.getElementById('editorSaveBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        
+        try {
+          const res = await fetch('/api/admin/files/write', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              path: currentSelectedFilePath,
+              content: content
+            })
+          });
+          
+          if (res.ok) {
+            showToast('File saved successfully!');
+            appendTerminalLog(`Successfully modified and saved file: ${currentSelectedFilePath}`);
+            loadFileExplorer();
+          } else {
+            const errData = await res.json();
+            showToast(errData.error || 'Failed to save changes.', true);
+          }
+        } catch (err) {
+          showToast('Network error while saving file.', true);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+        }
+      }
+
+      function downloadSelectedFile() {
+        if (!currentSelectedFilePath) return;
+        window.open(`/api/admin/files/download?path=${encodeURIComponent(currentSelectedFilePath)}`, '_blank');
+      }
+
+      async function deleteSelectedBackup(path) {
+        const parts = path.split('/');
+        const fileName = parts[parts.length - 1];
+        if (!confirm(`Are you sure you want to permanently delete the backup file "${fileName}"?`)) {
+          return;
+        }
+        
+        try {
+          const res = await fetch('/api/admin/files/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: path })
+          });
+          
+          if (res.ok) {
+            showToast('Backup deleted successfully.');
+            appendTerminalLog(`Permanently deleted backup file: ${path}`, 'warning');
+            if (currentSelectedFilePath === path) {
+              document.getElementById('editorActiveState').style.display = 'none';
+              document.getElementById('editorEmptyState').style.display = 'flex';
+              currentSelectedFilePath = null;
+            }
+            loadFileExplorer();
+          } else {
+            const errData = await res.json();
+            showToast(errData.error || 'Failed to delete backup.', true);
+          }
+        } catch (err) {
+          showToast('Error trying to delete file.', true);
+        }
+      }
+
+      async function uploadFileExplorer(input) {
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        showToast('Uploading file...');
+        try {
+          const res = await fetch('/api/admin/files/upload', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (res.ok) {
+            showToast('File uploaded successfully!');
+            appendTerminalLog(`Uploaded and registered file: ${file.name}`);
+            loadFileExplorer();
+          } else {
+            const errData = await res.json();
+            showToast(errData.error || 'Upload failed.', true);
+          }
+        } catch (err) {
+          showToast('Error uploading file.', true);
+        } finally {
+          input.value = ''; // clear input
+        }
+      }
+
+      function formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
+      function updateEditorLineNumbers() {
+        const textarea = document.getElementById('editorTextarea');
+        const lineNumbersDiv = document.getElementById('editorLineNumbers');
+        if (!textarea || !lineNumbersDiv) return;
+        
+        const lines = textarea.value.split('\n');
+        const lineCount = Math.max(lines.length, 1);
+        
+        let lineNumsHtml = '';
+        for (let i = 1; i <= lineCount; i++) {
+          lineNumsHtml += `<div>${i}</div>`;
+        }
+        lineNumbersDiv.innerHTML = lineNumsHtml;
+        syncEditorScroll();
+      }
+
+      function syncEditorScroll() {
+        const textarea = document.getElementById('editorTextarea');
+        const lineNumbersDiv = document.getElementById('editorLineNumbers');
+        if (!textarea || !lineNumbersDiv) return;
+        
+        lineNumbersDiv.scrollTop = textarea.scrollTop;
+      }
+
+      // Expose File Explorer functions to window
+      window.loadFileExplorer = loadFileExplorer;
+      window.selectFile = selectFile;
+      window.saveSelectedFile = saveSelectedFile;
+      window.downloadSelectedFile = downloadSelectedFile;
+      window.deleteSelectedBackup = deleteSelectedBackup;
+      window.uploadFileExplorer = uploadFileExplorer;
+      window.syncEditorScroll = syncEditorScroll;
+      window.updateEditorLineNumbers = updateEditorLineNumbers;
+
       // Let's add keydown event listener to toggle sidebar with Ctrl+B
       document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 'b') {
@@ -5744,16 +5778,6 @@
           toggleSidebar();
         }
       });
-      // Catch and display all global script/runtime errors in the admin console
-      window.onerror = function(message, source, lineno, colno, error) {
-        appendTerminalLog(`Global Script Error: ${message} at ${source}:${lineno}:${colno}`, 'error');
-        return false;
-      };
-
-      // Catch and display all unhandled promise rejections (failed fetches) in the admin console
-      window.onunhandledrejection = function(event) {
-        appendTerminalLog(`Unhandled Rejection: ${event.reason}`, 'error');
-      };
     })();
   </script>
 
