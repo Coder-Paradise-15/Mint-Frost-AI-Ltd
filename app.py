@@ -1315,7 +1315,11 @@ def google_auth():
     if not google_client_id or not google_client_secret:
         return jsonify({'error': 'Google credentials not configured on server'}), 500
 
-    redirect_uri = (request.url_root or request.host_url).rstrip('/') + '/api/google/callback'
+    url_base = request.url_root or request.host_url
+    if request.headers.get('X-Forwarded-Proto') == 'https':
+        if url_base.startswith('http://'):
+            url_base = 'https://' + url_base[7:]
+    redirect_uri = url_base.rstrip('/') + '/api/google/callback'
     scope = 'openid email profile'
     params = {
         'client_id': google_client_id,
@@ -1343,7 +1347,11 @@ def google_callback():
         return jsonify({'error': 'Google credentials not configured on server'}), 500
 
     token_url = 'https://oauth2.googleapis.com/token'
-    redirect_uri = (request.url_root or request.host_url).rstrip('/') + '/api/google/callback'
+    url_base = request.url_root or request.host_url
+    if request.headers.get('X-Forwarded-Proto') == 'https':
+        if url_base.startswith('http://'):
+            url_base = 'https://' + url_base[7:]
+    redirect_uri = url_base.rstrip('/') + '/api/google/callback'
 
     data = {
         'code': code,
