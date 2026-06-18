@@ -2339,11 +2339,9 @@ def api_admin_metrics_stream():
 
     from flask import Response
     def event_stream():
-        import json, time
-        while True:
-            metrics = _get_pre_aggregated_metrics()
-            yield f"data: {json.dumps(metrics)}\n\n"
-            time.sleep(5)
+        import json
+        metrics = _get_pre_aggregated_metrics()
+        yield f"data: {json.dumps(metrics)}\n\n"
     return Response(event_stream(), mimetype="text/event-stream")
 
 
