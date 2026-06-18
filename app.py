@@ -2375,23 +2375,33 @@ def api_support_send():
     if not sender or not message:
         return jsonify({"error": "Sender email and message are required."}), 400
         
-    # Read mail credentials from files
-    base_dir = os.path.abspath(os.path.dirname(__file__))
-    mail_id_file = os.path.join(base_dir, 'mail_id.txt')
-    mail_pw_file = os.path.join(base_dir, 'mail_password.txt')
-    
-    if not os.path.exists(mail_id_file) or not os.path.exists(mail_pw_file):
+    # Prioritize environment variables for SMTP credentials, then fall back to local files
+    support_email = os.environ.get('MAIL_ID') or os.environ.get('SMTP_EMAIL')
+    if not support_email:
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+        mail_id_file = os.path.join(base_dir, 'mail_id.txt')
+        if os.path.exists(mail_id_file):
+            try:
+                with open(mail_id_file, 'r', encoding='utf-8') as f:
+                    support_email = f.read().strip()
+            except Exception as e:
+                return jsonify({"error": f"Failed to load mail ID from file: {str(e)}"}), 500
+                
+    support_password = os.environ.get('MAIL_PASSWORD') or os.environ.get('SMTP_PASSWORD')
+    if not support_password:
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+        mail_pw_file = os.path.join(base_dir, 'mail_password.txt')
+        if os.path.exists(mail_pw_file):
+            try:
+                with open(mail_pw_file, 'r', encoding='utf-8') as f:
+                    support_password = f.read().strip()
+            except Exception as e:
+                return jsonify({"error": f"Failed to load mail password from file: {str(e)}"}), 500
+
+    if not support_email or not support_password:
         return jsonify({"error": "Support mail service is not configured on the server."}), 503
-        
-    try:
-        with open(mail_id_file, 'r', encoding='utf-8') as f:
-            support_email = f.read().strip()
-        with open(mail_pw_file, 'r', encoding='utf-8') as f:
-            support_password = f.read().strip()
-    except Exception as e:
-        return jsonify({"error": f"Failed to load mail credentials: {str(e)}"}), 500
-        
-    if not support_email or not support_password or 'your-email' in support_email or 'your-google' in support_password:
+
+    if 'your-email' in support_email or 'your-google' in support_password:
         return jsonify({"error": "Support mail service is not configured (placeholder detected)."}), 503
 
     import smtplib
