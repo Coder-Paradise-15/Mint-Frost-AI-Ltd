@@ -1650,5 +1650,19 @@ def update_support_ticket_status(ticket_id, status):
         return False
 
 
+def get_support_ticket(ticket_id):
+    try:
+        with connect_db() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM support_tickets WHERE id = ?', (ticket_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    except Exception as e:
+        import logging
+        logging.error(f"Error fetching support ticket {ticket_id}: {e}")
+        return None
+
+
 
 

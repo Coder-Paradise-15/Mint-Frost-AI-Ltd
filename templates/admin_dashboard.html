@@ -2539,9 +2539,9 @@
 
                 <!-- Action Footer -->
                 <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border); padding-top: 16px;">
-                  <a id="detReplyBtn" href="#" class="btn btn--mint" style="border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; padding: 0 16px; height: 38px;">
+                  <button id="detReplyBtn" onclick="openReplyModal(event)" class="btn btn--mint" style="border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 0 16px; height: 38px; cursor: pointer;">
                     <i class="fas fa-reply"></i> Reply via Email
-                  </a>
+                  </button>
                 </div>
               </div>
             </div>
@@ -3216,6 +3216,49 @@
       <div class="modal-card-footer">
         <button class="btn btn--ghost btn--sm" onclick="closeModal('createUserModal')" style="border-radius: 8px;">Cancel</button>
         <button class="btn btn--mint btn--sm" id="btnSubmitCreateUser" onclick="submitCreateUser()" style="border-radius: 8px;">Create User</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUPPORT TICKET REPLY MODAL -->
+  <div class="modal-overlay" id="adminReplyModal">
+    <div class="modal-card" style="width: 550px; max-width: 90vw;">
+      <button class="modal-card-close" onclick="closeModal('adminReplyModal')">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="modal-card-header">
+        <div class="modal-card-icon">
+          <i class="fas fa-reply" style="color: var(--mint);"></i>
+        </div>
+        <h3 class="modal-card-title">Send Ticket Reply</h3>
+      </div>
+      <div class="modal-card-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="font-size: 13px; color: var(--muted); background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.02);">
+          <div style="margin-bottom: 4px;"><strong>To:</strong> <span id="replyTargetSender" style="color: var(--fg);"></span></div>
+          <div><strong>Subject:</strong> <span id="replyTargetSubject" style="color: var(--fg);"></span></div>
+        </div>
+        
+        <!-- Rich Formatting Toolbar -->
+        <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 8px; align-items: center; flex-wrap: wrap;">
+          <button type="button" class="btn-action-quick" onclick="insertFormatting('bold')" title="Bold" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-bold"></i></button>
+          <button type="button" class="btn-action-quick" onclick="insertFormatting('italic')" title="Italic" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-italic"></i></button>
+          <button type="button" class="btn-action-quick" onclick="insertFormatting('underline')" title="Underline" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-underline"></i></button>
+          <button type="button" class="btn-action-quick" onclick="insertFormatting('list')" title="List Item" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-list-ul"></i></button>
+          <button type="button" class="btn-action-quick" onclick="insertFormatting('br')" title="Line Break" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-level-down-alt"></i></button>
+          <button type="button" class="btn-action-quick" onclick="insertFormatting('clear')" title="Clear" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-eraser"></i></button>
+        </div>
+        
+        <!-- Textarea reply message -->
+        <div>
+          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Reply Message</label>
+          <textarea id="replyMessageInput" class="search-box-field" style="width: 100%; height: 180px; resize: vertical; padding: 14px; font-family: inherit; font-size: 14px; line-height: 1.5; border-radius: var(--radius-md);" placeholder="Type response here (HTML formatted support enabled)..."></textarea>
+        </div>
+      </div>
+      <div class="modal-card-footer">
+        <button class="btn btn--ghost btn--sm" onclick="closeModal('adminReplyModal')" style="border-radius: 8px;">Cancel</button>
+        <button class="btn btn--mint btn--sm" id="btnSubmitAdminReply" onclick="submitAdminReply()" style="border-radius: 8px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+          <i class="fas fa-paper-plane"></i> Send Reply
+        </button>
       </div>
     </div>
   </div>
@@ -6147,10 +6190,91 @@
           pb.style = 'background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);';
         }
         
-        const replyBtn = document.getElementById('detReplyBtn');
-        const mailtoSubject = encodeURIComponent(`Re: ${ticket.subject || 'Support Ticket'}`);
-        const mailtoBody = encodeURIComponent(`\n\n\n--- Original Message ---\nFrom: ${ticket.sender}\nReceived: ${ticket.created_at}\n\n${ticket.message}`);
-        replyBtn.href = `mailto:${ticket.sender}?subject=${mailtoSubject}&body=${mailtoBody}`;
+      }
+
+      function openReplyModal(event) {
+        if (event) event.preventDefault();
+        if (!selectedTicketId) return;
+        const ticket = supportTicketsCache.find(t => t.id === selectedTicketId);
+        if (!ticket) return;
+        
+        document.getElementById('replyTargetSender').innerText = ticket.sender;
+        document.getElementById('replyTargetSubject').innerText = `Re: ${ticket.subject || 'Support Ticket'}`;
+        document.getElementById('replyMessageInput').value = '';
+        
+        openModal('adminReplyModal');
+      }
+
+      function insertFormatting(type) {
+        const textarea = document.getElementById('replyMessageInput');
+        if (!textarea) return;
+        
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = textarea.value;
+        const selectedText = text.substring(start, end);
+        
+        let replacement = '';
+        if (type === 'bold') {
+          replacement = `<strong>${selectedText || 'bold text'}</strong>`;
+        } else if (type === 'italic') {
+          replacement = `<em>${selectedText || 'italic text'}</em>`;
+        } else if (type === 'underline') {
+          replacement = `<u>${selectedText || 'underlined text'}</u>`;
+        } else if (type === 'list') {
+          replacement = `<li>${selectedText || 'list item'}</li>`;
+        } else if (type === 'br') {
+          replacement = `${selectedText}<br>`;
+        } else if (type === 'clear') {
+          replacement = selectedText.replace(/<[^>]*>/g, '');
+        }
+        
+        textarea.value = text.substring(0, start) + replacement + text.substring(end);
+        textarea.focus();
+        
+        setTimeout(() => {
+          textarea.selectionStart = start;
+          textarea.selectionEnd = start + replacement.length;
+        }, 0);
+      }
+
+      async function submitAdminReply() {
+        if (!selectedTicketId) return;
+        const message = document.getElementById('replyMessageInput').value.trim();
+        if (!message) {
+          showToast('Error', 'Reply message cannot be empty.', 'fa-exclamation-triangle', 'error');
+          return;
+        }
+        
+        const sendBtn = document.getElementById('btnSubmitAdminReply');
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        
+        try {
+          const response = await fetch(`/api/admin/support-tickets/${selectedTicketId}/reply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message })
+          });
+          
+          if (!response.ok) throw new Error('API server error');
+          const data = await response.json();
+          
+          if (data.success) {
+            showToast('Success', 'Reply email sent successfully and ticket resolved!', 'fa-check-circle', 'success');
+            closeModal('adminReplyModal');
+            document.getElementById('replyMessageInput').value = '';
+            fetchSupportTickets();
+          } else {
+            showToast('Error', data.error || 'Failed to send reply.', 'fa-exclamation-triangle', 'error');
+          }
+        } catch (e) {
+          console.error('Failed to send reply:', e);
+          showToast('Error', 'Failed to send reply email.', 'fa-exclamation-triangle', 'error');
+        } finally {
+          sendBtn.disabled = false;
+          sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Reply';
+        }
       }
 
       async function updateTicketStatus() {
@@ -6203,6 +6327,9 @@
       window.fetchSupportTickets = fetchSupportTickets;
       window.updateTicketStatus = updateTicketStatus;
       window.filterSupportTickets = filterSupportTickets;
+      window.openReplyModal = openReplyModal;
+      window.insertFormatting = insertFormatting;
+      window.submitAdminReply = submitAdminReply;
 
       // Let's add keydown event listener to toggle sidebar with Ctrl+B
       document.addEventListener('keydown', (e) => {

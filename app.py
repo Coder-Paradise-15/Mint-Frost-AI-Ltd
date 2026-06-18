@@ -2765,8 +2765,9 @@ def api_support_send():
 </html>"""
 
     # Send ticket notification to Support Inbox
+    from email.utils import formataddr
     msg_to_support = MIMEMultipart('alternative')
-    msg_to_support['From'] = support_email
+    msg_to_support['From'] = formataddr(("Mint Frost Support", support_email))
     msg_to_support['To'] = support_email
     msg_to_support['Reply-To'] = sender
     msg_to_support['Subject'] = f"[Support Ticket] {category.upper()}: {subject or 'No Subject'}"
@@ -2774,7 +2775,7 @@ def api_support_send():
 
     # Send receipt/acknowledgement to User Sender
     msg_to_user = MIMEMultipart('alternative')
-    msg_to_user['From'] = support_email
+    msg_to_user['From'] = formataddr(("Mint Frost Support", support_email))
     msg_to_user['To'] = sender
     msg_to_user['Subject'] = f"Re: {subject or 'Support Ticket Received'}"
     msg_to_user.attach(MIMEText(html_user, 'html', 'utf-8'))
@@ -2830,6 +2831,229 @@ def api_admin_support_ticket_status(ticket_id):
             database.log_admin_action(user_id, 'UPDATE_TICKET_STATUS', str(ticket_id), f"Set status to {status}")
         return jsonify({"success": True})
     return jsonify({"error": "Failed to update ticket status."}), 500
+
+
+@app.route("/api/admin/support-tickets/<int:ticket_id>/reply", methods=["POST"])
+@admin_required
+def api_admin_support_ticket_reply(ticket_id):
+    ticket = database.get_support_ticket(ticket_id)
+    if not ticket:
+        return jsonify({"error": "Support ticket not found."}), 404
+        
+    data = request.get_json() or {}
+    reply_message = data.get('message', '').strip()
+    if not reply_message:
+        return jsonify({"error": "Reply message cannot be empty."}), 400
+        
+    # Prioritize environment variables for SMTP credentials, then fall back to local files
+    support_email = os.environ.get('MAIL_ID') or os.environ.get('SMTP_EMAIL')
+    if not support_email:
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+        mail_id_file = os.path.join(base_dir, 'mail_id.txt')
+        if os.path.exists(mail_id_file):
+            try:
+                with open(mail_id_file, 'r', encoding='utf-8') as f:
+                    support_email = f.read().strip()
+            except Exception as e:
+                return jsonify({"error": f"Failed to load mail ID from file: {str(e)}"}), 500
+                
+    support_password = os.environ.get('MAIL_PASSWORD') or os.environ.get('SMTP_PASSWORD')
+    if not support_password:
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+        mail_pw_file = os.path.join(base_dir, 'mail_password.txt')
+        if os.path.exists(mail_pw_file):
+            try:
+                with open(mail_pw_file, 'r', encoding='utf-8') as f:
+                    support_password = f.read().strip()
+            except Exception as e:
+                return jsonify({"error": f"Failed to load mail password from file: {str(e)}"}), 500
+
+    if not support_email or not support_password:
+        return jsonify({"error": "Support mail service is not configured on the server."}), 503
+
+    if 'your-email' in support_email or 'your-google' in support_password:
+        return jsonify({"error": "Support mail service is not configured (placeholder detected)."}), 503
+
+    import smtplib
+    import html
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from email.utils import formataddr
+
+    # Format fields for HTML email
+    reply_html = reply_message
+    category_display = (ticket.get('category') or 'general').capitalize()
+    priority_display = (ticket.get('priority') or 'low').upper()
+    subject_display = html.escape(ticket.get('subject') or 'No Subject')
+    original_message_html = html.escape(ticket.get('message') or '').replace('\n', '<br>')
+
+    # HTML Email Template to User for Reply
+    html_reply = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {{
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #080c14;
+      color: #e2e8f0;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }}
+    .wrapper {{
+      background-color: #080c14;
+      padding: 40px 20px;
+    }}
+    .container {{
+      max-width: 600px;
+      margin: 0 auto;
+      background: #0f1622;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }}
+    .header {{
+      background: linear-gradient(135deg, #0f1622 0%, #172237 100%);
+      padding: 30px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      text-align: center;
+    }}
+    .logo-text {{
+      font-size: 24px;
+      font-weight: 800;
+      color: #37e6b5;
+      letter-spacing: -0.5px;
+      margin: 0;
+    }}
+    .logo-sub {{
+      color: #94a3b8;
+      font-size: 12px;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }}
+    .content {{
+      padding: 40px 30px;
+    }}
+    h1 {{
+      font-size: 20px;
+      color: #ffffff;
+      margin-top: 0;
+      margin-bottom: 20px;
+      font-weight: 700;
+    }}
+    p {{
+      font-size: 15px;
+      color: #94a3b8;
+      line-height: 1.6;
+      margin-top: 0;
+      margin-bottom: 24px;
+    }}
+    .reply-box {{
+      background: rgba(55, 230, 181, 0.03);
+      border: 1px solid rgba(55, 230, 181, 0.1);
+      border-left: 4px solid #37e6b5;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 30px;
+      font-size: 15px;
+      color: #ffffff;
+      line-height: 1.6;
+    }}
+    .quote-box {{
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 20px;
+    }}
+    .quote-header {{
+      font-weight: 700;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }}
+    .footer {{
+      background: #0b1019;
+      padding: 24px;
+      text-align: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 12px;
+      color: #64748b;
+    }}
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <div class="logo-text">MINT FROST</div>
+        <div class="logo-sub">Support Response</div>
+      </div>
+      <div class="content">
+        <h1>Response to Your Ticket</h1>
+        <p>Hello,</p>
+        <p>An administrator from Mint Frost Support has responded to your ticket:</p>
+        
+        <div class="reply-box">
+          {reply_html}
+        </div>
+        
+        <p>If you have any further questions, you can reply directly to this email.</p>
+        
+        <div class="quote-box">
+          <div class="quote-header">Original Ticket Details</div>
+          <strong>Subject:</strong> {subject_display}<br>
+          <strong>Category:</strong> {category_display}<br>
+          <strong>Priority:</strong> {priority_display}<br><br>
+          {original_message_html}
+        </div>
+        
+        <p style="margin-top: 30px; margin-bottom: 0;">Best regards,<br><span style="color: #ffffff; font-weight: 600;">Mint Frost Support Team</span></p>
+      </div>
+      <div class="footer">
+        &copy; 2026 Mint Frost Ltd. All rights reserved.
+      </div>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    # Send reply to User Sender
+    msg_to_user = MIMEMultipart('alternative')
+    msg_to_user['From'] = formataddr(("Mint Frost Support", support_email))
+    msg_to_user['To'] = ticket.get('sender')
+    msg_to_user['Reply-To'] = support_email
+    msg_to_user['Subject'] = f"Re: {ticket.get('subject') or 'Support Ticket'}"
+    msg_to_user.attach(MIMEText(html_reply, 'html', 'utf-8'))
+
+    try:
+        # Connect to Gmail SMTP
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=15)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(support_email, support_password)
+        server.sendmail(support_email, [ticket.get('sender')], msg_to_user.as_string())
+        server.quit()
+        
+        # Update ticket status in database to 'resolved'
+        database.update_support_ticket_status(ticket_id, 'resolved')
+        
+        user_id = session.get('user_id')
+        if user_id:
+            database.log_admin_action(user_id, 'REPLY_SUPPORT_TICKET', ticket.get('sender'), f"Replied to ticket ID {ticket_id}")
+            
+        return jsonify({"success": True, "message": "Reply email sent successfully"})
+    except Exception as e:
+        import logging
+        logging.error(f"SMTP sending error in admin reply: {e}")
+        return jsonify({"error": f"SMTP mail delivery failed: {str(e)}"}), 500
 
 
 @app.route("/api/admin/users/<username>/details", methods=["GET"])
