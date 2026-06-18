@@ -2404,56 +2404,380 @@ def api_support_send():
     if 'your-email' in support_email or 'your-google' in support_password:
         return jsonify({"error": "Support mail service is not configured (placeholder detected)."}), 503
 
+    # Save support ticket to SQLite database
+    database.create_support_ticket(sender, subject, message, category, priority)
+
     import smtplib
+    import html
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
 
+    # Format fields for HTML email
+    message_html = html.escape(message).replace('\n', '<br>')
+    category_display = category.capitalize()
+    priority_display = priority.upper()
+    priority_lower = priority.lower()
+    subject_display = html.escape(subject or 'No Subject')
+    sender_display = html.escape(sender)
+
+    # HTML Email Template to Support Inbox
+    html_support = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {{
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #080c14;
+      color: #e2e8f0;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }}
+    .wrapper {{
+      background-color: #080c14;
+      padding: 40px 20px;
+    }}
+    .container {{
+      max-width: 600px;
+      margin: 0 auto;
+      background: #0f1622;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }}
+    .header {{
+      background: linear-gradient(135deg, #0f1622 0%, #172237 100%);
+      padding: 30px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      text-align: center;
+    }}
+    .logo-text {{
+      font-size: 24px;
+      font-weight: 800;
+      color: #37e6b5;
+      letter-spacing: -0.5px;
+      margin: 0;
+    }}
+    .logo-sub {{
+      color: #94a3b8;
+      font-size: 12px;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }}
+    .content {{
+      padding: 40px 30px;
+    }}
+    h1 {{
+      font-size: 20px;
+      color: #ffffff;
+      margin-top: 0;
+      margin-bottom: 20px;
+      font-weight: 700;
+    }}
+    p {{
+      font-size: 15px;
+      color: #94a3b8;
+      line-height: 1.6;
+      margin-top: 0;
+      margin-bottom: 24px;
+    }}
+    .details-box {{
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }}
+    .details-row {{
+      margin-bottom: 12px;
+      display: flex;
+      font-size: 14px;
+    }}
+    .details-row:last-child {{
+      margin-bottom: 0;
+    }}
+    .details-label {{
+      width: 100px;
+      color: #64748b;
+      font-weight: 600;
+    }}
+    .details-value {{
+      color: #f1f5f9;
+      flex: 1;
+    }}
+    .badge {{
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }}
+    .badge-priority-high {{
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }}
+    .badge-priority-medium {{
+      background: rgba(245, 158, 11, 0.1);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }}
+    .badge-priority-low {{
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }}
+    .message-container {{
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 15px;
+      border-left: 3px solid #37e6b5;
+      font-size: 14px;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }}
+    .footer {{
+      background: #0b1019;
+      padding: 24px;
+      text-align: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 12px;
+      color: #64748b;
+    }}
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <div class="logo-text">MINT FROST</div>
+        <div class="logo-sub">Internal Support Notification</div>
+      </div>
+      <div class="content">
+        <h1>New Support Ticket Received</h1>
+        <p>A new user support ticket has been submitted. Details are below:</p>
+        
+        <div class="details-box">
+          <div class="details-row">
+            <div class="details-label">From</div>
+            <div class="details-value">{sender_display}</div>
+          </div>
+          <div class="details-row">
+            <div class="details-label">Category</div>
+            <div class="details-value">{category_display}</div>
+          </div>
+          <div class="details-row">
+            <div class="details-label">Priority</div>
+            <div class="details-value">
+              <span class="badge badge-priority-{priority_lower}">{priority_display}</span>
+            </div>
+          </div>
+          <div class="details-row">
+            <div class="details-label">Subject</div>
+            <div class="details-value">{subject_display}</div>
+          </div>
+          <div class="message-container">{message_html}</div>
+        </div>
+      </div>
+      <div class="footer">
+        &copy; 2026 Mint Frost Admin Console
+      </div>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    # HTML Email Template to User (Receipt)
+    html_user = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {{
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #080c14;
+      color: #e2e8f0;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }}
+    .wrapper {{
+      background-color: #080c14;
+      padding: 40px 20px;
+    }}
+    .container {{
+      max-width: 600px;
+      margin: 0 auto;
+      background: #0f1622;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }}
+    .header {{
+      background: linear-gradient(135deg, #0f1622 0%, #172237 100%);
+      padding: 30px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      text-align: center;
+    }}
+    .logo-text {{
+      font-size: 24px;
+      font-weight: 800;
+      color: #37e6b5;
+      letter-spacing: -0.5px;
+      margin: 0;
+    }}
+    .logo-sub {{
+      color: #94a3b8;
+      font-size: 12px;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }}
+    .content {{
+      padding: 40px 30px;
+    }}
+    h1 {{
+      font-size: 20px;
+      color: #ffffff;
+      margin-top: 0;
+      margin-bottom: 20px;
+      font-weight: 700;
+    }}
+    p {{
+      font-size: 15px;
+      color: #94a3b8;
+      line-height: 1.6;
+      margin-top: 0;
+      margin-bottom: 24px;
+    }}
+    .details-box {{
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }}
+    .details-row {{
+      margin-bottom: 12px;
+      display: flex;
+      font-size: 14px;
+    }}
+    .details-row:last-child {{
+      margin-bottom: 0;
+    }}
+    .details-label {{
+      width: 100px;
+      color: #64748b;
+      font-weight: 600;
+    }}
+    .details-value {{
+      color: #f1f5f9;
+      flex: 1;
+    }}
+    .badge {{
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }}
+    .badge-priority-high {{
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }}
+    .badge-priority-medium {{
+      background: rgba(245, 158, 11, 0.1);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }}
+    .badge-priority-low {{
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }}
+    .message-container {{
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 15px;
+      border-left: 3px solid #37e6b5;
+      font-size: 14px;
+      color: #cbd5e1;
+      font-style: italic;
+      line-height: 1.5;
+    }}
+    .footer {{
+      background: #0b1019;
+      padding: 24px;
+      text-align: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 12px;
+      color: #64748b;
+    }}
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <div class="logo-text">MINT FROST</div>
+        <div class="logo-sub">Support System</div>
+      </div>
+      <div class="content">
+        <h1>Ticket Received</h1>
+        <p>Hello,</p>
+        <p>Thank you for contacting Mint Frost Support. We have received your support request and our team will get back to you shortly. A summary of your ticket details is provided below:</p>
+        
+        <div class="details-box">
+          <div class="details-row">
+            <div class="details-label">Category</div>
+            <div class="details-value">{category_display}</div>
+          </div>
+          <div class="details-row">
+            <div class="details-label">Priority</div>
+            <div class="details-value">
+              <span class="badge badge-priority-{priority_lower}">{priority_display}</span>
+            </div>
+          </div>
+          <div class="details-row">
+            <div class="details-label">Subject</div>
+            <div class="details-value">{subject_display}</div>
+          </div>
+          <div class="message-container">{message_html}</div>
+        </div>
+        
+        <p style="margin-bottom: 0;">Best regards,<br><span style="color: #ffffff; font-weight: 600;">Mint Frost Team</span></p>
+      </div>
+      <div class="footer">
+        &copy; 2026 Mint Frost Ltd. All rights reserved.
+      </div>
+    </div>
+  </div>
+</body>
+</html>"""
+
     # Send ticket notification to Support Inbox
-    msg_to_support = MIMEMultipart()
+    msg_to_support = MIMEMultipart('alternative')
     msg_to_support['From'] = support_email
     msg_to_support['To'] = support_email
     msg_to_support['Reply-To'] = sender
     msg_to_support['Subject'] = f"[Support Ticket] {category.upper()}: {subject or 'No Subject'}"
-    
-    body_support = f"""
-New support ticket received:
----------------------------------------------
-From: {sender}
-Category: {category}
-Priority: {priority}
-Subject: {subject or 'No Subject'}
-
-Message:
-{message}
----------------------------------------------
-"""
-    msg_to_support.attach(MIMEText(body_support, 'plain', 'utf-8'))
+    msg_to_support.attach(MIMEText(html_support, 'html', 'utf-8'))
 
     # Send receipt/acknowledgement to User Sender
-    msg_to_user = MIMEMultipart()
+    msg_to_user = MIMEMultipart('alternative')
     msg_to_user['From'] = support_email
     msg_to_user['To'] = sender
     msg_to_user['Subject'] = f"Re: {subject or 'Support Ticket Received'}"
-    
-    body_user = f"""
-Hello,
-
-Thank you for contacting Mint Frost Support. We have received your message and our team will get back to you shortly.
-
-Ticket Details:
----------------------------------------------
-Category: {category}
-Priority: {priority}
-Subject: {subject or 'No Subject'}
-
-Your Message:
-{message}
----------------------------------------------
-
-Best regards,
-Mint Frost Team
-"""
-    msg_to_user.attach(MIMEText(body_user, 'plain', 'utf-8'))
+    msg_to_user.attach(MIMEText(html_user, 'html', 'utf-8'))
 
     try:
         # Connect to Gmail SMTP
@@ -2485,6 +2809,27 @@ Mint Frost Team
         import logging
         logging.error(f"SMTP sending error: {e}")
         return jsonify({"error": f"SMTP mail delivery failed: {str(e)}"}), 500
+
+
+@app.route("/api/admin/support-tickets", methods=["GET"])
+@admin_required
+def api_admin_support_tickets():
+    tickets = database.get_support_tickets()
+    return jsonify({"tickets": tickets})
+
+
+@app.route("/api/admin/support-tickets/<int:ticket_id>/status", methods=["POST"])
+@admin_required
+def api_admin_support_ticket_status(ticket_id):
+    data = request.get_json() or {}
+    status = data.get('status', 'open').strip()
+    success = database.update_support_ticket_status(ticket_id, status)
+    if success:
+        user_id = session.get('user_id')
+        if user_id:
+            database.log_admin_action(user_id, 'UPDATE_TICKET_STATUS', str(ticket_id), f"Set status to {status}")
+        return jsonify({"success": True})
+    return jsonify({"error": "Failed to update ticket status."}), 500
 
 
 @app.route("/api/admin/users/<username>/details", methods=["GET"])

@@ -2024,6 +2024,9 @@
         <button class="menu-item" data-tab="tab-settings">
           <i class="fas fa-sliders-h"></i> <span>Platform Settings</span>
         </button>
+        <button class="menu-item" data-tab="tab-support">
+          <i class="fas fa-headset"></i> <span>Support Inbox</span>
+        </button>
         <button class="menu-item" data-tab="tab-audit">
           <i class="fas fa-history"></i> <span>Audit Logs</span>
         </button>
@@ -2465,6 +2468,81 @@
                 <button onclick="confirmServerDataReset()" class="btn btn--ghost btn--sm" style="width: 100%; border-radius: 8px; color: var(--error); border-color: rgba(255, 107, 107, 0.25); background: rgba(255, 107, 107, 0.05); font-weight: 700; height: 38px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease;">
                   <i class="fas fa-trash-alt"></i> Server Data Override Deletion
                 </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SUPPORT INBOX TAB -->
+        <section id="tab-support" class="dashboard-tab-panel">
+          <div class="dashboard-header-widget">
+            <div>
+              <h1>Support Ticket Inbox</h1>
+              <p>Review user support tickets, system bug reports, priority levels, and reply status.</p>
+            </div>
+            <div>
+              <button onclick="fetchSupportTickets()" class="btn btn--secondary" title="Refresh list" style="border-radius: 8px; font-weight: 700; height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.05); color: var(--fg); cursor: pointer;">
+                <i class="fas fa-sync-alt"></i> Refresh
+              </button>
+            </div>
+          </div>
+
+          <!-- Support Tickets List & Detail Split View -->
+          <div style="display: grid; grid-template-columns: 320px 1fr; gap: 24px; margin-top: 24px; height: calc(100vh - 220px);">
+            <!-- Left Ticket List -->
+            <div class="panel glass" style="border-radius: 12px; padding: 16px; display: flex; flex-direction: column; overflow: hidden; height: 100%;">
+              <input type="text" id="ticketSearchInput" placeholder="Search sender or subject..." oninput="filterSupportTickets()" style="width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border); padding: 8px 12px; background: rgba(0,0,0,0.2); color: var(--fg); font-size: 13px; margin-bottom: 16px; outline: none;" />
+              
+              <div id="ticketsListContainer" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;">
+                <div style="text-align: center; color: var(--muted); padding: 20px; font-size: 13px;">Loading tickets...</div>
+              </div>
+            </div>
+
+            <!-- Right Detail View -->
+            <div class="panel glass" id="ticketDetailPanel" style="border-radius: 12px; padding: 24px; display: flex; flex-direction: column; overflow-y: auto; height: 100%; position: relative;">
+              <div id="ticketDetailPlaceholder" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); pointer-events: none;">
+                <i class="fas fa-headset" style="font-size: 48px; color: rgba(255,255,255,0.05); margin-bottom: 16px;"></i>
+                <p style="font-size: 14px;">Select a support ticket from the list to view details.</p>
+              </div>
+              
+              <div id="ticketDetailContent" style="display: none; flex-direction: column; height: 100%;">
+                <!-- Ticket Header -->
+                <div style="border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start;">
+                  <div>
+                    <h2 id="detSubject" style="font-size: 20px; font-weight: 700; color: #ffffff; margin: 0 0 8px 0;"></h2>
+                    <p style="font-size: 13px; color: var(--muted); margin: 0;">From: <span id="detSender" style="color: var(--mint); font-weight: 600;"></span></p>
+                  </div>
+                  <div style="display: flex; gap: 10px; align-items: center;">
+                    <span id="detPriorityBadge" class="badge"></span>
+                    <span id="detCategoryBadge" class="badge" style="background: rgba(255,255,255,0.05); color: #ffffff; border: 1px solid rgba(255,255,255,0.1);"></span>
+                  </div>
+                </div>
+
+                <!-- Metadata & Status -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: rgba(0,0,0,0.15); padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.02);">
+                  <div style="font-size: 12px; color: var(--muted);">Received: <span id="detTimestamp" style="color: var(--fg);"></span></div>
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 12px; color: var(--muted);">Status:</span>
+                    <select id="detStatusSelect" onchange="updateTicketStatus()" style="background: var(--bg-1); border: 1px solid var(--border); color: var(--fg); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 12px; outline: none; cursor: pointer;">
+                      <option value="open">Open</option>
+                      <option value="resolved">Resolved</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Message Body -->
+                <div style="flex: 1; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 20px; border: 1px solid var(--border); overflow-y: auto; margin-bottom: 20px;">
+                  <h4 style="font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 0 0 10px 0; letter-spacing: 1px;">Message Body</h4>
+                  <div id="detMessage" style="font-size: 14px; color: var(--fg); line-height: 1.6; white-space: pre-wrap; font-family: inherit;"></div>
+                </div>
+
+                <!-- Action Footer -->
+                <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border); padding-top: 16px;">
+                  <a id="detReplyBtn" href="#" class="btn btn--mint" style="border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; padding: 0 16px; height: 38px;">
+                    <i class="fas fa-reply"></i> Reply via Email
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -3575,6 +3653,9 @@
         }
         if (targetTab === 'tab-settings') {
           fetchPlatformSettings();
+        }
+        if (targetTab === 'tab-support') {
+          fetchSupportTickets();
         }
         if (targetTab === 'tab-audit') {
           fetchAuditLogs();
@@ -5948,6 +6029,180 @@
       window.uploadFileExplorer = uploadFileExplorer;
       window.syncEditorScroll = syncEditorScroll;
       window.updateEditorLineNumbers = updateEditorLineNumbers;
+
+      // ── SUPPORT INBOX CONTROLLER ──
+      let supportTicketsCache = [];
+      let selectedTicketId = null;
+
+      async function fetchSupportTickets() {
+        try {
+          const response = await fetch('/api/admin/support-tickets');
+          if (!response.ok) throw new Error('API server error');
+          const data = await response.json();
+          supportTicketsCache = data.tickets || [];
+          renderSupportTicketsList(supportTicketsCache);
+          
+          if (selectedTicketId) {
+            const freshTicket = supportTicketsCache.find(t => t.id === selectedTicketId);
+            if (freshTicket) {
+              selectTicket(freshTicket.id);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch support tickets:', e);
+          showToast('Error', 'Failed to retrieve support tickets.', 'fa-headset', 'error');
+        }
+      }
+
+      function renderSupportTicketsList(tickets) {
+        const container = document.getElementById('ticketsListContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        
+        if (tickets.length === 0) {
+          container.innerHTML = '<div style="text-align: center; color: var(--muted); padding: 20px; font-size: 13px;">No tickets found.</div>';
+          return;
+        }
+        
+        tickets.forEach(t => {
+          const item = document.createElement('div');
+          item.style = `
+            padding: 12px 14px;
+            border-radius: 8px;
+            background: ${t.id === selectedTicketId ? 'rgba(55, 230, 181, 0.08)' : 'rgba(255, 255, 255, 0.02)'};
+            border: 1px solid ${t.id === selectedTicketId ? 'rgba(55, 230, 181, 0.25)' : 'rgba(255, 255, 255, 0.05)'};
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 8px;
+          `;
+          
+          let pColor = '#10b981';
+          if (t.priority.toLowerCase() === 'high') pColor = '#ef4444';
+          else if (t.priority.toLowerCase() === 'medium') pColor = '#f59e0b';
+          
+          const statusDot = t.status === 'open' 
+            ? '<span style="width: 8px; height: 8px; border-radius: 50%; background: #37e6b5; display: inline-block; margin-right: 6px;"></span>' 
+            : '<span style="width: 8px; height: 8px; border-radius: 50%; background: #64748b; display: inline-block; margin-right: 6px;"></span>';
+
+          const subjectEscaped = t.subject ? escapeHtml(t.subject) : 'No Subject';
+          const senderEscaped = escapeHtml(t.sender);
+          
+          item.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 11px; color: ${pColor}; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">${t.priority}</span>
+              <span style="font-size: 11px; color: var(--muted);">${new Date(t.created_at + 'Z').toLocaleDateString()}</span>
+            </div>
+            <div style="font-size: 13px; font-weight: 600; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px;">${subjectEscaped}</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--muted);">
+              <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;">${senderEscaped}</span>
+              <div style="display: flex; align-items: center;">${statusDot}${t.status.toUpperCase()}</div>
+            </div>
+          `;
+          
+          item.onclick = () => selectTicket(t.id);
+          
+          item.onmouseover = () => {
+            if (t.id !== selectedTicketId) {
+              item.style.background = 'rgba(255, 255, 255, 0.04)';
+              item.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+            }
+          };
+          item.onmouseout = () => {
+            if (t.id !== selectedTicketId) {
+              item.style.background = 'rgba(255, 255, 255, 0.02)';
+              item.style.borderColor = 'rgba(255, 255, 255, 0.05)';
+            }
+          };
+          
+          container.appendChild(item);
+        });
+      }
+
+      function selectTicket(id) {
+        selectedTicketId = id;
+        const ticket = supportTicketsCache.find(t => t.id === id);
+        if (!ticket) return;
+        
+        renderSupportTicketsList(supportTicketsCache);
+        
+        document.getElementById('ticketDetailPlaceholder').style.display = 'none';
+        document.getElementById('ticketDetailContent').style.display = 'flex';
+        
+        document.getElementById('detSubject').innerText = ticket.subject || 'No Subject';
+        document.getElementById('detSender').innerText = ticket.sender;
+        document.getElementById('detTimestamp').innerText = new Date(ticket.created_at + 'Z').toLocaleString();
+        document.getElementById('detMessage').innerText = ticket.message;
+        document.getElementById('detStatusSelect').value = ticket.status;
+        
+        document.getElementById('detCategoryBadge').innerText = ticket.category ? ticket.category.toUpperCase() : 'GENERAL';
+        
+        const pb = document.getElementById('detPriorityBadge');
+        pb.innerText = ticket.priority.toUpperCase();
+        pb.className = 'badge';
+        if (ticket.priority.toLowerCase() === 'high') {
+          pb.style = 'background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);';
+        } else if (ticket.priority.toLowerCase() === 'medium') {
+          pb.style = 'background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2);';
+        } else {
+          pb.style = 'background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);';
+        }
+        
+        const replyBtn = document.getElementById('detReplyBtn');
+        const mailtoSubject = encodeURIComponent(`Re: ${ticket.subject || 'Support Ticket'}`);
+        const mailtoBody = encodeURIComponent(`\n\n\n--- Original Message ---\nFrom: ${ticket.sender}\nReceived: ${ticket.created_at}\n\n${ticket.message}`);
+        replyBtn.href = `mailto:${ticket.sender}?subject=${mailtoSubject}&body=${mailtoBody}`;
+      }
+
+      async function updateTicketStatus() {
+        if (!selectedTicketId) return;
+        const newStatus = document.getElementById('detStatusSelect').value;
+        try {
+          const response = await fetch(`/api/admin/support-tickets/${selectedTicketId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+          });
+          if (!response.ok) throw new Error('API server error');
+          const data = await response.json();
+          if (data.success) {
+            showToast('Success', 'Ticket status updated successfully.', 'fa-check-circle', 'success');
+            fetchSupportTickets();
+          } else {
+            showToast('Error', data.error || 'Failed to update ticket status.', 'fa-exclamation-triangle', 'error');
+          }
+        } catch (e) {
+          console.error('Failed to update ticket status:', e);
+          showToast('Error', 'Failed to update ticket status.', 'fa-exclamation-triangle', 'error');
+        }
+      }
+
+      function filterSupportTickets() {
+        const query = document.getElementById('ticketSearchInput').value.toLowerCase().trim();
+        if (!query) {
+          renderSupportTicketsList(supportTicketsCache);
+          return;
+        }
+        const filtered = supportTicketsCache.filter(t => 
+          (t.sender && t.sender.toLowerCase().includes(query)) || 
+          (t.subject && t.subject.toLowerCase().includes(query)) ||
+          (t.message && t.message.toLowerCase().includes(query))
+        );
+        renderSupportTicketsList(filtered);
+      }
+
+      function escapeHtml(unsafe) {
+        return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      // Expose support functions to window
+      window.fetchSupportTickets = fetchSupportTickets;
+      window.updateTicketStatus = updateTicketStatus;
+      window.filterSupportTickets = filterSupportTickets;
 
       // Let's add keydown event listener to toggle sidebar with Ctrl+B
       document.addEventListener('keydown', (e) => {

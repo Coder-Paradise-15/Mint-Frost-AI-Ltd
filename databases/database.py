@@ -282,6 +282,20 @@ def init_db():
                 )
             ''')
 
+            # Create support_tickets table for admin Support Inbox
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS support_tickets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sender TEXT NOT NULL,
+                    subject TEXT,
+                    message TEXT NOT NULL,
+                    category TEXT,
+                    priority TEXT,
+                    status TEXT DEFAULT 'open',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             # Populate system default settings if they do not exist
             default_configs = [
                 ('enable_registration', 'true'),
@@ -1590,6 +1604,49 @@ def delete_user_self(username):
     except Exception as e:
         import logging
         logging.error(f"Error self-deleting user: {e}")
+        return False
+
+
+def create_support_ticket(sender, subject, message, category, priority):
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO support_tickets (sender, subject, message, category, priority, status)
+                VALUES (?, ?, ?, ?, ?, 'open')
+            ''', (sender, subject, message, category, priority))
+            conn.commit()
+            return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error creating support ticket: {e}")
+        return False
+
+
+def get_support_tickets():
+    try:
+        with connect_db() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM support_tickets ORDER BY created_at DESC')
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+    except Exception as e:
+        import logging
+        logging.error(f"Error fetching support tickets: {e}")
+        return []
+
+
+def update_support_ticket_status(ticket_id, status):
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE support_tickets SET status = ? WHERE id = ?', (status, ticket_id))
+            conn.commit()
+            return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error updating support ticket status: {e}")
         return False
 
 
