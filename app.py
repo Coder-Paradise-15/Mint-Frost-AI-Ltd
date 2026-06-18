@@ -3200,7 +3200,10 @@ def api_admin_read_file():
         
     if not os.path.exists(safe_path):
         # Return empty string for config files that don't exist yet rather than 404
-        if os.path.basename(safe_path) in ['google.txt', 'google_credentials.txt', 'OpenAI-Key.txt']:
+        if os.path.basename(safe_path) in [
+            'mail_id.txt', 'mail_password.txt', 'weather_key.txt',
+            'google.txt', 'google_credentials.txt', 'OpenAI-Key.txt'
+        ]:
             return jsonify({"content": "", "exists": False})
         return jsonify({"error": "File not found"}), 404
         
