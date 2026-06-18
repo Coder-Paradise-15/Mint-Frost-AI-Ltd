@@ -2992,8 +2992,13 @@ def api_admin_support_ticket_reply(ticket_id):
   <div class="wrapper">
     <div class="container">
       <div class="header">
-        <div class="logo-text">MINT FROST</div>
-        <div class="logo-sub">Support Response</div>
+        <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;"><tr>
+          <td style="vertical-align: middle; padding-right: 12px;"><img src="cid:mintfrostlogo" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
+          <td style="vertical-align: middle;">
+            <div class="logo-text">MINT FROST</div>
+            <div class="logo-sub">Support Response</div>
+          </td>
+        </tr></table>
       </div>
       <div class="content">
         <h1>Response to Your Ticket</h1>
@@ -3024,13 +3029,30 @@ def api_admin_support_ticket_reply(ticket_id):
 </body>
 </html>"""
 
-    # Send reply to User Sender
-    msg_to_user = MIMEMultipart('alternative')
+    # Send reply to User Sender — use 'related' to embed inline logo image
+    from email.mime.image import MIMEImage
+    msg_to_user = MIMEMultipart('related')
     msg_to_user['From'] = formataddr(("Mint Frost Support", support_email))
     msg_to_user['To'] = ticket.get('sender')
     msg_to_user['Reply-To'] = support_email
     msg_to_user['Subject'] = f"Re: {ticket.get('subject') or 'Support Ticket'}"
-    msg_to_user.attach(MIMEText(html_reply, 'html', 'utf-8'))
+
+    # HTML part inside an 'alternative' sub-container
+    msg_alt = MIMEMultipart('alternative')
+    msg_alt.attach(MIMEText(html_reply, 'html', 'utf-8'))
+    msg_to_user.attach(msg_alt)
+
+    # Attach logo image with Content-ID for inline display
+    import os as _os
+    logo_path = _os.path.join(_os.path.dirname(__file__), 'static', 'favicon-dark.png')
+    try:
+        with open(logo_path, 'rb') as _lf:
+            logo_img = MIMEImage(_lf.read(), _subtype='png')
+            logo_img.add_header('Content-ID', '<mintfrostlogo>')
+            logo_img.add_header('Content-Disposition', 'inline', filename='mintfrost-logo.png')
+            msg_to_user.attach(logo_img)
+    except Exception:
+        pass  # If logo file missing, email still sends without logo
 
     try:
         # Connect to Gmail SMTP
