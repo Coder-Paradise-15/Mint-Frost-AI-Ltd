@@ -2363,6 +2363,120 @@ def api_get_announcements_history():
     return jsonify({"history": history})
 
 
+@app.route("/api/support/send", methods=["POST"])
+def api_support_send():
+    data = request.get_json() or {}
+    sender = data.get('sender', '').strip()
+    subject = data.get('subject', '').strip()
+    message = data.get('message', '').strip()
+    category = data.get('category', '').strip()
+    priority = data.get('priority', '').strip()
+    
+    if not sender or not message:
+        return jsonify({"error": "Sender email and message are required."}), 400
+        
+    # Read mail credentials from files
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    mail_id_file = os.path.join(base_dir, 'mail_id.txt')
+    mail_pw_file = os.path.join(base_dir, 'mail_password.txt')
+    
+    if not os.path.exists(mail_id_file) or not os.path.exists(mail_pw_file):
+        return jsonify({"error": "Support mail service is not configured on the server."}), 503
+        
+    try:
+        with open(mail_id_file, 'r', encoding='utf-8') as f:
+            support_email = f.read().strip()
+        with open(mail_pw_file, 'r', encoding='utf-8') as f:
+            support_password = f.read().strip()
+    except Exception as e:
+        return jsonify({"error": f"Failed to load mail credentials: {str(e)}"}), 500
+        
+    if not support_email or not support_password or 'your-email' in support_email or 'your-google' in support_password:
+        return jsonify({"error": "Support mail service is not configured (placeholder detected)."}), 503
+
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    # Send ticket notification to Support Inbox
+    msg_to_support = MIMEMultipart()
+    msg_to_support['From'] = support_email
+    msg_to_support['To'] = support_email
+    msg_to_support['Reply-To'] = sender
+    msg_to_support['Subject'] = f"[Support Ticket] {category.upper()}: {subject or 'No Subject'}"
+    
+    body_support = f"""
+New support ticket received:
+---------------------------------------------
+From: {sender}
+Category: {category}
+Priority: {priority}
+Subject: {subject or 'No Subject'}
+
+Message:
+{message}
+---------------------------------------------
+"""
+    msg_to_support.attach(MIMEText(body_support, 'plain', 'utf-8'))
+
+    # Send receipt/acknowledgement to User Sender
+    msg_to_user = MIMEMultipart()
+    msg_to_user['From'] = support_email
+    msg_to_user['To'] = sender
+    msg_to_user['Subject'] = f"Re: {subject or 'Support Ticket Received'}"
+    
+    body_user = f"""
+Hello,
+
+Thank you for contacting Mint Frost Support. We have received your message and our team will get back to you shortly.
+
+Ticket Details:
+---------------------------------------------
+Category: {category}
+Priority: {priority}
+Subject: {subject or 'No Subject'}
+
+Your Message:
+{message}
+---------------------------------------------
+
+Best regards,
+Mint Frost Team
+"""
+    msg_to_user.attach(MIMEText(body_user, 'plain', 'utf-8'))
+
+    try:
+        # Connect to Gmail SMTP
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=15)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(support_email, support_password)
+        
+        # Send to Support
+        server.sendmail(support_email, [support_email], msg_to_support.as_string())
+        
+        # Send receipt to user
+        if '@' in sender:
+            try:
+                server.sendmail(support_email, [sender], msg_to_user.as_string())
+            except Exception as user_err:
+                import logging
+                logging.warning(f"Failed to send confirmation receipt: {user_err}")
+                
+        server.quit()
+        
+        user_id = session.get('user_id')
+        if user_id:
+            database.log_admin_action(user_id, 'SEND_SUPPORT_TICKET', sender, f"Support ticket category: {category}")
+            
+        return jsonify({"success": True, "message": "Support message sent successfully"})
+    except Exception as e:
+        import logging
+        logging.error(f"SMTP sending error: {e}")
+        return jsonify({"error": f"SMTP mail delivery failed: {str(e)}"}), 500
+
+
 @app.route("/api/admin/users/<username>/details", methods=["GET"])
 @admin_required
 def api_admin_user_details(username):
