@@ -1454,7 +1454,9 @@
         function getReadIds() {
           try {
             const val = localStorage.getItem('read_announcements');
-            return val ? JSON.parse(val) : [];
+            if (!val) return [];
+            const parsed = JSON.parse(val);
+            return Array.isArray(parsed) ? parsed.map(String) : [];
           } catch (e) {
             return [];
           }
@@ -1462,14 +1464,16 @@
 
         function saveReadIds(ids) {
           try {
-            localStorage.setItem('read_announcements', JSON.stringify(ids));
+            localStorage.setItem('read_announcements', JSON.stringify(ids.map(String)));
           } catch (e) {}
         }
 
         function getDeletedIds() {
           try {
             const val = localStorage.getItem('deleted_announcements');
-            return val ? JSON.parse(val) : [];
+            if (!val) return [];
+            const parsed = JSON.parse(val);
+            return Array.isArray(parsed) ? parsed.map(String) : [];
           } catch (e) {
             return [];
           }
@@ -1477,13 +1481,13 @@
 
         function saveDeletedIds(ids) {
           try {
-            localStorage.setItem('deleted_announcements', JSON.stringify(ids));
+            localStorage.setItem('deleted_announcements', JSON.stringify(ids.map(String)));
           } catch (e) {}
         }
 
         function updateNotificationBadge() {
           const readIds = getReadIds();
-          const unreadCount = announcementsList.filter(item => !readIds.includes(item.id)).length;
+          const unreadCount = announcementsList.filter(item => !readIds.includes(String(item.id))).length;
           if (unreadCount > 0) {
             notificationBadge.textContent = unreadCount;
             notificationBadge.style.display = 'flex';
@@ -1503,7 +1507,7 @@
           notificationListContainer.innerHTML = '';
           
           announcementsList.forEach(item => {
-            const isUnread = !readIds.includes(item.id);
+            const isUnread = !readIds.includes(String(item.id));
             const itemEl = document.createElement('div');
             itemEl.className = `notification-item${isUnread ? ' unread' : ''}`;
             
@@ -1534,7 +1538,7 @@
 
         function markAllAsRead() {
           const readIds = getReadIds();
-          const allIds = announcementsList.map(item => item.id);
+          const allIds = announcementsList.map(item => String(item.id));
           const newReadIds = Array.from(new Set([...readIds, ...allIds]));
           saveReadIds(newReadIds);
           updateNotificationBadge();
@@ -1550,7 +1554,7 @@
             const data = await res.json();
             const deletedIds = getDeletedIds();
             // Filter out deleted announcements
-            announcementsList = (data.history || []).filter(item => !deletedIds.includes(item.id));
+            announcementsList = (data.history || []).filter(item => !deletedIds.includes(String(item.id)));
             updateNotificationBadge();
             renderAnnouncements();
           } catch (e) {
@@ -1580,7 +1584,7 @@
             
             // Persist deletion of current announcements locally
             const deletedIds = getDeletedIds();
-            const currentIds = announcementsList.map(item => item.id);
+            const currentIds = announcementsList.map(item => String(item.id));
             const newDeletedIds = Array.from(new Set([...deletedIds, ...currentIds]));
             saveDeletedIds(newDeletedIds);
             
