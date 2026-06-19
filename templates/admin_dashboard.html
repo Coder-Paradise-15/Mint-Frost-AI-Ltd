@@ -6416,11 +6416,12 @@
       // Delete selected ticket from detail panel
       async function deleteSelectedTicket() {
         if (!selectedTicketId) return;
-        if (!confirm('Are you sure you want to permanently delete this ticket?')) return;
         await deleteTicketById(selectedTicketId);
       }
 
       async function deleteTicketById(id) {
+        const confirmed = await showConfirm('Delete Ticket', 'Are you sure you want to permanently delete this ticket?');
+        if (!confirmed) return;
         try {
           const response = await fetch(`/api/admin/support-tickets/${id}`, { method: 'DELETE' });
           if (!response.ok) throw new Error('API server error');
@@ -6443,7 +6444,8 @@
       }
 
       async function clearAllTickets() {
-        if (!confirm('Are you sure you want to delete ALL support tickets? This action cannot be undone.')) return;
+        const confirmed = await showConfirm('Clear All Tickets', 'Are you sure you want to delete ALL support tickets? This action cannot be undone.');
+        if (!confirmed) return;
         try {
           const response = await fetch('/api/admin/support-tickets/clear-all', { method: 'DELETE' });
           if (!response.ok) throw new Error('API server error');
