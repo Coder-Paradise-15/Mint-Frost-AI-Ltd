@@ -2480,25 +2480,32 @@
               <h1>Support Ticket Inbox</h1>
               <p>Review user support tickets, system bug reports, priority levels, and reply status.</p>
             </div>
-            <div>
+            <div style="display: flex; gap: 10px;">
               <button onclick="fetchSupportTickets()" class="btn btn--secondary" title="Refresh list" style="border-radius: 8px; font-weight: 700; height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.05); color: var(--fg); cursor: pointer;">
                 <i class="fas fa-sync-alt"></i> Refresh
+              </button>
+              <button onclick="deleteSelectedTicket()" class="btn btn--secondary" title="Delete selected ticket" style="border-radius: 8px; font-weight: 700; height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid rgba(239, 68, 68, 0.25); background: rgba(239, 68, 68, 0.08); color: #ef4444; cursor: pointer;">
+                <i class="fas fa-trash-alt"></i> Delete Ticket
+              </button>
+              <button onclick="clearAllTickets()" class="btn btn--secondary" title="Delete all tickets" style="border-radius: 8px; font-weight: 700; height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid rgba(239, 68, 68, 0.25); background: rgba(239, 68, 68, 0.08); color: #ef4444; cursor: pointer;">
+                <i class="fas fa-trash-alt"></i> Clear All
               </button>
             </div>
           </div>
 
           <!-- Support Tickets List & Detail Split View -->
-          <div style="display: grid; grid-template-columns: 360px 1fr; gap: 24px; margin-top: 24px; height: calc(100vh - 160px);">
+          <div style="display: grid; grid-template-columns: 360px 1fr; gap: 24px; margin-top: 24px; height: calc(100vh - 110px);">
             <!-- Left Ticket List -->
             <div class="panel glass" style="border-radius: 12px; padding: 16px; display: flex; flex-direction: column; overflow: hidden; height: 100%;">
               <input type="text" id="ticketSearchInput" placeholder="Search sender or subject..." oninput="filterSupportTickets()" style="width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border); padding: 8px 12px; background: rgba(0,0,0,0.2); color: var(--fg); font-size: 13px; margin-bottom: 12px; outline: none;" />
               
-              <!-- Status Filter Tabs -->
-              <div id="ticketFilterTabs" style="display: flex; gap: 6px; margin-bottom: 14px; padding: 4px; background: rgba(0,0,0,0.25); border-radius: 10px; border: 1px solid rgba(255,255,255,0.04);">
-                <button onclick="setTicketFilter('all')" data-filter="all" class="ticket-filter-btn active" style="flex: 1; padding: 7px 0; border-radius: 7px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.25s ease; background: linear-gradient(135deg, rgba(55,230,181,0.2), rgba(55,230,181,0.08)); color: #37e6b5; border: 1px solid rgba(55,230,181,0.25);">All</button>
-                <button onclick="setTicketFilter('open')" data-filter="open" class="ticket-filter-btn" style="flex: 1; padding: 7px 0; border-radius: 7px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.25s ease; background: transparent; color: var(--muted); border: 1px solid transparent;">Open</button>
-                <button onclick="setTicketFilter('resolved')" data-filter="resolved" class="ticket-filter-btn" style="flex: 1; padding: 7px 0; border-radius: 7px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.25s ease; background: transparent; color: var(--muted); border: 1px solid transparent;">Resolved</button>
-                <button onclick="setTicketFilter('closed')" data-filter="closed" class="ticket-filter-btn" style="flex: 1; padding: 7px 0; border-radius: 7px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.25s ease; background: transparent; color: var(--muted); border: 1px solid transparent;">Closed</button>
+              <!-- Status Filter Tabs — Styled like the sliding toggle on login page -->
+              <div id="ticketFilterTabs" style="display: flex; background: rgba(0, 0, 0, 0.25); border-radius: 12px; padding: 4px; position: relative; border: 1px solid var(--border); margin-bottom: 14px;">
+                <button onclick="setTicketFilter('all')" data-filter="all" class="ticket-filter-btn" style="flex: 1; background: none; border: none; padding: 8px 0; font-size: 12px; font-weight: 700; cursor: pointer; z-index: 2; transition: color 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px; color: #0d1117;"><i class='fas fa-inbox' style='font-size:11px'></i> All</button>
+                <button onclick="setTicketFilter('open')" data-filter="open" class="ticket-filter-btn" style="flex: 1; background: none; border: none; padding: 8px 0; font-size: 12px; font-weight: 700; cursor: pointer; z-index: 2; transition: color 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--muted);"><i class='fas fa-envelope-open' style='font-size:11px'></i> Open</button>
+                <button onclick="setTicketFilter('resolved')" data-filter="resolved" class="ticket-filter-btn" style="flex: 1; background: none; border: none; padding: 8px 0; font-size: 12px; font-weight: 700; cursor: pointer; z-index: 2; transition: color 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--muted);"><i class='fas fa-check-circle' style='font-size:11px'></i> Resolved</button>
+                <button onclick="setTicketFilter('closed')" data-filter="closed" class="ticket-filter-btn" style="flex: 1; background: none; border: none; padding: 8px 0; font-size: 12px; font-weight: 700; cursor: pointer; z-index: 2; transition: color 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--muted);"><i class='fas fa-ban' style='font-size:11px'></i> Closed</button>
+                <div id="ticketFilterSlider" style="position: absolute; top: 4px; bottom: 4px; left: 4px; width: 0; background: var(--mint); border-radius: 8px; z-index: 1; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); box-shadow: 0 4px 12px rgba(55, 230, 181, 0.3); pointer-events: none;"></div>
               </div>
               
               <div id="ticketsListContainer" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;">
@@ -2521,35 +2528,66 @@
                     <p style="font-size: 13px; color: var(--muted); margin: 0;">From: <span id="detSender" style="color: var(--mint); font-weight: 600;"></span></p>
                   </div>
                   <div style="display: flex; gap: 10px; align-items: center;">
+                    <button onclick="deleteSelectedTicket()" class="btn btn--secondary" title="Delete Ticket" style="border-radius: 8px; width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(239, 68, 68, 0.25); background: rgba(239, 68, 68, 0.08); color: #ef4444; cursor: pointer; transition: all 0.2s ease;">
+                      <i class="fas fa-trash-alt"></i>
+                    </button>
                     <span id="detPriorityBadge" class="badge"></span>
                     <span id="detCategoryBadge" class="badge" style="background: rgba(255,255,255,0.05); color: #ffffff; border: 1px solid rgba(255,255,255,0.1);"></span>
                   </div>
                 </div>
 
-                <!-- Metadata & Status -->
+                <!-- Metadata -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: rgba(0,0,0,0.15); padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.02);">
-                  <div style="font-size: 12px; color: var(--muted);">Received: <span id="detTimestamp" style="color: var(--fg);"></span></div>
-                  <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 12px; color: var(--muted);">Status:</span>
-                    <select id="detStatusSelect" onchange="updateTicketStatus()" style="background: var(--bg-1); border: 1px solid var(--border); color: var(--fg); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 12px; outline: none; cursor: pointer;">
-                      <option value="open">Open</option>
-                      <option value="resolved">Resolved</option>
-                      <option value="closed">Closed</option>
-                    </select>
+                  <div style="font-size: 12px; color: var(--muted);">Received: <span id="detTimestamp" style="color: var(--fg); font-weight: 600;"></span></div>
+                  <div style="font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px;">
+                    Status: <span id="detStatusBadge" style="text-transform: uppercase; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11px;"></span>
                   </div>
                 </div>
 
                 <!-- Message Body -->
-                <div style="flex: 1; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 20px; border: 1px solid var(--border); overflow-y: auto; margin-bottom: 20px;">
+                <div style="flex: 1; min-height: 140px; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 20px; border: 1px solid var(--border); overflow-y: auto; margin-bottom: 20px;">
                   <h4 style="font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 0 0 10px 0; letter-spacing: 1px;">Message Body</h4>
                   <div id="detMessage" style="font-size: 14px; color: var(--fg); line-height: 1.6; white-space: pre-wrap; font-family: inherit;"></div>
                 </div>
 
-                <!-- Action Footer -->
-                <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border); padding-top: 16px;">
-                  <button id="detReplyBtn" onclick="openReplyModal(event)" class="btn btn--mint" style="border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 0 16px; height: 38px; cursor: pointer;">
-                    <i class="fas fa-reply"></i> Reply via Email
-                  </button>
+                <!-- Inline Reply Drawer/Panel -->
+                <div style="border-top: 1px solid var(--border); padding-top: 16px; display: flex; flex-direction: column; gap: 12px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="font-size: 13px; font-weight: 700; color: var(--mint); text-transform: uppercase; letter-spacing: 0.5px; margin: 0;"><i class="fas fa-reply"></i> Send Ticket Reply</h3>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Set Status:</span>
+                      <select id="replyStatusSelect" onchange="updateTicketStatus()" style="background: var(--bg-1); border: 1px solid var(--border); color: var(--fg); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 12px; outline: none; cursor: pointer; font-weight: 600;">
+                        <option value="open">🟢 Open</option>
+                        <option value="resolved">✅ Resolved</option>
+                        <option value="closed">🔴 Closed</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Rich Formatting Toolbar -->
+                  <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 8px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" class="btn-action-quick" onclick="insertFormatting('bold')" title="Bold" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer; display: flex; align-items: center; justify-content: center;"><i class="fas fa-bold"></i></button>
+                    <button type="button" class="btn-action-quick" onclick="insertFormatting('italic')" title="Italic" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer; display: flex; align-items: center; justify-content: center;"><i class="fas fa-italic"></i></button>
+                    <button type="button" class="btn-action-quick" onclick="insertFormatting('underline')" title="Underline" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer; display: flex; align-items: center; justify-content: center;"><i class="fas fa-underline"></i></button>
+                    <button type="button" class="btn-action-quick" onclick="insertFormatting('list')" title="List Item" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer; display: flex; align-items: center; justify-content: center;"><i class="fas fa-list-ul"></i></button>
+                    <button type="button" class="btn-action-quick" onclick="insertFormatting('br')" title="Line Break" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer; display: flex; align-items: center; justify-content: center;"><i class="fas fa-level-down-alt"></i></button>
+                    <button type="button" class="btn-action-quick" onclick="insertFormatting('clear')" title="Clear HTML" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer; display: flex; align-items: center; justify-content: center;"><i class="fas fa-eraser"></i></button>
+                  </div>
+
+                  <!-- Textarea reply message -->
+                  <div style="position: relative; display: flex;">
+                    <textarea id="replyMessageInput" class="search-box-field" style="width: 100%; height: 110px; resize: vertical; padding: 12px; font-family: inherit; font-size: 13px; line-height: 1.5; border-radius: var(--radius-md); background: rgba(0,0,0,0.25); border: 1px solid var(--border); color: var(--fg); outline: none;" placeholder="Type response here (HTML formatting enabled)..."></textarea>
+                  </div>
+
+                  <!-- Action Row -->
+                  <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center;">
+                    <button onclick="deleteSelectedTicket()" class="btn btn--secondary" style="border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 0 16px; height: 38px; cursor: pointer; color: #ef4444; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.04);">
+                      <i class="fas fa-trash-alt"></i> Delete Ticket
+                    </button>
+                    <button id="btnSubmitAdminReply" onclick="submitAdminReply()" class="btn btn--mint" style="border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 0 20px; height: 38px; cursor: pointer;">
+                      <i class="fas fa-paper-plane"></i> Send Reply
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3228,48 +3266,7 @@
     </div>
   </div>
 
-  <!-- SUPPORT TICKET REPLY MODAL -->
-  <div class="modal-overlay" id="adminReplyModal">
-    <div class="modal-card" style="width: 550px; max-width: 90vw;">
-      <button class="modal-card-close" onclick="closeModal('adminReplyModal')">
-        <i class="fas fa-times"></i>
-      </button>
-      <div class="modal-card-header">
-        <div class="modal-card-icon">
-          <i class="fas fa-reply" style="color: var(--mint);"></i>
-        </div>
-        <h3 class="modal-card-title">Send Ticket Reply</h3>
-      </div>
-      <div class="modal-card-body" style="display: flex; flex-direction: column; gap: 14px;">
-        <div style="font-size: 13px; color: var(--muted); background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.02);">
-          <div style="margin-bottom: 4px;"><strong>To:</strong> <span id="replyTargetSender" style="color: var(--fg);"></span></div>
-          <div><strong>Subject:</strong> <span id="replyTargetSubject" style="color: var(--fg);"></span></div>
-        </div>
-        
-        <!-- Rich Formatting Toolbar -->
-        <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 8px; align-items: center; flex-wrap: wrap;">
-          <button type="button" class="btn-action-quick" onclick="insertFormatting('bold')" title="Bold" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-bold"></i></button>
-          <button type="button" class="btn-action-quick" onclick="insertFormatting('italic')" title="Italic" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-italic"></i></button>
-          <button type="button" class="btn-action-quick" onclick="insertFormatting('underline')" title="Underline" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-underline"></i></button>
-          <button type="button" class="btn-action-quick" onclick="insertFormatting('list')" title="List Item" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-list-ul"></i></button>
-          <button type="button" class="btn-action-quick" onclick="insertFormatting('br')" title="Line Break" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-level-down-alt"></i></button>
-          <button type="button" class="btn-action-quick" onclick="insertFormatting('clear')" title="Clear" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.02); color: var(--fg); cursor: pointer;"><i class="fas fa-eraser"></i></button>
-        </div>
-        
-        <!-- Textarea reply message -->
-        <div>
-          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Reply Message</label>
-          <textarea id="replyMessageInput" class="search-box-field" style="width: 100%; height: 180px; resize: vertical; padding: 14px; font-family: inherit; font-size: 14px; line-height: 1.5; border-radius: var(--radius-md);" placeholder="Type response here (HTML formatted support enabled)..."></textarea>
-        </div>
-      </div>
-      <div class="modal-card-footer">
-        <button class="btn btn--ghost btn--sm" onclick="closeModal('adminReplyModal')" style="border-radius: 8px;">Cancel</button>
-        <button class="btn btn--mint btn--sm" id="btnSubmitAdminReply" onclick="submitAdminReply()" style="border-radius: 8px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
-          <i class="fas fa-paper-plane"></i> Send Reply
-        </button>
-      </div>
-    </div>
-  </div>
+
 
   <!-- THEME SELECTOR -->
   <div id="theme-selector" class="theme-selector">
@@ -6094,6 +6091,11 @@
           supportTicketsCache = data.tickets || [];
           applyTicketFilters();
           
+          // Align slider to current filter
+          setTimeout(() => {
+            setTicketFilter(activeTicketFilter);
+          }, 50);
+
           if (selectedTicketId) {
             const freshTicket = supportTicketsCache.find(t => t.id === selectedTicketId);
             if (freshTicket) {
@@ -6108,16 +6110,17 @@
 
       function setTicketFilter(filter) {
         activeTicketFilter = filter;
-        // Update tab button styles
-        document.querySelectorAll('#ticketFilterTabs .ticket-filter-btn').forEach(btn => {
+        const slider = document.getElementById('ticketFilterSlider');
+        const buttons = document.querySelectorAll('#ticketFilterTabs .ticket-filter-btn');
+        buttons.forEach(btn => {
           if (btn.getAttribute('data-filter') === filter) {
-            btn.style.background = 'linear-gradient(135deg, rgba(55,230,181,0.2), rgba(55,230,181,0.08))';
-            btn.style.color = '#37e6b5';
-            btn.style.border = '1px solid rgba(55,230,181,0.25)';
+            btn.style.color = '#0d1117';
+            if (slider) {
+              slider.style.left = `${btn.offsetLeft}px`;
+              slider.style.width = `${btn.offsetWidth}px`;
+            }
           } else {
-            btn.style.background = 'transparent';
             btn.style.color = 'var(--muted)';
-            btn.style.border = '1px solid transparent';
           }
         });
         applyTicketFilters();
@@ -6188,6 +6191,35 @@
           
           item.onclick = () => selectTicket(t.id);
           
+          // Right-click context menu for delete
+          item.oncontextmenu = (e) => {
+            e.preventDefault();
+            // Remove any existing context menu
+            const existing = document.getElementById('ticketContextMenu');
+            if (existing) existing.remove();
+            
+            const menu = document.createElement('div');
+            menu.id = 'ticketContextMenu';
+            menu.style = `position: fixed; top: ${e.clientY}px; left: ${e.clientX}px; z-index: 10000; background: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); padding: 6px; min-width: 160px; animation: fadeIn 0.15s ease;`;
+            menu.innerHTML = `
+              <button onclick="selectTicket(${t.id})" style="width:100%;padding:8px 12px;border:none;background:transparent;color:var(--fg);cursor:pointer;border-radius:6px;text-align:left;font-size:13px;display:flex;align-items:center;gap:8px;"><i class='fas fa-eye' style='width:16px;color:var(--mint)'></i> View Ticket</button>
+              <button onclick="openReplyModal(null); selectTicket(${t.id}); setTimeout(()=>openReplyModal(null),100);" style="width:100%;padding:8px 12px;border:none;background:transparent;color:var(--fg);cursor:pointer;border-radius:6px;text-align:left;font-size:13px;display:flex;align-items:center;gap:8px;"><i class='fas fa-reply' style='width:16px;color:#60a5fa'></i> Reply</button>
+              <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+              <button onclick="deleteTicketById(${t.id})" style="width:100%;padding:8px 12px;border:none;background:transparent;color:#ef4444;cursor:pointer;border-radius:6px;text-align:left;font-size:13px;display:flex;align-items:center;gap:8px;"><i class='fas fa-trash-alt' style='width:16px'></i> Delete Ticket</button>
+            `;
+            document.body.appendChild(menu);
+            
+            // Add hover effects
+            menu.querySelectorAll('button').forEach(btn => {
+              btn.onmouseover = () => btn.style.background = 'rgba(255,255,255,0.05)';
+              btn.onmouseout = () => btn.style.background = 'transparent';
+            });
+            
+            // Close on click outside
+            const closeMenu = () => { menu.remove(); document.removeEventListener('click', closeMenu); };
+            setTimeout(() => document.addEventListener('click', closeMenu), 10);
+          };
+
           item.onmouseover = () => {
             if (t.id !== selectedTicketId) {
               item.style.background = 'rgba(255, 255, 255, 0.04)';
@@ -6211,6 +6243,8 @@
         if (!ticket) return;
         
         renderSupportTicketsList(supportTicketsCache);
+        // Also re-apply active filter to keep the list consistent
+        applyTicketFilters();
         
         document.getElementById('ticketDetailPlaceholder').style.display = 'none';
         document.getElementById('ticketDetailContent').style.display = 'flex';
@@ -6219,7 +6253,23 @@
         document.getElementById('detSender').innerText = ticket.sender;
         document.getElementById('detTimestamp').innerText = new Date(ticket.created_at + 'Z').toLocaleString();
         document.getElementById('detMessage').innerText = ticket.message;
-        document.getElementById('detStatusSelect').value = ticket.status;
+        
+        const replyStatus = document.getElementById('replyStatusSelect');
+        if (replyStatus) {
+          replyStatus.value = ticket.status || 'open';
+        }
+
+        const statusBadge = document.getElementById('detStatusBadge');
+        if (statusBadge) {
+          statusBadge.innerText = ticket.status ? ticket.status.toUpperCase() : 'OPEN';
+          if (ticket.status === 'open') {
+            statusBadge.style = 'color: #37e6b5; background: rgba(55, 230, 181, 0.1); border: 1px solid rgba(55, 230, 181, 0.2); text-transform: uppercase; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11px;';
+          } else if (ticket.status === 'resolved') {
+            statusBadge.style = 'color: #10b981; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); text-transform: uppercase; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11px;';
+          } else {
+            statusBadge.style = 'color: #ef4444; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); text-transform: uppercase; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11px;';
+          }
+        }
         
         document.getElementById('detCategoryBadge').innerText = ticket.category ? ticket.category.toUpperCase() : 'GENERAL';
         
@@ -6233,20 +6283,15 @@
         } else {
           pb.style = 'background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);';
         }
-        
       }
 
       function openReplyModal(event) {
         if (event) event.preventDefault();
-        if (!selectedTicketId) return;
-        const ticket = supportTicketsCache.find(t => t.id === selectedTicketId);
-        if (!ticket) return;
-        
-        document.getElementById('replyTargetSender').innerText = ticket.sender;
-        document.getElementById('replyTargetSubject').innerText = `Re: ${ticket.subject || 'Support Ticket'}`;
-        document.getElementById('replyMessageInput').value = '';
-        
-        openModal('adminReplyModal');
+        const textarea = document.getElementById('replyMessageInput');
+        if (textarea) {
+          textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          textarea.focus();
+        }
       }
 
       function insertFormatting(type) {
@@ -6298,15 +6343,14 @@
           const response = await fetch(`/api/admin/support-tickets/${selectedTicketId}/reply`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message })
+            body: JSON.stringify({ message: message, status: document.getElementById('replyStatusSelect').value })
           });
           
           if (!response.ok) throw new Error('API server error');
           const data = await response.json();
           
           if (data.success) {
-            showToast('Success', 'Reply email sent successfully and ticket resolved!', 'fa-check-circle', 'success');
-            closeModal('adminReplyModal');
+            showToast('Success', 'Reply email sent successfully!', 'fa-check-circle', 'success');
             document.getElementById('replyMessageInput').value = '';
             fetchSupportTickets();
           } else {
@@ -6323,7 +6367,7 @@
 
       async function updateTicketStatus() {
         if (!selectedTicketId) return;
-        const newStatus = document.getElementById('detStatusSelect').value;
+        const newStatus = document.getElementById('replyStatusSelect').value;
         try {
           const response = await fetch(`/api/admin/support-tickets/${selectedTicketId}/status`, {
             method: 'POST',
@@ -6365,6 +6409,59 @@
       window.insertFormatting = insertFormatting;
       window.submitAdminReply = submitAdminReply;
       window.setTicketFilter = setTicketFilter;
+      window.deleteSelectedTicket = deleteSelectedTicket;
+      window.clearAllTickets = clearAllTickets;
+      window.deleteTicketById = deleteTicketById;
+
+      // Delete selected ticket from detail panel
+      async function deleteSelectedTicket() {
+        if (!selectedTicketId) return;
+        if (!confirm('Are you sure you want to permanently delete this ticket?')) return;
+        await deleteTicketById(selectedTicketId);
+      }
+
+      async function deleteTicketById(id) {
+        try {
+          const response = await fetch(`/api/admin/support-tickets/${id}`, { method: 'DELETE' });
+          if (!response.ok) throw new Error('API server error');
+          const data = await response.json();
+          if (data.success) {
+            showToast('Deleted', 'Ticket deleted successfully.', 'fa-trash-alt', 'success');
+            if (selectedTicketId === id) {
+              selectedTicketId = null;
+              document.getElementById('ticketDetailPlaceholder').style.display = 'flex';
+              document.getElementById('ticketDetailContent').style.display = 'none';
+            }
+            fetchSupportTickets();
+          } else {
+            showToast('Error', data.error || 'Failed to delete ticket.', 'fa-exclamation-triangle', 'error');
+          }
+        } catch (e) {
+          console.error('Failed to delete ticket:', e);
+          showToast('Error', 'Failed to delete ticket.', 'fa-exclamation-triangle', 'error');
+        }
+      }
+
+      async function clearAllTickets() {
+        if (!confirm('Are you sure you want to delete ALL support tickets? This action cannot be undone.')) return;
+        try {
+          const response = await fetch('/api/admin/support-tickets/clear-all', { method: 'DELETE' });
+          if (!response.ok) throw new Error('API server error');
+          const data = await response.json();
+          if (data.success) {
+            showToast('Cleared', `${data.count || 'All'} tickets deleted.`, 'fa-trash-alt', 'success');
+            selectedTicketId = null;
+            document.getElementById('ticketDetailPlaceholder').style.display = 'flex';
+            document.getElementById('ticketDetailContent').style.display = 'none';
+            fetchSupportTickets();
+          } else {
+            showToast('Error', data.error || 'Failed to clear tickets.', 'fa-exclamation-triangle', 'error');
+          }
+        } catch (e) {
+          console.error('Failed to clear tickets:', e);
+          showToast('Error', 'Failed to clear tickets.', 'fa-exclamation-triangle', 'error');
+        }
+      }
 
       // Let's add keydown event listener to toggle sidebar with Ctrl+B
       document.addEventListener('keydown', (e) => {

@@ -2556,7 +2556,7 @@ def api_support_send():
     <div class="container">
       <div class="header">
         <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;"><tr>
-          <td style="vertical-align: middle; padding-right: 12px;"><img src="https://raw.githubusercontent.com/Coder-Paradise-15/Mint-Frost-AI-Ltd/main/static/favicon-dark.png" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
+          <td style="vertical-align: middle; padding-right: 12px;"><img src="cid:logo" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
           <td style="vertical-align: middle;">
             <div class="logo-text">MINT FROST</div>
             <div class="logo-sub">Internal Support Notification</div>
@@ -2734,7 +2734,7 @@ def api_support_send():
     <div class="container">
       <div class="header">
         <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;"><tr>
-          <td style="vertical-align: middle; padding-right: 12px;"><img src="https://raw.githubusercontent.com/Coder-Paradise-15/Mint-Frost-AI-Ltd/main/static/favicon-dark.png" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
+          <td style="vertical-align: middle; padding-right: 12px;"><img src="cid:logo" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
           <td style="vertical-align: middle;">
             <div class="logo-text">MINT FROST</div>
             <div class="logo-sub">Support System</div>
@@ -2776,19 +2776,54 @@ def api_support_send():
 
     # Send ticket notification to Support Inbox
     from email.utils import formataddr
-    msg_to_support = MIMEMultipart('alternative')
+    from email.mime.image import MIMEImage
+    import os
+
+    logo_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'favicon-dark.png')
+
+    msg_to_support = MIMEMultipart('related')
     msg_to_support['From'] = formataddr(("Mint Frost Support", support_email))
     msg_to_support['To'] = support_email
     msg_to_support['Reply-To'] = sender
     msg_to_support['Subject'] = f"[Support Ticket] {category.upper()}: {subject or 'No Subject'}"
-    msg_to_support.attach(MIMEText(html_support, 'html', 'utf-8'))
+    
+    msg_to_support_alternative = MIMEMultipart('alternative')
+    msg_to_support_alternative.attach(MIMEText(html_support, 'html', 'utf-8'))
+    msg_to_support.attach(msg_to_support_alternative)
+
+    if os.path.exists(logo_path):
+        try:
+            with open(logo_path, 'rb') as f:
+                img_data = f.read()
+            image = MIMEImage(img_data)
+            image.add_header('Content-ID', '<logo>')
+            image.add_header('Content-Disposition', 'inline', filename='logo.png')
+            msg_to_support.attach(image)
+        except Exception as e:
+            import logging
+            logging.error(f"Error attaching logo to support mail: {e}")
 
     # Send receipt/acknowledgement to User Sender
-    msg_to_user = MIMEMultipart('alternative')
+    msg_to_user = MIMEMultipart('related')
     msg_to_user['From'] = formataddr(("Mint Frost Support", support_email))
     msg_to_user['To'] = sender
     msg_to_user['Subject'] = f"Re: {subject or 'Support Ticket Received'}"
-    msg_to_user.attach(MIMEText(html_user, 'html', 'utf-8'))
+
+    msg_to_user_alternative = MIMEMultipart('alternative')
+    msg_to_user_alternative.attach(MIMEText(html_user, 'html', 'utf-8'))
+    msg_to_user.attach(msg_to_user_alternative)
+
+    if os.path.exists(logo_path):
+        try:
+            with open(logo_path, 'rb') as f:
+                img_data = f.read()
+            image_user = MIMEImage(img_data)
+            image_user.add_header('Content-ID', '<logo>')
+            image_user.add_header('Content-Disposition', 'inline', filename='logo.png')
+            msg_to_user.attach(image_user)
+        except Exception as e:
+            import logging
+            logging.error(f"Error attaching logo to user mail: {e}")
 
     try:
         # Connect to Gmail SMTP
@@ -2852,6 +2887,7 @@ def api_admin_support_ticket_reply(ticket_id):
         
     data = request.get_json() or {}
     reply_message = data.get('message', '').strip()
+    new_status = data.get('status', '').strip() or ticket.get('status', 'open')
     if not reply_message:
         return jsonify({"error": "Reply message cannot be empty."}), 400
         
@@ -3003,7 +3039,7 @@ def api_admin_support_ticket_reply(ticket_id):
     <div class="container">
       <div class="header">
         <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;"><tr>
-          <td style="vertical-align: middle; padding-right: 12px;"><img src="https://raw.githubusercontent.com/Coder-Paradise-15/Mint-Frost-AI-Ltd/main/static/favicon-dark.png" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
+          <td style="vertical-align: middle; padding-right: 12px;"><img src="cid:logo" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
           <td style="vertical-align: middle;">
             <div class="logo-text">MINT FROST</div>
             <div class="logo-sub">Support Response</div>
@@ -3025,7 +3061,8 @@ def api_admin_support_ticket_reply(ticket_id):
           <div class="quote-header">Original Ticket Details</div>
           <strong>Subject:</strong> {subject_display}<br>
           <strong>Category:</strong> {category_display}<br>
-          <strong>Priority:</strong> {priority_display}<br><br>
+          <strong>Priority:</strong> {priority_display}<br>
+          <strong>Status:</strong> <span style="color: #37e6b5; font-weight: 600;">{new_status.upper()}</span><br><br>
           {original_message_html}
         </div>
         
@@ -3040,12 +3077,32 @@ def api_admin_support_ticket_reply(ticket_id):
 </html>"""
 
     # Send reply to User Sender
-    msg_to_user = MIMEMultipart('alternative')
+    from email.mime.image import MIMEImage
+    import os
+
+    logo_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'favicon-dark.png')
+
+    msg_to_user = MIMEMultipart('related')
     msg_to_user['From'] = formataddr(("Mint Frost Support", support_email))
     msg_to_user['To'] = ticket.get('sender')
     msg_to_user['Reply-To'] = support_email
     msg_to_user['Subject'] = f"Re: {ticket.get('subject') or 'Support Ticket'}"
-    msg_to_user.attach(MIMEText(html_reply, 'html', 'utf-8'))
+    
+    msg_to_user_alternative = MIMEMultipart('alternative')
+    msg_to_user_alternative.attach(MIMEText(html_reply, 'html', 'utf-8'))
+    msg_to_user.attach(msg_to_user_alternative)
+
+    if os.path.exists(logo_path):
+        try:
+            with open(logo_path, 'rb') as f:
+                img_data = f.read()
+            image = MIMEImage(img_data)
+            image.add_header('Content-ID', '<logo>')
+            image.add_header('Content-Disposition', 'inline', filename='logo.png')
+            msg_to_user.attach(image)
+        except Exception as e:
+            import logging
+            logging.error(f"Error attaching logo to admin reply mail: {e}")
 
     try:
         # Connect to Gmail SMTP
@@ -3057,8 +3114,8 @@ def api_admin_support_ticket_reply(ticket_id):
         server.sendmail(support_email, [ticket.get('sender')], msg_to_user.as_string())
         server.quit()
         
-        # Update ticket status in database to 'resolved'
-        database.update_support_ticket_status(ticket_id, 'resolved')
+        # Update ticket status in database to admin-selected status
+        database.update_support_ticket_status(ticket_id, new_status)
         
         user_id = session.get('user_id')
         if user_id:
@@ -3070,6 +3127,26 @@ def api_admin_support_ticket_reply(ticket_id):
         logging.error(f"SMTP sending error in admin reply: {e}")
         return jsonify({"error": f"SMTP mail delivery failed: {str(e)}"}), 500
 
+
+@app.route("/api/admin/support-tickets/<int:ticket_id>", methods=["DELETE"])
+@admin_required
+def api_admin_delete_support_ticket(ticket_id):
+    success = database.delete_support_ticket(ticket_id)
+    if success:
+        user_id = session.get('user_id')
+        if user_id:
+            database.log_admin_action(user_id, 'DELETE_SUPPORT_TICKET', '', f"Deleted ticket ID {ticket_id}")
+        return jsonify({"success": True, "message": "Ticket deleted successfully."})
+    return jsonify({"error": "Failed to delete ticket."}), 400
+
+@app.route("/api/admin/support-tickets/clear-all", methods=["DELETE"])
+@admin_required
+def api_admin_delete_all_support_tickets():
+    count = database.delete_all_support_tickets()
+    user_id = session.get('user_id')
+    if user_id:
+        database.log_admin_action(user_id, 'DELETE_ALL_SUPPORT_TICKETS', '', f"Deleted {count} tickets")
+    return jsonify({"success": True, "message": f"{count} tickets deleted.", "count": count})
 
 @app.route("/api/admin/users/<username>/details", methods=["GET"])
 @admin_required

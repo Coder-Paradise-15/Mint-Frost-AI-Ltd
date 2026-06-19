@@ -1663,6 +1663,26 @@ def get_support_ticket(ticket_id):
         logging.error(f"Error fetching support ticket {ticket_id}: {e}")
         return None
 
+def delete_support_ticket(ticket_id):
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM support_tickets WHERE id = ?', (ticket_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+    except Exception as e:
+        import logging
+        logging.error(f"Error deleting support ticket {ticket_id}: {e}")
+        return False
 
-
-
+def delete_all_support_tickets():
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM support_tickets')
+            conn.commit()
+            return cursor.rowcount
+    except Exception as e:
+        import logging
+        logging.error(f"Error deleting all support tickets: {e}")
+        return 0
