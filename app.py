@@ -2556,7 +2556,7 @@ def api_support_send():
     <div class="container">
       <div class="header">
         <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;"><tr>
-          <td style="vertical-align: middle; padding-right: 12px;"><img src="cid:logo" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
+          <td style="vertical-align: middle; padding-right: 12px;"><img src="https://raw.githubusercontent.com/Coder-Paradise-15/Mint-Frost-AI-Ltd/main/static/favicon-dark.png" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
           <td style="vertical-align: middle;">
             <div class="logo-text">MINT FROST</div>
             <div class="logo-sub">Internal Support Notification</div>
@@ -2734,7 +2734,7 @@ def api_support_send():
     <div class="container">
       <div class="header">
         <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;"><tr>
-          <td style="vertical-align: middle; padding-right: 12px;"><img src="cid:logo" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
+          <td style="vertical-align: middle; padding-right: 12px;"><img src="https://raw.githubusercontent.com/Coder-Paradise-15/Mint-Frost-AI-Ltd/main/static/favicon-dark.png" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
           <td style="vertical-align: middle;">
             <div class="logo-text">MINT FROST</div>
             <div class="logo-sub">Support System</div>
@@ -2776,53 +2776,20 @@ def api_support_send():
 
     # Send ticket notification to Support Inbox
     from email.utils import formataddr
-    from email.mime.image import MIMEImage
 
-    logo_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'favicon-dark.png')
-
-    msg_to_support = MIMEMultipart('related')
+    msg_to_support = MIMEMultipart('alternative')
     msg_to_support['From'] = formataddr(("Mint Frost Support", support_email))
     msg_to_support['To'] = support_email
     msg_to_support['Reply-To'] = sender
     msg_to_support['Subject'] = f"[Support Ticket] {category.upper()}: {subject or 'No Subject'}"
-    
-    msg_to_support_alternative = MIMEMultipart('alternative')
-    msg_to_support_alternative.attach(MIMEText(html_support, 'html', 'utf-8'))
-    msg_to_support.attach(msg_to_support_alternative)
-
-    if os.path.exists(logo_path):
-        try:
-            with open(logo_path, 'rb') as f:
-                img_data = f.read()
-            image = MIMEImage(img_data)
-            image.add_header('Content-ID', '<logo>')
-            image.add_header('Content-Disposition', 'inline', filename='logo.png')
-            msg_to_support.attach(image)
-        except Exception as e:
-            import logging
-            logging.error(f"Error attaching logo to support mail: {e}")
+    msg_to_support.attach(MIMEText(html_support, 'html', 'utf-8'))
 
     # Send receipt/acknowledgement to User Sender
-    msg_to_user = MIMEMultipart('related')
+    msg_to_user = MIMEMultipart('alternative')
     msg_to_user['From'] = formataddr(("Mint Frost Support", support_email))
     msg_to_user['To'] = sender
     msg_to_user['Subject'] = f"Re: {subject or 'Support Ticket Received'}"
-
-    msg_to_user_alternative = MIMEMultipart('alternative')
-    msg_to_user_alternative.attach(MIMEText(html_user, 'html', 'utf-8'))
-    msg_to_user.attach(msg_to_user_alternative)
-
-    if os.path.exists(logo_path):
-        try:
-            with open(logo_path, 'rb') as f:
-                img_data = f.read()
-            image_user = MIMEImage(img_data)
-            image_user.add_header('Content-ID', '<logo>')
-            image_user.add_header('Content-Disposition', 'inline', filename='logo.png')
-            msg_to_user.attach(image_user)
-        except Exception as e:
-            import logging
-            logging.error(f"Error attaching logo to user mail: {e}")
+    msg_to_user.attach(MIMEText(html_user, 'html', 'utf-8'))
 
     # Log the action in database first
     user_id = session.get('user_id')
@@ -3046,7 +3013,7 @@ def api_admin_support_ticket_reply(ticket_id):
     <div class="container">
       <div class="header">
         <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;"><tr>
-          <td style="vertical-align: middle; padding-right: 12px;"><img src="cid:logo" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
+          <td style="vertical-align: middle; padding-right: 12px;"><img src="https://raw.githubusercontent.com/Coder-Paradise-15/Mint-Frost-AI-Ltd/main/static/favicon-dark.png" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
           <td style="vertical-align: middle;">
             <div class="logo-text">MINT FROST</div>
             <div class="logo-sub">Support Response</div>
@@ -3084,31 +3051,12 @@ def api_admin_support_ticket_reply(ticket_id):
 </html>"""
 
     # Send reply to User Sender
-    from email.mime.image import MIMEImage
-
-    logo_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'favicon-dark.png')
-
-    msg_to_user = MIMEMultipart('related')
+    msg_to_user = MIMEMultipart('alternative')
     msg_to_user['From'] = formataddr(("Mint Frost Support", support_email))
     msg_to_user['To'] = ticket.get('sender')
     msg_to_user['Reply-To'] = support_email
     msg_to_user['Subject'] = f"Re: {ticket.get('subject') or 'Support Ticket'}"
-    
-    msg_to_user_alternative = MIMEMultipart('alternative')
-    msg_to_user_alternative.attach(MIMEText(html_reply, 'html', 'utf-8'))
-    msg_to_user.attach(msg_to_user_alternative)
-
-    if os.path.exists(logo_path):
-        try:
-            with open(logo_path, 'rb') as f:
-                img_data = f.read()
-            image = MIMEImage(img_data)
-            image.add_header('Content-ID', '<logo>')
-            image.add_header('Content-Disposition', 'inline', filename='logo.png')
-            msg_to_user.attach(image)
-        except Exception as e:
-            import logging
-            logging.error(f"Error attaching logo to admin reply mail: {e}")
+    msg_to_user.attach(MIMEText(html_reply, 'html', 'utf-8'))
 
     # Update ticket status in database to admin-selected status first
     database.update_support_ticket_status(ticket_id, new_status)
