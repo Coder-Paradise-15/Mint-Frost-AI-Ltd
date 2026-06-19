@@ -1466,6 +1466,21 @@
           } catch (e) {}
         }
 
+        function getDeletedIds() {
+          try {
+            const val = localStorage.getItem('deleted_announcements');
+            return val ? JSON.parse(val) : [];
+          } catch (e) {
+            return [];
+          }
+        }
+
+        function saveDeletedIds(ids) {
+          try {
+            localStorage.setItem('deleted_announcements', JSON.stringify(ids));
+          } catch (e) {}
+        }
+
         function updateNotificationBadge() {
           const readIds = getReadIds();
           const unreadCount = announcementsList.filter(item => !readIds.includes(item.id)).length;
@@ -1533,7 +1548,9 @@
             const res = await fetch('/api/announcements');
             if (!res.ok) return;
             const data = await res.json();
-            announcementsList = data.history || [];
+            const deletedIds = getDeletedIds();
+            // Filter out deleted announcements
+            announcementsList = (data.history || []).filter(item => !deletedIds.includes(item.id));
             updateNotificationBadge();
             renderAnnouncements();
           } catch (e) {
@@ -1560,6 +1577,13 @@
         if (deleteAllNotificationsBtn) {
           deleteAllNotificationsBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            
+            // Persist deletion of current announcements locally
+            const deletedIds = getDeletedIds();
+            const currentIds = announcementsList.map(item => item.id);
+            const newDeletedIds = Array.from(new Set([...deletedIds, ...currentIds]));
+            saveDeletedIds(newDeletedIds);
+            
             announcementsList = [];
             localStorage.removeItem('read_announcements');
             updateNotificationBadge();
