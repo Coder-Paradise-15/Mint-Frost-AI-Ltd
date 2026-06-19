@@ -2555,8 +2555,13 @@ def api_support_send():
   <div class="wrapper">
     <div class="container">
       <div class="header">
-        <div class="logo-text">MINT FROST</div>
-        <div class="logo-sub">Internal Support Notification</div>
+        <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;"><tr>
+          <td style="vertical-align: middle; padding-right: 12px;"><img src="https://raw.githubusercontent.com/Coder-Paradise-15/Mint-Frost-AI-Ltd/main/static/favicon-dark.png" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
+          <td style="vertical-align: middle;">
+            <div class="logo-text">MINT FROST</div>
+            <div class="logo-sub">Internal Support Notification</div>
+          </td>
+        </tr></table>
       </div>
       <div class="content">
         <h1>New Support Ticket Received</h1>
@@ -2728,8 +2733,13 @@ def api_support_send():
   <div class="wrapper">
     <div class="container">
       <div class="header">
-        <div class="logo-text">MINT FROST</div>
-        <div class="logo-sub">Support System</div>
+        <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;"><tr>
+          <td style="vertical-align: middle; padding-right: 12px;"><img src="https://raw.githubusercontent.com/Coder-Paradise-15/Mint-Frost-AI-Ltd/main/static/favicon-dark.png" alt="Mint Frost" width="36" height="36" style="display:block; border-radius: 8px;"></td>
+          <td style="vertical-align: middle;">
+            <div class="logo-text">MINT FROST</div>
+            <div class="logo-sub">Support System</div>
+          </td>
+        </tr></table>
       </div>
       <div class="content">
         <h1>Ticket Received</h1>
