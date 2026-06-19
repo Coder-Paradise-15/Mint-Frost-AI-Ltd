@@ -2777,7 +2777,6 @@ def api_support_send():
     # Send ticket notification to Support Inbox
     from email.utils import formataddr
     from email.mime.image import MIMEImage
-    import os
 
     logo_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'favicon-dark.png')
 
@@ -3086,7 +3085,6 @@ def api_admin_support_ticket_reply(ticket_id):
 
     # Send reply to User Sender
     from email.mime.image import MIMEImage
-    import os
 
     logo_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'favicon-dark.png')
 
