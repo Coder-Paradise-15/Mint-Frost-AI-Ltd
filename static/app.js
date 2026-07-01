@@ -720,6 +720,7 @@ function pushMessage(text, who = 'ai', timestamp = null, messageId = null) {
   messageHistory.push({ text, who, timestamp: timestamp || new Date().toISOString(), id: div.getAttribute('data-message-id') });
   
   smoothScrollToBottom();
+  return div;
 }
 
 // Sanitize HTML to prevent XSS
@@ -917,6 +918,13 @@ async function sendMessage() {
   const userMessage = inputEl.value.trim();
   if (!userMessage || inFlight || userMessage.length > 2000) return;
 
+  // Intercept emergency keywords to automatically launch Panic Mode
+  const panicKeywords = ["panic", "help", "overwhelmed", "don't have enough time", "miss my deadline", "emergency schedule"];
+  const isPanicQuery = panicKeywords.some(kw => userMessage.toLowerCase().includes(kw));
+  if (isPanicQuery && typeof window.openPanicMode === 'function') {
+    window.openPanicMode();
+  }
+
   inFlight = true;
   setStatus('sending');
   showTyping(true);
@@ -975,9 +983,16 @@ async function sendMessage() {
     const data = await res.json();
     
     const aiText = data.reply || 'No response';
-    pushMessage(aiText, 'ai', data.timestamp);
+    const bubbleElement = pushMessage(aiText, 'ai', data.timestamp);
     updateMessageCount(data.message_count);
     setStatus('idle');
+    
+    // Render deadline cards if tasks are detected
+    if (data.detected_tasks && data.detected_tasks.length > 0) {
+      data.detected_tasks.forEach(task => {
+        renderDeadlineCard(task, bubbleElement);
+      });
+    }
     
     // Update session ID and refresh recent chats if new session
     if (data.session_id && data.session_id !== currentSessionId) {
@@ -2544,7 +2559,7 @@ window.addEventListener('load', async () => {
     initVoiceInput();
     initWeatherTime();
     initEmojiPicker();
-    initAPISettings();
+    await initAPISettings();
     updateCharCount();
     updateMessageCount(0);
     if (currentSessionId) {
@@ -2684,8 +2699,78 @@ function getBYOKConfig() {
   return { provider, api_key: apiKey, model };
 }
 
-function initAPISettings() {
+async function syncActiveSettingsToBackend() {
+  const byok = getBYOKConfig();
+  if (byok && byok.provider && byok.api_key) {
+    try {
+      await fetch('/api/settings/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_provider: byok.provider,
+          api_key: byok.api_key,
+          api_model: byok.model
+        })
+      });
+    } catch (e) {
+      console.error('Failed to sync settings to backend:', e);
+    }
+  }
+}
+
+async function syncAPISettingsFromServer() {
+  try {
+    const res = await fetch('/api/settings/sync');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.success && data.settings) {
+      const s = data.settings;
+      if (s.api_provider && s.api_key) {
+        let provider = s.api_provider;
+        if (provider === 'google') {
+          provider = 'gemini';
+        }
+        const keyMap = {
+          openai:     'apiOpenAIKey',
+          gemini:     'apiGeminiKey',
+          google:     'apiGeminiKey',
+          anthropic:  'apiAnthropicKey',
+          groq:       'apiGroqKey',
+          openrouter: 'apiOpenRouterKey',
+          mistral:    'apiMistralKey',
+        };
+        const storageKey = keyMap[provider];
+        if (storageKey) {
+          localStorage.setItem(storageKey, s.api_key);
+          localStorage.setItem('apiProvider', provider);
+          localStorage.setItem('chatboxModel', `${provider}:${s.api_model}`);
+          
+          const modelKeyMap = {
+            openai: 'apiOpenAIModel',
+            gemini: 'apiGeminiModel',
+            google: 'apiGeminiModel',
+            anthropic: 'apiAnthropicModel',
+            groq: 'apiGroqModel',
+            openrouter: 'apiOpenRouterModel',
+            mistral: 'apiMistralModel'
+          };
+          const modelStorageKey = modelKeyMap[provider];
+          if (modelStorageKey) {
+            localStorage.setItem(modelStorageKey, s.api_model);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to sync API settings from server:', err);
+  }
+}
+
+
+async function initAPISettings() {
   if (!apiSettingsBtn) return;
+  
+  await syncAPISettingsFromServer();
   
   // Show settings
   apiSettingsBtn.addEventListener('click', () => {
@@ -2732,7 +2817,7 @@ function initAPISettings() {
   apiSettingsCancel.addEventListener('click', hideAPISettings);
   
   // Save button
-  apiSettingsSave.addEventListener('click', () => {
+  apiSettingsSave.addEventListener('click', async () => {
     const provider = apiProviderSelect.value;
     const openaiKey = apiOpenAIKeyInput.value.trim();
     const openaiModel = apiOpenAIModelSelect.value;
@@ -2771,6 +2856,7 @@ function initAPISettings() {
     localStorage.setItem('apiMistralKey', mistralKey);
     localStorage.setItem('apiMistralModel', mistralModel);
     
+    await syncActiveSettingsToBackend();
     hideAPISettings();
     showToast('API Key settings saved successfully!');
     // Notify model-selector badge to refresh
@@ -2844,6 +2930,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const keyMap = {
       openai:     'apiOpenAIKey',
       gemini:     'apiGeminiKey',
+      google:     'apiGeminiKey',
       anthropic:  'apiAnthropicKey',
       groq:       'apiGroqKey',
       openrouter: 'apiOpenRouterKey',
@@ -2881,6 +2968,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const keyMap   = {
         openai:     'apiOpenAIKey',
         gemini:     'apiGeminiKey',
+        google:     'apiGeminiKey',
         anthropic:  'apiAnthropicKey',
         groq:       'apiGroqKey',
         openrouter: 'apiOpenRouterKey',
@@ -2892,11 +2980,17 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         showToast(`⚠ No ${provider} key — open ☰ → API Settings`, 'warning');
       }
+      syncActiveSettingsToBackend();
     });
   }
 
   // Re-check badge whenever API Settings saves new keys
-  document.addEventListener('apikeysSaved', updateModelKeyBadge);
+  document.addEventListener('apikeysSaved', () => {
+    updateModelKeyBadge();
+    if (typeof loadDynamicModels === 'function') {
+      loadDynamicModels();
+    }
+  });
 
   // ── CUSTOM MODEL SEARCHER CONTROLLER ──────────────────────────
   const modelSearcher = document.getElementById('custom-model-searcher');
@@ -2925,68 +3019,93 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 2. Populate list items from native select
+    function renderModelOptionItem(model, isActive) {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = `model-searcher-item ${isActive ? 'active' : ''}`;
+      const provider = (model.provider || '').toLowerCase();
+      const label = model.display_name || model.model_id || 'Unknown model';
+      const logoHtml = getProviderLogoHtml(provider, 14);
+      const subtitle = model.context_window ? `Context ${model.context_window}` : 'Dynamic model';
+      const badgeBits = [];
+      if (model.supports_reasoning) badgeBits.push('🧠 Reasoning');
+      if (model.supports_vision) badgeBits.push('👁 Vision');
+      if (model.supports_streaming) badgeBits.push('⚡ Fast');
+      if (model.supports_function_calling) badgeBits.push('💻 Coding');
+      if (model.supports_audio) badgeBits.push('🎵 Audio');
+      if (model.supports_image_generation) badgeBits.push('🖼 Image');
+      const badges = badgeBits.slice(0, 3).join(' • ');
+
+      const textSpan = document.createElement('span');
+      textSpan.style.display = 'flex';
+      textSpan.style.flexDirection = 'column';
+      textSpan.style.alignItems = 'flex-start';
+      textSpan.style.gap = '2px';
+      textSpan.innerHTML = `<span style="display:flex; align-items:center; gap:8px;">${logoHtml} <span>${label}</span></span><span style="font-size:11px; color:var(--muted);">${subtitle}${badges ? ` • ${badges}` : ''}</span>`;
+      itemDiv.appendChild(textSpan);
+
+      const providerSpan = document.createElement('span');
+      providerSpan.className = 'item-provider';
+      providerSpan.textContent = provider;
+      itemDiv.appendChild(providerSpan);
+
+      itemDiv.addEventListener('click', () => {
+        const optValue = `${provider}:${model.model_id}`;
+        chatboxModelSelect.value = optValue;
+        chatboxModelSelect.dispatchEvent(new Event('change'));
+        syncSelectedModelDisplay();
+        closeDropdown();
+      });
+      return itemDiv;
+    }
+
     function buildModelSearcherList(filterText = '') {
       modelSearcherList.innerHTML = '';
       const query = filterText.toLowerCase().trim();
-
-      // Read current options grouped by optgroups
-      const groups = chatboxModelSelect.querySelectorAll('optgroup');
       let totalVisible = 0;
-
-      groups.forEach(group => {
-        const groupLabel = group.label;
-        const options = group.querySelectorAll('option');
-        
-        // Filter options in this group
-        const matchedOptions = Array.from(options).filter(opt => {
-          return opt.textContent.toLowerCase().includes(query) || opt.value.toLowerCase().includes(query);
-        });
-
-        if (matchedOptions.length > 0) {
-          // Add group title
-          const titleDiv = document.createElement('div');
-          titleDiv.className = 'model-searcher-group-title';
-          titleDiv.textContent = groupLabel;
-          modelSearcherList.appendChild(titleDiv);
-
-          // Add items
-          matchedOptions.forEach(opt => {
-            const itemDiv = document.createElement('div');
-            const isActive = chatboxModelSelect.value === opt.value;
-            itemDiv.className = `model-searcher-item ${isActive ? 'active' : ''}`;
-            
-            const provider = opt.value.split(':')[0];
-            const logoHtml = getProviderLogoHtml(provider, 14);
-            const cleanText = opt.textContent.replace(/^[\p{Emoji}\p{Extended_Pictographic}]\s*/u, '').trim();
-            
-            const textSpan = document.createElement('span');
-            textSpan.style.display = 'flex';
-            textSpan.style.alignItems = 'center';
-            textSpan.style.gap = '8px';
-            textSpan.innerHTML = `${logoHtml} <span>${cleanText}</span>`;
-            itemDiv.appendChild(textSpan);
-
-            const providerSpan = document.createElement('span');
-            providerSpan.className = 'item-provider';
-            providerSpan.textContent = provider;
-            itemDiv.appendChild(providerSpan);
-
-            // Click selects option
-            itemDiv.addEventListener('click', () => {
-              chatboxModelSelect.value = opt.value;
-              chatboxModelSelect.dispatchEvent(new Event('change'));
-              syncSelectedModelDisplay();
-              closeDropdown();
-            });
-
-            modelSearcherList.appendChild(itemDiv);
-            totalVisible++;
-          });
-        }
+      const providerGroups = {};
+      const options = Array.from(chatboxModelSelect.querySelectorAll('option'));
+      options.forEach(opt => {
+        const value = opt.value || '';
+        const text = opt.textContent || '';
+        if (!value) return;
+        if (query && !text.toLowerCase().includes(query) && !value.toLowerCase().includes(query)) return;
+        const provider = value.split(':')[0] || 'custom';
+        if (!providerGroups[provider]) providerGroups[provider] = [];
+        providerGroups[provider].push({ opt, value, text });
       });
 
-      // Show/Hide custom register button if input looks like a potential custom model
+      Object.entries(providerGroups).sort(([a], [b]) => a.localeCompare(b)).forEach(([provider, items]) => {
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'model-searcher-group-title';
+        titleDiv.textContent = provider.toUpperCase();
+        modelSearcherList.appendChild(titleDiv);
+        items.forEach(item => {
+          const itemDiv = document.createElement('div');
+          const isActive = chatboxModelSelect.value === item.value;
+          itemDiv.className = `model-searcher-item ${isActive ? 'active' : ''}`;
+          const logoHtml = getProviderLogoHtml(provider, 14);
+          const cleanText = item.text.replace(/^[\p{Emoji}\p{Extended_Pictographic}]\s*/u, '').trim();
+          const textSpan = document.createElement('span');
+          textSpan.style.display = 'flex';
+          textSpan.style.alignItems = 'center';
+          textSpan.style.gap = '8px';
+          textSpan.innerHTML = `${logoHtml} <span>${cleanText}</span>`;
+          itemDiv.appendChild(textSpan);
+          const providerSpan = document.createElement('span');
+          providerSpan.className = 'item-provider';
+          providerSpan.textContent = provider;
+          itemDiv.appendChild(providerSpan);
+          itemDiv.addEventListener('click', () => {
+            chatboxModelSelect.value = item.value;
+            chatboxModelSelect.dispatchEvent(new Event('change'));
+            syncSelectedModelDisplay();
+            closeDropdown();
+          });
+          modelSearcherList.appendChild(itemDiv);
+          totalVisible++;
+        });
+      });
+
       if (query.includes(':') && query.split(':')[1].length > 1) {
         addCustomModelBtn.style.display = 'flex';
         addCustomModelBtn.title = `Add "${query}" as a custom model option`;
@@ -2994,7 +3113,6 @@ document.addEventListener('DOMContentLoaded', () => {
         addCustomModelBtn.style.display = 'none';
       }
 
-      // If no results, show empty status
       if (totalVisible === 0) {
         const emptyDiv = document.createElement('div');
         emptyDiv.style.padding = '20px 12px';
@@ -3093,6 +3211,51 @@ document.addEventListener('DOMContentLoaded', () => {
       modelSearcherClear.style.display = 'none';
     });
 
+    async function loadDynamicModels(provider = null) {
+      const currentProvider = provider || (chatboxModelSelect.value || '').split(':')[0] || '';
+      const keyMap = {
+        openai: 'apiOpenAIKey',
+        gemini: 'apiGeminiKey',
+        google: 'apiGeminiKey',
+        anthropic: 'apiAnthropicKey',
+        groq: 'apiGroqKey',
+        openrouter: 'apiOpenRouterKey',
+        mistral: 'apiMistralKey'
+      };
+      const savedKey = currentProvider ? (localStorage.getItem(keyMap[currentProvider] || '') || '').trim() : '';
+      if (!currentProvider) {
+        return;
+      }
+      if (!savedKey) {
+        showToast(`No API key saved for ${currentProvider}; cached models will still appear.`, 'warning');
+      }
+      try {
+        const resp = await fetch('/api/settings/models');
+        const data = await resp.json();
+        const models = Array.isArray(data.models) ? data.models : [];
+        const providerModels = models.filter(m => (m.provider || '').toLowerCase() === currentProvider.toLowerCase());
+        const existingGroup = Array.from(chatboxModelSelect.querySelectorAll('optgroup')).find(g => g.label === `📡 Live API: ${currentProvider}`);
+        if (existingGroup) existingGroup.remove();
+        const liveGroup = document.createElement('optgroup');
+        liveGroup.label = `📡 Live API: ${currentProvider}`;
+        providerModels.forEach(model => {
+          const optValue = `${currentProvider}:${model.model_id}`;
+          if (!chatboxModelSelect.querySelector(`option[value="${optValue}"]`)) {
+            const opt = document.createElement('option');
+            opt.value = optValue;
+            opt.textContent = model.display_name || model.model_id;
+            liveGroup.appendChild(opt);
+          }
+        });
+        if (liveGroup.children.length > 0) {
+          chatboxModelSelect.appendChild(liveGroup);
+        }
+        buildModelSearcherList(modelSearcherInput.value);
+      } catch (err) {
+        console.warn('Unable to load stored provider models:', err);
+      }
+    }
+
     // Fetch Live Models via Backend Proxy API
     fetchLiveModelsBtn.addEventListener('click', async () => {
       const activeOpt = chatboxModelSelect.options[chatboxModelSelect.selectedIndex];
@@ -3102,6 +3265,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const keyMap = {
         openai:     'apiOpenAIKey',
         gemini:     'apiGeminiKey',
+        google:     'apiGeminiKey',
         anthropic:  'apiAnthropicKey',
         groq:       'apiGroqKey',
         openrouter: 'apiOpenRouterKey',
@@ -3133,29 +3297,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.error) {
           showToast(`Fetch error: ${result.error}`, 'error');
         } else if (result.models && result.models.length > 0) {
-          let liveGroup = Array.from(chatboxModelSelect.querySelectorAll('optgroup')).find(g => g.label === `📡 Live API: ${provider}`);
-          if (!liveGroup) {
-            liveGroup = document.createElement('optgroup');
-            liveGroup.label = `📡 Live API: ${provider}`;
-            chatboxModelSelect.appendChild(liveGroup);
-          } else {
-            liveGroup.innerHTML = '';
-          }
-
-          result.models.forEach(m => {
-            const optVal = `${provider}:${m}`;
-            if (!chatboxModelSelect.querySelector(`option[value="${optVal}"]`)) {
-              const opt = document.createElement('option');
-              opt.value = optVal;
-              opt.textContent = `📡 ${m}`;
-              liveGroup.appendChild(opt);
-            }
-          });
-
-          buildModelSearcherList(modelSearcherInput.value);
+          await loadDynamicModels(provider);
           showToast(`Loaded ${result.models.length} live models from ${provider}!`, 'success');
         } else {
-          showToast('No models returned from API.', 'warning');
+          await loadDynamicModels(provider);
+          showToast('No fresh models returned, using the last cached list.', 'warning');
         }
       } catch (err) {
         showToast(`API Connection failed: ${err.message}`, 'error');
@@ -3169,6 +3315,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       syncSelectedModelDisplay();
       chatboxModelSelect.addEventListener('change', syncSelectedModelDisplay);
+      loadDynamicModels();
     }, 100);
   }
 
@@ -3459,3 +3606,2520 @@ if (button && sidebar) {
     }
   });
 }
+
+function renderDeadlineCard(task, parentBubble) {
+  if (!task || !parentBubble) return;
+
+  const card = document.createElement('div');
+  card.className = 'card glass deadline-card';
+  card.style.margin = '10px 0 15px 40px';
+  card.style.padding = '16px';
+  card.style.borderRadius = '12px';
+  card.style.border = '1px solid rgba(64, 224, 208, 0.3)';
+  card.style.background = 'rgba(255, 255, 255, 0.03)';
+  card.style.backdropFilter = 'blur(10px)';
+  card.style.boxShadow = '0 8px 32px 0 rgba(0, 0, 0, 0.2)';
+  card.style.transition = 'all 0.3s ease';
+  card.style.animation = 'fadeIn 0.3s ease';
+  card.style.maxWidth = '500px';
+
+  // Check if it contains subtasks
+  const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+
+  if (hasSubtasks) {
+    // 1. RENDER EXPANDED SUBTASK BREAKDOWN CARD
+    card.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; cursor: pointer;" class="deadline-card-header">
+        <span style="font-weight: 700; color: var(--mint); display: flex; align-items: center; gap: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">
+          <i class="fas fa-chevron-down toggle-icon" style="transition: transform 0.2s;"></i>
+          <span>${task.task_name}</span>
+        </span>
+        <span style="font-size: 10px; background: rgba(64, 224, 208, 0.15); color: var(--mint); padding: 2px 8px; border-radius: 20px; font-weight: 600;">
+          Conf: ${Math.round(task.confidence * 100)}%
+        </span>
+      </div>
+      <div class="deadline-card-content" style="transition: max-height 0.3s ease-out; overflow: hidden; max-height: 500px;">
+        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.5); display: flex; justify-content: space-between; margin-bottom: 4px; background: rgba(0,0,0,0.1); padding: 4px 8px; border-radius: 4px;">
+          <span>Category: <strong>${task.category}</strong></span>
+          <span>Deadline: <strong>${task.date} ${task.time}</strong></span>
+          <span>Duration: <strong>${task.duration}</strong></span>
+        </div>
+        <div style="margin: 12px 0;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 4px;">
+            <span>Progress</span>
+            <span class="progress-percent-val">0%</span>
+          </div>
+          <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+            <div class="progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--mint), #00fa9a); border-radius: 3px; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+          </div>
+        </div>
+        <div class="subtask-list-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;"></div>
+        <div class="celebration-banner" style="display: none; text-align: center; margin-top: 15px; padding: 12px; background: rgba(64, 224, 208, 0.15); border: 1px solid var(--mint); border-radius: 8px; color: #ffffff; font-weight: 700; font-size: 13px;">
+          🎉 Task Completed
+        </div>
+      </div>
+    `;
+
+    // Collapsible Logic
+    const header = card.querySelector('.deadline-card-header');
+    const content = card.querySelector('.deadline-card-content');
+    const icon = card.querySelector('.toggle-icon');
+    
+    header.addEventListener('click', () => {
+      if (content.style.maxHeight === '0px') {
+        content.style.maxHeight = '500px';
+        icon.style.transform = 'rotate(0deg)';
+      } else {
+        content.style.maxHeight = '0px';
+        icon.style.transform = 'rotate(-90deg)';
+      }
+    });
+
+    const listContainer = card.querySelector('.subtask-list-container');
+    
+    // Render individual subtasks
+    task.subtasks.forEach(sub => {
+      const item = document.createElement('label');
+      item.style.display = 'flex';
+      item.style.alignItems = 'center';
+      item.style.gap = '10px';
+      item.style.fontSize = '12px';
+      item.style.color = 'rgba(255, 255, 255, 0.85)';
+      item.style.cursor = 'pointer';
+      item.style.padding = '6px 8px';
+      item.style.borderRadius = '6px';
+      item.style.background = 'rgba(255,255,255,0.02)';
+      item.style.border = '1px solid rgba(255,255,255,0.05)';
+      item.style.transition = 'all 0.2s';
+      
+      item.addEventListener('mouseenter', () => {
+        item.style.background = 'rgba(255,255,255,0.05)';
+        item.style.border = '1px solid rgba(64, 224, 208, 0.2)';
+      });
+      item.addEventListener('mouseleave', () => {
+        item.style.background = 'rgba(255,255,255,0.02)';
+        item.style.border = '1px solid rgba(255,255,255,0.05)';
+      });
+
+      const checked = sub.completed ? 'checked' : '';
+      const textDecoration = sub.completed ? 'line-through' : 'none';
+      const textColor = sub.completed ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.85)';
+
+      // Map Priority Colors
+      let prioBg = 'rgba(255,255,255,0.06)';
+      let prioColor = 'rgba(255,255,255,0.6)';
+      const prio = (sub.priority || 'Medium').toLowerCase();
+      if (prio === 'high') {
+        prioBg = 'rgba(255, 107, 107, 0.15)';
+        prioColor = '#ff6b6b';
+      } else if (prio === 'medium') {
+        prioBg = 'rgba(241, 196, 15, 0.15)';
+        prioColor = '#f1c40f';
+      } else if (prio === 'low') {
+        prioBg = 'rgba(155, 89, 182, 0.15)';
+        prioColor = '#a881d8';
+      }
+
+      // Map Difficulty Colors
+      let diffBg = 'rgba(255,255,255,0.06)';
+      let diffColor = 'rgba(255,255,255,0.6)';
+      const diff = (sub.difficulty || 'Medium').toLowerCase();
+      if (diff === 'hard') {
+        diffBg = 'rgba(231, 76, 60, 0.15)';
+        diffColor = '#e74c3c';
+      } else if (diff === 'medium') {
+        diffBg = 'rgba(230, 126, 34, 0.15)';
+        diffColor = '#e67e22';
+      } else if (diff === 'easy') {
+        diffBg = 'rgba(46, 204, 113, 0.15)';
+        diffColor = '#2ecc71';
+      }
+
+      item.innerHTML = `
+        <input type="checkbox" data-subtask-id="${sub.id}" ${checked} style="accent-color: var(--mint); cursor: pointer;">
+        <div style="flex: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span class="subtask-title" style="text-decoration: ${textDecoration}; color: ${textColor}; transition: all 0.2s; font-weight: 500;">
+              ${sub.title}
+            </span>
+            <div style="display: flex; gap: 6px; font-size: 9px; align-items: center; flex-wrap: wrap;">
+              <span style="color: ${prioColor}; background: ${prioBg}; padding: 1px 4px; border-radius: 3px; font-weight: 600; text-transform: uppercase; font-size: 8px;">${sub.priority || 'Medium'}</span>
+              <span style="color: ${diffColor}; background: ${diffBg}; padding: 1px 4px; border-radius: 3px; font-weight: 600; text-transform: uppercase; font-size: 8px;">${sub.difficulty || 'Medium'}</span>
+              ${sub.dependency ? `<span style="color: rgba(255,255,255,0.45); border-left: 1px solid rgba(255,255,255,0.15); padding-left: 6px; display: flex; align-items: center; gap: 3px;"><i class="fas fa-link" style="font-size: 7px;"></i> Needs: ${sub.dependency}</span>` : ''}
+            </div>
+          </div>
+          <span style="font-size: 10px; color: rgba(255,255,255,0.4); display: flex; align-items: center; gap: 4px; white-space: nowrap; margin-top: 3px;">
+            <i class="far fa-clock"></i> ${sub.duration || ''}
+          </span>
+        </div>
+      `;
+
+      const checkbox = item.querySelector('input[type="checkbox"]');
+      const titleSpan = item.querySelector('.subtask-title');
+      
+      checkbox.addEventListener('change', async () => {
+        try {
+          checkbox.disabled = true;
+          const headers = { 'Content-Type': 'application/json' };
+          const csrfToken = getCSRFToken();
+          if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken;
+          }
+
+          const res = await fetch(`/api/subtasks/${sub.id}/toggle`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({ completed: checkbox.checked })
+          });
+
+          if (!res.ok) {
+            throw new Error('Failed to update subtask');
+          }
+
+          const resData = await res.json();
+          checkbox.disabled = false;
+
+          if (typeof window.handleGamificationUpdate === 'function') {
+            window.handleGamificationUpdate(resData.gamification);
+          }
+
+          // Update styles
+          if (checkbox.checked) {
+            titleSpan.style.textDecoration = 'line-through';
+            titleSpan.style.color = 'rgba(255,255,255,0.4)';
+            showToast('Subtask completed!', 'success');
+          } else {
+            titleSpan.style.textDecoration = 'none';
+            titleSpan.style.color = 'rgba(255,255,255,0.85)';
+            showToast('Subtask updated.');
+          }
+
+          updateCardProgress(card, resData.progress);
+
+        } catch (err) {
+          console.error(err);
+          showToast(err.message || 'Error updating subtask', 'error');
+          checkbox.checked = !checkbox.checked;
+          checkbox.disabled = false;
+        }
+      });
+
+      listContainer.appendChild(item);
+    });
+
+    // Compute and render initial progress
+    let completedCount = task.subtasks.filter(s => s.completed).length;
+    let initialProgress = Math.round((completedCount / task.subtasks.length) * 100);
+    updateCardProgress(card, initialProgress);
+
+  } else {
+    // 2. RENDER STANDARD ACTION BUTTON CARD
+    card.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+        <span style="font-weight: 700; color: var(--mint); display: flex; align-items: center; gap: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">
+          <i class="fas fa-bolt"></i> Deadline Detected
+        </span>
+        <span style="font-size: 10px; background: rgba(64, 224, 208, 0.15); color: var(--mint); padding: 2px 8px; border-radius: 20px; font-weight: 600;">
+          Match: ${Math.round(task.confidence * 100)}%
+        </span>
+      </div>
+      <div style="font-size: 14px; color: #ffffff; margin-bottom: 10px; font-weight: 500;">
+        <span style="color: rgba(255, 255, 255, 0.6); font-size: 12px; display: block; margin-bottom: 2px;">Task Name</span>
+        <span class="task-title-val">${task.task_name}</span>
+      </div>
+      <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7); display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; background: rgba(0,0,0,0.15); padding: 8px 12px; border-radius: 8px;">
+        <div><span style="color: rgba(255,255,255,0.4); font-size: 10px; display: block; margin-bottom: 1px;">Category</span><strong>${task.category}</strong></div>
+        <div><span style="color: rgba(255,255,255,0.4); font-size: 10px; display: block; margin-bottom: 1px;">Deadline</span><strong>${task.date} ${task.time}</strong></div>
+        <div><span style="color: rgba(255,255,255,0.4); font-size: 10px; display: block; margin-bottom: 1px;">Est. Duration</span><strong>${task.duration}</strong></div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button class="btn btn--mint btn--xs btn-create-task" style="flex: 1; min-width: 90px; padding: 6px 12px; font-size: 11px; border-radius: 6px;">Create Task</button>
+        <button class="btn btn--secondary btn--xs btn-break-steps" style="flex: 1; min-width: 100px; padding: 6px 12px; font-size: 11px; border-radius: 6px; color: #ffffff; background: rgba(255,255,255,0.08);">Break Into Steps</button>
+        <button class="btn btn--secondary btn--xs btn-generate-plan" style="flex: 1; min-width: 100px; padding: 6px 12px; font-size: 11px; border-radius: 6px; color: #ffffff; background: rgba(255,255,255,0.08);">Generate Plan</button>
+        <button class="btn btn--ghost btn--xs btn-dismiss-task" style="color: #ff6b6b; flex: 1; min-width: 70px; padding: 6px 12px; font-size: 11px; border-radius: 6px;">Dismiss</button>
+      </div>
+    `;
+
+    // Button Listeners
+    const createBtn = card.querySelector('.btn-create-task');
+    const breakBtn = card.querySelector('.btn-break-steps');
+    const planBtn = card.querySelector('.btn-generate-plan');
+    const dismissBtn = card.querySelector('.btn-dismiss-task');
+
+    createBtn.addEventListener('click', async () => {
+      try {
+        createBtn.disabled = true;
+        createBtn.textContent = 'Saving...';
+        const headers = { 'Content-Type': 'application/json' };
+        const csrfToken = getCSRFToken();
+        if (csrfToken) {
+          headers['X-CSRF-Token'] = csrfToken;
+        }
+
+        const res = await fetch('/api/tasks/create', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            title: task.task_name,
+            category: task.category,
+            deadline: `${task.date} ${task.time}`,
+            duration: task.duration,
+            confidence: task.confidence
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to create task');
+        }
+
+        showToast('Task created successfully!', 'success');
+        
+        // Animate and collapse card
+        card.style.opacity = '0';
+        card.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          card.remove();
+        }, 300);
+
+      } catch (e) {
+        console.error(e);
+        showToast(e.message || 'Error saving task', 'error');
+        createBtn.disabled = false;
+        createBtn.textContent = 'Create Task';
+      }
+    });
+
+    breakBtn.addEventListener('click', () => {
+      inputEl.value = `Break this task into steps: "${task.task_name}" (Category: ${task.category}, Deadline: ${task.date} ${task.time})`;
+      sendMessage();
+    });
+
+    planBtn.addEventListener('click', () => {
+      inputEl.value = `Generate a detailed plan to finish the task: "${task.task_name}" by ${task.date} ${task.time}`;
+      sendMessage();
+    });
+
+    dismissBtn.addEventListener('click', () => {
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.95)';
+      setTimeout(() => {
+        card.remove();
+      }, 300);
+    });
+  }
+
+  // Append card directly after the parent bubble
+  parentBubble.parentNode.insertBefore(card, parentBubble.nextSibling);
+}
+
+function updateCardProgress(card, progress) {
+  const bar = card.querySelector('.progress-bar-fill');
+  const label = card.querySelector('.progress-percent-val');
+  const banner = card.querySelector('.celebration-banner');
+  
+  if (bar) bar.style.width = `${progress}%`;
+  if (label) label.textContent = `${progress}%`;
+  
+  if (progress === 100) {
+    if (banner && banner.style.display !== 'block') {
+      banner.style.display = 'block';
+      showToast('🎉 All subtasks complete! Task Completed!', 'success');
+      triggerConfetti();
+    }
+  } else {
+    if (banner) banner.style.display = 'none';
+  }
+}
+
+function triggerConfetti() {
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.top = '0';
+  container.style.left = '0';
+  container.style.width = '100vw';
+  container.style.height = '100vh';
+  container.style.pointerEvents = 'none';
+  container.style.zIndex = '99999';
+  document.body.appendChild(container);
+
+  const colors = ['#40e0d0', '#00fa9a', '#1e90ff', '#ff69b4', '#ffd700', '#ff4500'];
+  for (let i = 0; i < 60; i++) {
+    const particle = document.createElement('div');
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    particle.style.position = 'absolute';
+    particle.style.width = `${Math.random() * 8 + 6}px`;
+    particle.style.height = `${Math.random() * 12 + 6}px`;
+    particle.style.background = color;
+    particle.style.opacity = Math.random() * 0.6 + 0.4;
+    particle.style.borderRadius = '2px';
+    
+    const startX = Math.random() * window.innerWidth;
+    const startY = window.innerHeight;
+    particle.style.left = `${startX}px`;
+    particle.style.top = `${startY}px`;
+    particle.style.transform = `rotate(${Math.random() * 360}deg)`;
+    container.appendChild(particle);
+
+    const destX = startX + (Math.random() - 0.5) * 400;
+    const destY = Math.random() * (window.innerHeight * 0.4);
+    const duration = Math.random() * 1500 + 1000;
+
+    const anim = particle.animate([
+      { top: `${startY}px`, left: `${startX}px`, opacity: 1, transform: 'rotate(0deg)' },
+      { top: `${destY}px`, left: `${destX}px`, opacity: 0, transform: `rotate(${Math.random() * 720}deg)` }
+    ], {
+      duration: duration,
+      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+      fill: 'forwards'
+    });
+
+    anim.onfinish = () => particle.remove();
+  }
+
+  setTimeout(() => container.remove(), 2500);
+}
+
+// ========================================
+// SMART TASK MANAGEMENT SYSTEM
+// ========================================
+
+window.fetchTasks = async function() {
+  const grid = document.getElementById('tasks-grid');
+  const emptyState = document.getElementById('tasks-empty-state');
+
+  try {
+    const elQ = document.getElementById('task-search-input');
+    const elCat = document.getElementById('filter-category');
+    const elPrio = document.getElementById('filter-priority');
+    const elStat = document.getElementById('filter-status');
+    const elRisk = document.getElementById('filter-risk');
+
+    const q = elQ ? elQ.value : '';
+    const category = elCat ? elCat.value : '';
+    const priority = elPrio ? elPrio.value : '';
+    const status = elStat ? elStat.value : '';
+    const risk = elRisk ? elRisk.value : '';
+
+    const params = new URLSearchParams();
+    if (q) params.append('q', q);
+    if (category) params.append('category', category);
+    if (priority) params.append('priority', priority);
+    if (status) params.append('status', status);
+    if (risk) params.append('risk', risk);
+
+    const res = await fetch(`/api/tasks?${params.toString()}`);
+    if (!res.ok) throw new Error('Failed to fetch tasks');
+    const data = await res.json();
+
+    const tasks = data.tasks || [];
+
+    if (grid) {
+      grid.innerHTML = '';
+      if (tasks.length > 0) {
+        if (emptyState) emptyState.style.display = 'none';
+        tasks.forEach(task => {
+          grid.appendChild(createTaskCardDOM(task));
+        });
+      } else {
+        if (emptyState) emptyState.style.display = 'block';
+      }
+    }
+
+    // Always update dashboard components
+    if (typeof window.updateRiskDashboardOverview === 'function') {
+      window.updateRiskDashboardOverview(tasks);
+    }
+    if (typeof window.loadProductivityDashboard === 'function') {
+      window.loadProductivityDashboard(tasks);
+    }
+    if (typeof window.updateCountdownTimers === 'function') {
+      window.updateCountdownTimers();
+    }
+    
+    // Update Panic toggle button and modal color state dynamically
+    const panicToggle = document.getElementById('panic-toggle-btn');
+    const panicModal = document.getElementById('panic-modal');
+    if (panicToggle) {
+      const activeTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
+      const hasCritical = activeTasks.some(t => t.priority === 'High' || t.risk_level === 'High' || t.status === 'Overdue');
+      if (hasCritical) {
+        panicToggle.classList.remove('safe-state');
+        if (panicModal) panicModal.classList.remove('safe-state');
+      } else {
+        panicToggle.classList.add('safe-state');
+        if (panicModal) panicModal.classList.add('safe-state');
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    const elQ = document.getElementById('task-search-input');
+    if (elQ) {
+      showToast(err.message || 'Error loading tasks', 'error');
+    }
+  }
+};
+
+function createTaskCardDOM(task) {
+  const card = document.createElement('div');
+  card.className = 'card glass';
+  card.style.padding = '16px';
+  card.style.display = 'flex';
+  card.style.flexDirection = 'column';
+  card.style.gap = '12px';
+  card.style.position = 'relative';
+  card.style.transition = 'transform 0.2s, box-shadow 0.2s';
+  card.style.animation = 'fadeIn 0.3s ease';
+
+  // Score & priority mappings
+  const score = task.priority_score !== undefined && task.priority_score !== null ? task.priority_score : 50;
+  let prioBadgeText = '';
+  let prioEmoji = '';
+  let prioColor = '';
+  let prioBg = '';
+  if (score >= 90) { prioBadgeText = 'Critical'; prioEmoji = '🔴'; prioColor = '#ff6b6b'; prioBg = 'rgba(255, 107, 107, 0.15)'; }
+  else if (score >= 70) { prioBadgeText = 'High'; prioEmoji = '🟠'; prioColor = '#e67e22'; prioBg = 'rgba(230, 126, 34, 0.15)'; }
+  else if (score >= 40) { prioBadgeText = 'Medium'; prioEmoji = '🟡'; prioColor = '#f1c40f'; prioBg = 'rgba(241, 196, 15, 0.15)'; }
+  else { prioBadgeText = 'Low'; prioEmoji = '🟢'; prioColor = '#2ecc71'; prioBg = 'rgba(46, 204, 113, 0.15)'; }
+
+  // Risk & glow mappings
+  let riskText = task.risk_level || 'Safe';
+  let riskBg = 'rgba(46, 204, 113, 0.12)';
+  let riskColor = '#2ecc71';
+  let riskClass = 'risk-glow-green';
+  let riskEmoji = '🟢';
+  if (riskText === 'Critical') { riskBg = 'rgba(231, 76, 60, 0.15)'; riskColor = '#e74c3c'; riskClass = 'risk-glow-red'; riskEmoji = '🔴'; }
+  else if (riskText === 'High' || riskText === 'High Risk') { riskBg = 'rgba(230, 126, 34, 0.15)'; riskColor = '#e67e22'; riskClass = 'risk-glow-orange'; riskEmoji = '🟠'; }
+  else if (riskText === 'Attention' || riskText === 'Medium') { riskBg = 'rgba(241, 196, 15, 0.15)'; riskColor = '#f1c40f'; riskClass = 'risk-glow-yellow'; riskEmoji = '🟡'; }
+  else if (riskText === 'Overdue') { riskBg = 'rgba(255,255,255,0.06)'; riskColor = 'rgba(255,255,255,0.4)'; riskClass = ''; riskEmoji = '⚫'; }
+
+  let statusColor = '#ffffff';
+  let statusIcon = 'fa-clock';
+  if (task.status === 'Completed') { statusColor = 'var(--mint)'; statusIcon = 'fa-check-circle'; }
+  else if (task.status === 'Overdue') { statusColor = '#ff6b6b'; statusIcon = 'fa-exclamation-circle'; }
+  else if (task.status === 'In Progress') { statusColor = '#3498db'; statusIcon = 'fa-spinner'; }
+  else if (task.status === 'Cancelled') { statusColor = 'rgba(255,255,255,0.3)'; statusIcon = 'fa-times-circle'; }
+
+  card.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+      <span style="font-size: 10px; background: rgba(64, 224, 208, 0.15); color: var(--mint); padding: 2px 8px; border-radius: 20px; font-weight: 600;">
+        ${task.category}
+      </span>
+      <span style="font-size: 11px; color: ${statusColor}; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+        <i class="fas ${statusIcon}"></i> ${task.status}
+      </span>
+    </div>
+
+    <div>
+      <h3 style="margin: 4px 0; font-size: 16px; font-weight: 600; color: #ffffff;">${task.title}</h3>
+      <p style="margin: 0; font-size: 12px; color: rgba(255,255,255,0.6); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 34px;">
+        ${task.description || 'No description provided.'}
+      </p>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 9px; align-items: center;">
+      <span style="color: ${prioColor}; background: ${prioBg}; padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase;">PRIO: ${prioBadgeText} (${score}) ${prioEmoji}</span>
+      <span class="${riskClass}" style="color: ${riskColor}; background: ${riskBg}; padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; border: 1px solid ${riskColor}33; display: inline-flex; align-items: center; gap: 2px;">RISK: ${riskText} ${riskEmoji}</span>
+      <span style="color: rgba(255,255,255,0.5); font-size: 11px; margin-left: auto; display: flex; align-items: center; gap: 4px;">
+        <i class="far fa-clock"></i> ${task.estimated_duration || '1 Hour'}
+      </span>
+    </div>
+
+    <div style="margin: 6px 0;">
+      <div style="display: flex; justify-content: space-between; font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 4px;">
+        <span>Progress (${task.progress}%)</span>
+        <span>Prob: ${task.completion_probability || 100}%</span>
+      </div>
+      <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+        <div style="width: ${task.progress}%; height: 100%; background: var(--mint); border-radius: 2px; transition: width 0.3s ease;"></div>
+      </div>
+    </div>
+
+    <!-- Suggested Recommendations -->
+    ${task.status !== 'Completed' ? `
+      <div style="font-size: 11px; color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 8px 12px; border-radius: 6px; margin-top: 4px;">
+        <div style="font-weight: 600; display: flex; align-items: center; gap: 4px; color: var(--mint); margin-bottom: 2px;">
+          <i class="fas fa-lightbulb"></i> Suggested Action:
+        </div>
+        <div>${task.suggested_action || 'Proceed at your own pace.'}</div>
+        ${task.risk_reason ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 4px;">Reason: ${task.risk_reason}</div>` : ''}
+      </div>
+    ` : ''}
+
+    <div style="font-size: 11px; color: rgba(255,255,255,0.4); display: flex; flex-direction: column; gap: 4px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;">
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <i class="far fa-calendar-alt"></i> Deadline: <strong>${task.deadline || 'None'}</strong>
+      </div>
+      ${task.deadline ? `<div class="deadline-countdown" data-deadline="${task.deadline}" style="font-weight: 600; color: var(--mint); font-size: 10px; display: flex; align-items: center; gap: 4px; margin-top: 2px;"></div>` : ''}
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+      ${task.status !== 'Completed' && task.status !== 'Cancelled' ? `<button class="btn btn--mint btn-task-complete" style="flex: 1; padding: 4px 8px; font-size: 10px; border-radius: 4px; border: none; font-weight:600;"><i class="fas fa-check"></i> Complete</button>` : ''}
+      <button class="btn btn-task-edit" style="padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #ffffff;"><i class="fas fa-edit"></i> Edit</button>
+      <button class="btn btn-task-delete" style="padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid rgba(255,107,107,0.2); background: rgba(255,107,107,0.08); color: #ff6b6b;"><i class="fas fa-trash"></i></button>
+    </div>
+    
+    <div style="display: flex; gap: 6px; width: 100%;">
+      <button class="btn btn-task-break" style="flex: 1; padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); color: #ffffff;"><i class="fas fa-list-ul"></i> Break Into Steps</button>
+      <button class="btn btn-task-plan" style="flex: 1; padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); color: #ffffff;"><i class="fas fa-compass"></i> Generate Plan</button>
+    </div>
+
+    <!-- TASK BREAKDOWN DROPDOWN -->
+    ${task.subtasks && task.subtasks.length > 0 ? `
+      <div class="task-breakdown-dropdown" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; display: none;">
+        <h4 style="font-size: 11px; color: rgba(255,255,255,0.5); margin: 0 0 6px 0; font-weight:600; text-align: left;">Task Breakdown (${task.subtasks.length} steps):</h4>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          ${task.subtasks.map(s => {
+            const checkedAttr = s.completed ? 'checked' : '';
+            const textStyle = s.completed ? 'text-decoration: line-through; color: rgba(255,255,255,0.4);' : 'color: #ffffff;';
+            const depBadge = s.dependency ? `<span style="font-size: 9px; color: #a881d8; background: rgba(168,129,216,0.12); padding: 1px 4px; border-radius: 3px; margin-left: 6px;">Prereq: ${s.dependency}</span>` : '';
+            return `
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; padding: 4px 6px; background: rgba(255,255,255,0.01); border-radius: 4px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; flex: 1; text-align: left; margin: 0;">
+                  <input type="checkbox" class="subtask-checkbox-toggle" data-subtask-id="${s.id}" ${checkedAttr} style="accent-color: var(--mint); margin: 0;">
+                  <span style="${textStyle}">${s.title}</span>
+                  ${depBadge}
+                </label>
+                <span style="font-size: 9px; color: rgba(255,255,255,0.4);">${s.duration || ''}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+      <button class="btn-toggle-breakdown" style="width: 100%; border: none; background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.6); font-size: 10px; padding: 6px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 6px; font-weight: 500;">
+        <i class="fas fa-chevron-down"></i> View Breakdown (${task.subtasks.length})
+      </button>
+    ` : ''}
+  `;
+
+  // Bind Actions
+  const completeBtn = card.querySelector('.btn-task-complete');
+  if (completeBtn) {
+    completeBtn.addEventListener('click', async () => {
+      try {
+        const res = await fetch(`/api/tasks/${task.id}/complete`, {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': getCSRFToken() }
+        });
+        if (!res.ok) throw new Error('Failed to complete task');
+        const data = await res.json();
+        if (typeof window.handleGamificationUpdate === 'function') {
+          window.handleGamificationUpdate(data.gamification);
+        }
+        showToast('🎉 Task Completed!', 'success');
+        triggerConfetti();
+        window.fetchTasks();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  }
+
+  card.querySelector('.btn-task-edit').addEventListener('click', () => {
+    window.showEditTaskModal(task);
+  });
+
+  card.querySelector('.btn-task-delete').addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to delete this task?')) return;
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': getCSRFToken() }
+      });
+      if (!res.ok) throw new Error('Failed to delete task');
+      showToast('🗑️ Task Deleted');
+      window.fetchTasks();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  card.querySelector('.btn-task-break').addEventListener('click', () => {
+    const chatTab = document.querySelector('.nav-tab[data-tab="tab-chat"]');
+    if (chatTab) chatTab.click();
+    inputEl.value = `Break this task into steps: "${task.title}" (Category: ${task.category}, Deadline: ${task.deadline || ''})`;
+    sendMessage();
+  });
+
+  card.querySelector('.btn-task-plan').addEventListener('click', () => {
+    const chatTab = document.querySelector('.nav-tab[data-tab="tab-chat"]');
+    if (chatTab) chatTab.click();
+    inputEl.value = `Generate a detailed plan to finish the task: "${task.title}" by ${task.deadline || ''}`;
+    sendMessage();
+  });
+
+  // Bind Breakdown Toggle
+  const toggleBreakdownBtn = card.querySelector('.btn-toggle-breakdown');
+  const breakdownDropdown = card.querySelector('.task-breakdown-dropdown');
+  if (toggleBreakdownBtn && breakdownDropdown) {
+    toggleBreakdownBtn.addEventListener('click', () => {
+      const isHidden = breakdownDropdown.style.display === 'none';
+      breakdownDropdown.style.display = isHidden ? 'block' : 'none';
+      toggleBreakdownBtn.innerHTML = isHidden 
+        ? `<i class="fas fa-chevron-up"></i> Hide Breakdown (${task.subtasks.length})`
+        : `<i class="fas fa-chevron-down"></i> View Breakdown (${task.subtasks.length})`;
+    });
+  }
+
+  // Bind Subtask Checkbox Toggles
+  card.querySelectorAll('.subtask-checkbox-toggle').forEach(chk => {
+    chk.addEventListener('change', async (e) => {
+      const subtaskId = e.target.dataset.subtaskId;
+      const completed = e.target.checked;
+      try {
+        const res = await fetch(`/api/subtasks/${subtaskId}/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCSRFToken() },
+          body: JSON.stringify({ completed })
+        });
+        if (!res.ok) throw new Error('Failed to toggle subtask');
+        const data = await res.json();
+        
+        if (typeof window.handleGamificationUpdate === 'function') {
+          window.handleGamificationUpdate(data.gamification);
+        }
+        
+        showToast('Subtask status updated', 'success');
+        if (data.is_completed) {
+          triggerConfetti();
+          showToast('🎉 All subtasks complete! Task Completed!', 'success');
+        }
+        
+        window.fetchTasks();
+      } catch (err) {
+        showToast(err.message, 'error');
+        e.target.checked = !completed;
+      }
+    });
+  });
+
+  return card;
+}
+
+window.showCreateTaskModal = function() {
+  document.getElementById('task-modal-title').textContent = 'Create Task';
+  document.getElementById('task-form-id').value = '';
+  document.getElementById('task-form').reset();
+  
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('task-form-deadline').value = now.toISOString().slice(0, 16);
+
+  document.getElementById('task-modal').style.display = 'flex';
+};
+
+window.showEditTaskModal = function(task) {
+  document.getElementById('task-modal-title').textContent = 'Edit Task';
+  document.getElementById('task-form-id').value = task.id;
+  document.getElementById('task-form-title').value = task.title;
+  document.getElementById('task-form-description').value = task.description || '';
+  document.getElementById('task-form-category').value = task.category || 'Other';
+  document.getElementById('task-form-priority').value = task.priority || 'Medium';
+  document.getElementById('task-form-risk').value = task.risk_level || 'Low';
+  document.getElementById('task-form-duration').value = task.estimated_duration || '';
+  document.getElementById('task-form-status').value = task.status || 'Pending';
+
+  if (task.deadline) {
+    const dateStr = task.deadline.replace(' ', 'T');
+    document.getElementById('task-form-deadline').value = dateStr;
+  } else {
+    document.getElementById('task-form-deadline').value = '';
+  }
+
+  document.getElementById('task-modal').style.display = 'flex';
+};
+
+// Bind Modal controls on init
+window.addEventListener('DOMContentLoaded', () => {
+  const createModalBtn = document.getElementById('btn-create-task-modal');
+  const modalCloseBtn = document.getElementById('task-modal-close');
+  const formCancelBtn = document.getElementById('task-form-cancel');
+  const taskForm = document.getElementById('task-form');
+
+  if (createModalBtn) {
+    createModalBtn.addEventListener('click', window.showCreateTaskModal);
+  }
+  if (modalCloseBtn) {
+    modalCloseBtn.addEventListener('click', () => {
+      document.getElementById('task-modal').style.display = 'none';
+    });
+  }
+  if (formCancelBtn) {
+    formCancelBtn.addEventListener('click', () => {
+      document.getElementById('task-modal').style.display = 'none';
+    });
+  }
+
+  if (taskForm) {
+    taskForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('task-form-id').value;
+      const title = document.getElementById('task-form-title').value;
+      const description = document.getElementById('task-form-description').value;
+      const category = document.getElementById('task-form-category').value;
+      const deadline = document.getElementById('task-form-deadline').value;
+      const priority = document.getElementById('task-form-priority').value;
+      const risk_level = document.getElementById('task-form-risk').value;
+      const estimated_duration = document.getElementById('task-form-duration').value;
+      const status = document.getElementById('task-form-status').value;
+
+      const payload = {
+        title, description, category, deadline, priority, risk_level, estimated_duration, status
+      };
+
+      try {
+        let res;
+        if (id) {
+          // Edit
+          res = await fetch(`/api/tasks/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCSRFToken() },
+            body: JSON.stringify(payload)
+          });
+        } else {
+          // Create
+          res = await fetch('/api/tasks/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCSRFToken() },
+            body: JSON.stringify(payload)
+          });
+        }
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to save task');
+        }
+
+        showToast(id ? '📝 Task Updated' : '✅ Task Created', 'success');
+        document.getElementById('task-modal').style.display = 'none';
+        window.fetchTasks();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  }
+
+  // Bind Search & Filters
+  const searchInput = document.getElementById('task-search-input');
+  const catFilter = document.getElementById('filter-category');
+  const prioFilter = document.getElementById('filter-priority');
+  const statusFilter = document.getElementById('filter-status');
+  const riskFilter = document.getElementById('filter-risk');
+  const clearFilterBtn = document.getElementById('btn-clear-filters');
+
+  if (searchInput) searchInput.addEventListener('input', window.fetchTasks);
+  if (catFilter) catFilter.addEventListener('change', window.fetchTasks);
+  if (prioFilter) prioFilter.addEventListener('change', window.fetchTasks);
+  if (statusFilter) statusFilter.addEventListener('change', window.fetchTasks);
+  if (riskFilter) riskFilter.addEventListener('change', window.fetchTasks);
+
+  if (clearFilterBtn) {
+    clearFilterBtn.addEventListener('click', () => {
+      if (searchInput) searchInput.value = '';
+      if (catFilter) catFilter.value = '';
+      if (prioFilter) prioFilter.value = '';
+      if (statusFilter) statusFilter.value = '';
+      if (riskFilter) riskFilter.value = '';
+      window.fetchTasks();
+    });
+  }
+
+  // Quick To-Do List functionality
+  const btnAddTodo = document.getElementById('btn-add-quick-todo');
+  const todoInput = document.getElementById('quick-todo-input');
+  const todoList = document.getElementById('quick-todo-list');
+
+  if (btnAddTodo && todoInput && todoList) {
+    const updateTodoStats = (todos) => {
+      const total = todos.length;
+      const completed = todos.filter(t => t.completed).length;
+      const pending = total - completed;
+
+      const totalCountEl = document.getElementById('todo-total-count');
+      const completedCountEl = document.getElementById('todo-completed-count');
+      const pendingCountEl = document.getElementById('todo-pending-count');
+
+      if (totalCountEl) totalCountEl.textContent = total;
+      if (completedCountEl) completedCountEl.textContent = completed;
+      if (pendingCountEl) pendingCountEl.textContent = pending;
+    };
+
+    const loadLocalTodos = () => {
+      const saved = localStorage.getItem('quick_todos');
+      if (saved) {
+        todoList.innerHTML = '';
+        const todos = JSON.parse(saved);
+        todos.forEach(todo => {
+          todoList.appendChild(createTodoDOM(todo.text, todo.completed));
+        });
+        updateTodoStats(todos);
+      }
+    };
+
+    const saveLocalTodos = () => {
+      const todos = [];
+      todoList.querySelectorAll('.todo-item').forEach(item => {
+        todos.push({
+          text: item.querySelector('span').textContent,
+          completed: item.querySelector('input[type="checkbox"]').checked
+        });
+      });
+      localStorage.setItem('quick_todos', JSON.stringify(todos));
+      updateTodoStats(todos);
+    };
+
+    const createTodoDOM = (text, completed = false) => {
+      const div = document.createElement('div');
+      div.className = 'todo-item';
+      div.style.display = 'flex';
+      div.style.alignItems = 'center';
+      div.style.justifyContent = 'space-between';
+      div.style.padding = '10px 14px';
+      div.style.background = 'rgba(255,255,255,0.02)';
+      div.style.border = '1px solid rgba(255,255,255,0.05)';
+      div.style.borderRadius = '8px';
+      div.style.transition = 'background 0.2s';
+
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.checked = completed;
+      chk.style.accentColor = 'var(--mint)';
+      chk.style.cursor = 'pointer';
+
+      const span = document.createElement('span');
+      span.textContent = text;
+      span.style.color = '#ffffff';
+      span.style.fontSize = '13px';
+      if (completed) {
+        span.style.textDecoration = 'line-through';
+        span.style.color = 'rgba(255,255,255,0.4)';
+      }
+
+      chk.addEventListener('change', () => {
+        if (chk.checked) {
+          span.style.textDecoration = 'line-through';
+          span.style.color = 'rgba(255,255,255,0.4)';
+        } else {
+          span.style.textDecoration = '';
+          span.style.color = '#ffffff';
+        }
+        saveLocalTodos();
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-todo-delete';
+      delBtn.style.background = 'transparent';
+      delBtn.style.border = 'none';
+      delBtn.style.color = 'rgba(255,107,107,0.6)';
+      delBtn.style.cursor = 'pointer';
+      delBtn.style.fontSize = '12px';
+      delBtn.innerHTML = '<i class="fas fa-trash"></i>';
+
+      delBtn.addEventListener('click', () => {
+        div.remove();
+        saveLocalTodos();
+      });
+
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '10px';
+      left.appendChild(chk);
+      left.appendChild(span);
+
+      div.appendChild(left);
+      div.appendChild(delBtn);
+
+      return div;
+    };
+
+    btnAddTodo.addEventListener('click', () => {
+      const text = todoInput.value.trim();
+      if (!text) return;
+      todoList.appendChild(createTodoDOM(text));
+      todoInput.value = '';
+      saveLocalTodos();
+    });
+
+    todoInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        btnAddTodo.click();
+      }
+    });
+
+    // Check if quick_todos exists and has items, otherwise use the 4 default rows
+    const saved = localStorage.getItem('quick_todos');
+    let hasSavedTodos = false;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          hasSavedTodos = true;
+        }
+      } catch (e) {}
+    }
+
+    if (!hasSavedTodos) {
+      const defaults = [
+        "📚 Complete Physics Chapter 1 revision",
+        "🧪 Gather materials for Science Exhibition",
+        "📝 Review exam schedule for Math midterm",
+        "⏰ Set reminders for study group meeting"
+      ];
+      todoList.innerHTML = '';
+      defaults.forEach(text => {
+        todoList.appendChild(createTodoDOM(text, false));
+      });
+      saveLocalTodos();
+    } else {
+      loadLocalTodos();
+    }
+  }
+
+  // AI Smart Daily Planner
+  const btnGeneratePlan = document.getElementById('btn-generate-plan');
+  const btnGeneratePlanEmpty = document.getElementById('btn-generate-plan-empty');
+  const btnRegeneratePlan = document.getElementById('btn-regenerate-plan');
+  const plannerContainer = document.getElementById('planner-container');
+  const plannerEmptyState = document.getElementById('planner-empty-state');
+  const plannerNoTasksState = document.getElementById('planner-no-tasks-state');
+  const timelineList = document.getElementById('planner-timeline-list');
+  
+  const currentFocusTitle = document.getElementById('current-focus-title');
+  const currentFocusTime = document.getElementById('current-focus-time');
+  const currentFocusPrioBadge = document.getElementById('current-focus-prio-badge');
+  const btnStartFocus = document.getElementById('btn-start-current-focus');
+  
+  const upNextTitle = document.getElementById('up-next-title');
+  const upNextTime = document.getElementById('up-next-time');
+  const upNextWidget = document.getElementById('planner-up-next-item');
+
+  const parseTimeToMinutes = (timeStr) => {
+    if (!timeStr) return 0;
+    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!match) return 0;
+    let hours = parseInt(match[1]);
+    const minutes = parseInt(match[2]);
+    const ampm = match[3].toUpperCase();
+    if (ampm === 'PM' && hours < 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  };
+
+  window.loadDailyPlan = async () => {
+    try {
+      const res = await fetch('/api/planner/current');
+      if (!res.ok) throw new Error('Failed to load planner data');
+      const data = await res.json();
+      
+      if (data.success && data.plan && data.plan.length > 0) {
+        // Show container and hide empty/no tasks states
+        if (plannerContainer) plannerContainer.style.display = 'flex';
+        if (plannerEmptyState) plannerEmptyState.style.display = 'none';
+        if (plannerNoTasksState) plannerNoTasksState.style.display = 'none';
+        
+        // Update header buttons
+        if (btnGeneratePlan) btnGeneratePlan.style.display = 'none';
+        if (btnRegeneratePlan) btnRegeneratePlan.style.display = 'inline-flex';
+        
+        // Render timeline list
+        if (timelineList) {
+          timelineList.innerHTML = '';
+          data.plan.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'todo-item'; // Reuse styling
+            card.style.display = 'flex';
+            card.style.alignItems = 'center';
+            card.style.justifyContent = 'space-between';
+            card.style.padding = '12px 16px';
+            card.style.background = item.type === 'break' ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.03)';
+            card.style.border = '1px solid rgba(255,255,255,0.05)';
+            card.style.borderRadius = '10px';
+            
+            const left = document.createElement('div');
+            left.style.display = 'flex';
+            left.style.alignItems = 'center';
+            left.style.gap = '12px';
+            
+            const icon = document.createElement('i');
+            if (item.type === 'break') {
+              icon.className = 'fas fa-coffee';
+              icon.style.color = '#ffb86c';
+            } else if (item.type === 'subtask') {
+              icon.className = 'fas fa-tasks';
+              icon.style.color = 'var(--mint)';
+            } else {
+              icon.className = 'fas fa-clipboard-list';
+              icon.style.color = 'var(--mint)';
+            }
+            
+            const content = document.createElement('div');
+            content.style.display = 'flex';
+            content.style.flexDirection = 'column';
+            content.style.gap = '2px';
+            
+            const titleSpan = document.createElement('span');
+            titleSpan.textContent = item.title;
+            titleSpan.style.color = '#ffffff';
+            titleSpan.style.fontSize = '14px';
+            titleSpan.style.fontWeight = '500';
+            
+            const timeSpan = document.createElement('span');
+            timeSpan.textContent = `${item.start_time} - ${item.end_time}`;
+            timeSpan.style.color = 'rgba(255,255,255,0.4)';
+            timeSpan.style.fontSize = '12px';
+            
+            content.appendChild(titleSpan);
+            content.appendChild(timeSpan);
+            left.appendChild(icon);
+            left.appendChild(content);
+            card.appendChild(left);
+            
+            if (item.priority && item.type !== 'break') {
+              const badge = document.createElement('span');
+              badge.className = 'badge';
+              badge.textContent = item.priority;
+              badge.style.fontSize = '10px';
+              badge.style.padding = '2px 8px';
+              badge.style.borderRadius = '4px';
+              if (item.priority === 'High') {
+                badge.style.background = 'rgba(255, 107, 107, 0.15)';
+                badge.style.color = '#ff6b6b';
+                badge.style.border = '1px solid rgba(255, 107, 107, 0.3)';
+              } else {
+                badge.style.background = 'rgba(255, 255, 255, 0.05)';
+                badge.style.color = 'rgba(255,255,255,0.6)';
+                badge.style.border = '1px solid rgba(255,255,255,0.1)';
+              }
+              card.appendChild(badge);
+            }
+            
+            timelineList.appendChild(card);
+          });
+        }
+        
+        // Calculate Current Focus & Up Next Focus items dynamically
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        
+        let focusIndex = -1;
+        for (let i = 0; i < data.plan.length; i++) {
+          const endMin = parseTimeToMinutes(data.plan[i].end_time);
+          if (endMin > currentMinutes) {
+            focusIndex = i;
+            break;
+          }
+        }
+        
+        // Fallback to last item if all are completed
+        if (focusIndex === -1 && data.plan.length > 0) {
+          focusIndex = data.plan.length - 1;
+        }
+        
+        if (focusIndex !== -1) {
+          const focusItem = data.plan[focusIndex];
+          if (currentFocusTitle) currentFocusTitle.textContent = focusItem.title;
+          if (currentFocusTime) currentFocusTime.innerHTML = `<i class="far fa-clock"></i> ${focusItem.start_time} - ${focusItem.end_time}`;
+          
+          if (currentFocusPrioBadge) {
+            if (focusItem.type === 'break') {
+              currentFocusPrioBadge.textContent = 'Relax';
+              currentFocusPrioBadge.style.background = 'rgba(255, 184, 108, 0.15)';
+              currentFocusPrioBadge.style.color = '#ffb86c';
+              currentFocusPrioBadge.style.border = '1px solid rgba(255, 184, 108, 0.3)';
+            } else {
+              currentFocusPrioBadge.textContent = `${focusItem.priority || 'Medium'} Priority`;
+              if (focusItem.priority === 'High') {
+                currentFocusPrioBadge.style.background = 'rgba(255, 107, 107, 0.15)';
+                currentFocusPrioBadge.style.color = '#ff6b6b';
+                currentFocusPrioBadge.style.border = '1px solid rgba(255, 107, 107, 0.3)';
+              } else {
+                currentFocusPrioBadge.style.background = 'rgba(255, 255, 255, 0.05)';
+                currentFocusPrioBadge.style.color = 'rgba(255,255,255,0.6)';
+                currentFocusPrioBadge.style.border = '1px solid rgba(255,255,255,0.1)';
+              }
+            }
+          }
+          
+          // Up Next
+          const nextIndex = focusIndex + 1;
+          if (nextIndex < data.plan.length) {
+            const nextItem = data.plan[nextIndex];
+            if (upNextWidget) upNextWidget.style.display = 'flex';
+            if (upNextTitle) upNextTitle.textContent = nextItem.title;
+            if (upNextTime) upNextTime.textContent = `${nextItem.start_time} - ${nextItem.end_time}`;
+          } else {
+            if (upNextWidget) upNextWidget.style.display = 'none';
+          }
+        }
+      } else {
+        // No plan found. Check if tasks exist in backend list
+        const tasksRes = await fetch('/api/tasks');
+        const tasksData = await tasksRes.json();
+        
+        if (tasksData && tasksData.tasks && tasksData.tasks.length > 0) {
+          if (plannerContainer) plannerContainer.style.display = 'none';
+          if (plannerEmptyState) plannerEmptyState.style.display = 'block';
+          if (plannerNoTasksState) plannerNoTasksState.style.display = 'none';
+        } else {
+          if (plannerContainer) plannerContainer.style.display = 'none';
+          if (plannerEmptyState) plannerEmptyState.style.display = 'none';
+          if (plannerNoTasksState) plannerNoTasksState.style.display = 'block';
+        }
+        
+        if (btnGeneratePlan) btnGeneratePlan.style.display = 'inline-flex';
+        if (btnRegeneratePlan) btnRegeneratePlan.style.display = 'none';
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('⚠️ Error loading daily plan', 'error');
+    }
+  };
+
+  window.generateDailyPlan = async () => {
+    const originalText = btnGeneratePlan ? btnGeneratePlan.innerHTML : '';
+    const setGeneratingState = (generating) => {
+      const btns = [btnGeneratePlan, btnGeneratePlanEmpty, btnRegeneratePlan];
+      btns.forEach(btn => {
+        if (btn) {
+          btn.disabled = generating;
+          btn.innerHTML = generating 
+            ? '<i class="fas fa-spinner fa-spin"></i> Generating...' 
+            : (btn === btnRegeneratePlan ? '<i class="fas fa-sync-alt"></i> Regenerate Plan' : '<i class="fas fa-magic"></i> Generate Today\'s Plan');
+        }
+      });
+    };
+
+    try {
+      setGeneratingState(true);
+      const byok = getBYOKConfig();
+      const body = byok ? {
+        provider: byok.provider,
+        api_key: byok.api_key,
+        model: byok.model
+      } : {};
+      
+      const res = await fetch('/api/planner/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': getCSRFToken()
+        },
+        body: JSON.stringify(body)
+      });
+      
+      if (!res.ok) throw new Error('Planner endpoint failed');
+      const data = await res.json();
+      
+      if (data.success) {
+        if (typeof window.handleGamificationUpdate === 'function') {
+          window.handleGamificationUpdate(data.gamification);
+        }
+        showToast(data.fallback ? '📋 Generated Daily Plan (Local Priority fallback)' : '✨ AI Daily Plan Generated!');
+        if (typeof window.confetti === 'function') {
+          window.confetti();
+        }
+        window.loadDailyPlan();
+      } else {
+        throw new Error(data.error || 'Failed to generate plan');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message, 'error');
+    } finally {
+      setGeneratingState(false);
+    }
+  };
+
+  if (btnGeneratePlan) btnGeneratePlan.addEventListener('click', window.generateDailyPlan);
+  if (btnGeneratePlanEmpty) btnGeneratePlanEmpty.addEventListener('click', window.generateDailyPlan);
+  if (btnRegeneratePlan) {
+    btnRegeneratePlan.addEventListener('click', () => {
+      if (confirm('Are you sure you want to regenerate today\'s schedule? It will recalculate based on current priorities.')) {
+        window.generateDailyPlan();
+      }
+    });
+  }
+
+  if (btnStartFocus) {
+    btnStartFocus.addEventListener('click', () => {
+      showToast('🚀 Session started! Focus on the current task.');
+    });
+  }
+
+  window.updateCountdownTimers = () => {
+    document.querySelectorAll('.deadline-countdown').forEach(el => {
+      const deadlineStr = el.dataset.deadline;
+      if (!deadlineStr) return;
+      const deadlineDate = new Date(deadlineStr.replace(' ', 'T'));
+      if (isNaN(deadlineDate)) return;
+      
+      const now = new Date();
+      const diffMs = deadlineDate - now;
+      if (diffMs <= 0) {
+        el.innerHTML = `<span style="color: #ff6b6b;"><i class="fas fa-exclamation-triangle"></i> Overdue</span>`;
+      } else {
+        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        
+        let displayParts = [];
+        if (days > 0) displayParts.push(`${days} Days`);
+        if (hours > 0 || days > 0) displayParts.push(`${hours} Hours`);
+        displayParts.push(`${minutes} Minutes`);
+        
+        el.innerHTML = `<i class="far fa-hourglass"></i> Due in ${displayParts.join(' ')}`;
+      }
+    });
+  };
+
+  window.updateRiskDashboardOverview = (tasks) => {
+    const counts = { Safe: 0, Attention: 0, Critical: 0, Overdue: 0 };
+    let highestPrioTask = null;
+    let highestScore = -1;
+
+    const activeTasks = (tasks || []).filter(t => t.status !== 'Completed');
+
+    activeTasks.forEach(task => {
+      const risk = task.risk_level || 'Safe';
+      if (risk === 'Critical') counts.Critical++;
+      else if (risk === 'High' || risk === 'High Risk') counts.Critical++;
+      else if (risk === 'Attention' || risk === 'Medium') counts.Attention++;
+      else if (risk === 'Overdue') counts.Overdue++;
+      else counts.Safe++;
+
+      const score = task.priority_score || 0;
+      if (score > highestScore) {
+        highestScore = score;
+        highestPrioTask = task;
+      }
+    });
+
+    const elSafe = document.getElementById('risk-count-safe');
+    const elAttention = document.getElementById('risk-count-attention');
+    const elCritical = document.getElementById('risk-count-critical');
+    const elOverdue = document.getElementById('risk-count-overdue');
+    const elHighestTitle = document.getElementById('highest-priority-task-title');
+    const elBadge = document.getElementById('overall-productivity-risk-badge');
+
+    if (elSafe) elSafe.textContent = counts.Safe;
+    if (elAttention) elAttention.textContent = counts.Attention;
+    if (elCritical) elCritical.textContent = counts.Critical;
+    if (elOverdue) elOverdue.textContent = counts.Overdue;
+
+    if (elHighestTitle) {
+      elHighestTitle.textContent = highestPrioTask 
+        ? `${highestPrioTask.title} (Priority Score: ${highestScore}/100)`
+        : 'None';
+    }
+
+    if (elBadge) {
+      let overallRisk = 'Safe';
+      let badgeColor = '#2ecc71';
+      let badgeBg = 'rgba(46, 204, 113, 0.15)';
+      
+      if (counts.Overdue > 0 || counts.Critical > 0) {
+        overallRisk = 'Critical';
+        badgeColor = '#ff6b6b';
+        badgeBg = 'rgba(255, 107, 107, 0.15)';
+      } else if (counts.Attention > 0) {
+        overallRisk = 'Attention';
+        badgeColor = '#f1c40f';
+        badgeBg = 'rgba(241, 196, 15, 0.15)';
+      }
+      
+      elBadge.textContent = overallRisk;
+      elBadge.style.color = badgeColor;
+      elBadge.style.background = badgeBg;
+      elBadge.style.borderColor = badgeColor + '55';
+    }
+  };
+
+  window.loadProductivityDashboard = async (tasks) => {
+    const emptyState = document.getElementById('dashboard-empty-state');
+    const mainContent = document.getElementById('dashboard-main-content');
+    if (!emptyState || !mainContent) return;
+
+    if (!tasks) tasks = [];
+    emptyState.style.display = 'none';
+    mainContent.style.display = 'flex';
+
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.status === 'Completed').length;
+    const pending = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+    const critical = tasks.filter(t => t.status !== 'Completed' && (t.risk_level === 'Critical' || t.priority_score >= 90)).length;
+    const prodScore = total > 0 ? Math.round((completed / total) * 100) : 100;
+    
+    const activeTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
+    let avgProb = 100;
+    if (activeTasks.length > 0) {
+      const sum = activeTasks.reduce((acc, curr) => acc + (curr.completion_probability || 0), 0);
+      avgProb = Math.round(sum / activeTasks.length);
+    }
+
+    const animateStat = (id, endVal, suffix = '') => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const prev = parseInt(el.dataset.prevVal || '0', 10);
+      el.dataset.prevVal = endVal;
+      
+      let startTimestamp = null;
+      const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / 250, 1);
+        const val = Math.floor(progress * (endVal - prev) + prev);
+        el.textContent = val + suffix;
+        if (progress < 1) {
+          window.requestAnimationFrame(step);
+        } else {
+          el.textContent = endVal + suffix;
+        }
+      };
+      window.requestAnimationFrame(step);
+    };
+
+    animateStat('dash-total-tasks', total);
+    animateStat('dash-completed-today', completed);
+    animateStat('dash-pending-tasks', pending);
+    animateStat('dash-critical-tasks', critical);
+    animateStat('dash-productivity-score', prodScore, '%');
+    animateStat('dash-completion-probability', avgProb, '%');
+
+    let highestPrioTask = null;
+    let highestScore = -1;
+    activeTasks.forEach(t => {
+      const score = t.priority_score || 0;
+      if (score > highestScore) {
+        highestScore = score;
+        highestPrioTask = t;
+      }
+    });
+
+    const elHighestTask = document.getElementById('dash-highest-priority-task');
+    if (elHighestTask) {
+      elHighestTask.textContent = highestPrioTask 
+        ? `${highestPrioTask.title} (Priority Score: ${highestScore}/100)` 
+        : 'No active tasks found. Start by creating a task!';
+    }
+
+    const elFocusTitle = document.getElementById('focus-task-title');
+    const elFocusDesc = document.getElementById('focus-task-desc');
+    const elFocusTime = document.getElementById('focus-task-time');
+    const elFocusPrio = document.getElementById('focus-task-priority');
+    const elFocusRisk = document.getElementById('focus-task-risk');
+    const elFocusRec = document.getElementById('focus-task-recommendation');
+    
+    const btnFocusHighest = document.getElementById('btn-focus-highest-prio');
+    const btnFocusStart = document.getElementById('btn-focus-start-working');
+
+    if (highestPrioTask) {
+      if (elFocusTitle) elFocusTitle.textContent = highestPrioTask.title;
+      if (elFocusDesc) elFocusDesc.textContent = highestPrioTask.description || 'No description provided.';
+      if (elFocusTime) elFocusTime.innerHTML = `<i class="far fa-clock"></i> ${highestPrioTask.estimated_duration || '1 Hour'}`;
+      if (elFocusPrio) {
+        elFocusPrio.textContent = `Prio: ${highestPrioTask.priority || 'Medium'} (${highestScore})`;
+        let pColor = '#f1c40f';
+        if (highestScore >= 90) pColor = '#ff6b6b';
+        else if (highestScore >= 70) pColor = '#e67e22';
+        else if (highestScore < 40) pColor = '#2ecc71';
+        elFocusPrio.style.color = pColor;
+        elFocusPrio.style.background = pColor + '1c';
+      }
+      if (elFocusRisk) {
+        const risk = highestPrioTask.risk_level || 'Safe';
+        elFocusRisk.textContent = `Risk: ${risk}`;
+        let rColor = '#2ecc71';
+        if (risk === 'Critical' || risk === 'High Risk') rColor = '#ff6b6b';
+        else if (risk === 'Attention' || risk === 'Medium') rColor = '#f1c40f';
+        elFocusRisk.style.color = rColor;
+        elFocusRisk.style.background = rColor + '1c';
+      }
+      if (elFocusRec) elFocusRec.textContent = highestPrioTask.suggested_action || 'Execute recommended focus step immediately.';
+      if (btnFocusHighest) btnFocusHighest.style.display = '';
+      if (btnFocusStart) btnFocusStart.style.display = '';
+    } else {
+      if (elFocusTitle) elFocusTitle.textContent = 'All Caught Up!';
+      if (elFocusDesc) elFocusDesc.textContent = 'You have no unfinished tasks.';
+      if (elFocusTime) elFocusTime.innerHTML = `<i class="far fa-clock"></i> 0 Min`;
+      if (elFocusPrio) elFocusPrio.textContent = '--';
+      if (elFocusRisk) elFocusRisk.textContent = '--';
+      if (elFocusRec) elFocusRec.textContent = 'Create a new task to receive optimized AI productivity recommendations.';
+      if (btnFocusHighest) btnFocusHighest.style.display = 'none';
+      if (btnFocusStart) btnFocusStart.style.display = 'none';
+    }
+
+    const safeCount = activeTasks.filter(t => (t.risk_level || 'Safe') === 'Safe').length;
+    const attentionCount = activeTasks.filter(t => t.risk_level === 'Attention' || t.risk_level === 'Medium').length;
+    const highCount = activeTasks.filter(t => t.risk_level === 'High' || t.risk_level === 'High Risk').length;
+    const critCount = activeTasks.filter(t => t.risk_level === 'Critical').length;
+    const overdueCount = activeTasks.filter(t => t.status === 'Overdue').length;
+
+    const elSafe = document.getElementById('risk-stat-safe');
+    const elAttention = document.getElementById('risk-stat-attention');
+    const elHigh = document.getElementById('risk-stat-high');
+    const elCrit = document.getElementById('risk-stat-critical');
+    const elOverdue = document.getElementById('risk-stat-overdue');
+
+    if (elSafe) elSafe.textContent = safeCount;
+    if (elAttention) elAttention.textContent = attentionCount;
+    if (elHigh) elHigh.textContent = highCount;
+    if (elCrit) elCrit.textContent = critCount;
+    if (elOverdue) elOverdue.textContent = overdueCount;
+
+    const safeRatio = total > 0 ? (safeCount / total) : 1.0;
+    const ringPercent = Math.round(safeRatio * 100);
+    
+    const elRingPercent = document.getElementById('risk-ring-percent');
+    if (elRingPercent) elRingPercent.textContent = ringPercent + '%';
+
+    const ring = document.getElementById('risk-progress-ring');
+    if (ring) {
+      const circ = 339.29;
+      const offset = circ - (circ * safeRatio);
+      ring.style.strokeDashoffset = offset;
+    }
+
+    window.loadTimelineSlots();
+    window.loadDeadlineMonitor(activeTasks);
+    window.loadRecentActivities();
+    window.loadAIInsights();
+  };
+
+  window.loadTimelineSlots = async () => {
+    const list = document.getElementById('dash-timeline-list');
+    if (!list) return;
+
+    try {
+      const res = await fetch('/api/planner/current');
+      if (!res.ok) throw new Error('Timeline fetch failed');
+      const data = await res.json();
+      
+      list.innerHTML = '';
+      if (data.plan && data.plan.length > 0) {
+        data.plan.forEach(slot => {
+          const card = document.createElement('div');
+          card.className = 'card glass';
+          card.style.padding = '10px 12px';
+          card.style.display = 'flex';
+          card.style.justifyContent = 'space-between';
+          card.style.alignItems = 'center';
+          card.style.fontSize = '12px';
+          card.style.borderLeft = slot.type === 'break' ? '3px solid #a881d8' : '3px solid var(--mint)';
+          card.style.cursor = slot.id ? 'pointer' : 'default';
+          card.style.transition = 'background 0.2s';
+          
+          if (slot.id) {
+            card.onclick = () => {
+              if (typeof window.openEditTaskModal === 'function') {
+                window.openEditTaskModal(slot.id);
+              }
+            };
+          }
+
+          let typeEmoji = slot.type === 'break' ? '☕' : '📋';
+          let durationBadge = `<span style="font-size: 10px; opacity: 0.6;">${slot.start_time} - ${slot.end_time}</span>`;
+          
+          card.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>${typeEmoji}</span>
+              <div style="display: flex; flex-direction: column; text-align: left;">
+                <strong>${slot.title}</strong>
+                ${durationBadge}
+              </div>
+            </div>
+            <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: ${slot.priority === 'High' ? '#ff6b6b' : 'rgba(255,255,255,0.4)'};">${slot.priority}</span>
+          `;
+          list.appendChild(card);
+        });
+      } else {
+        list.innerHTML = `
+          <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; padding: 20px 0; width: 100%;">
+            No timeline schedule created for today. Click "Generate Plan" to optimize your time.
+          </p>
+        `;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  window.loadDeadlineMonitor = (activeTasks) => {
+    const list = document.getElementById('dash-deadline-list');
+    if (!list) return;
+
+    list.innerHTML = '';
+    const groups = { Overdue: [], Today: [], Tomorrow: [], 'This Week': [] };
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+    activeTasks.forEach(t => {
+      if (!t.deadline) return;
+      const dDate = new Date(t.deadline.replace(' ', 'T'));
+      if (isNaN(dDate)) return;
+      
+      const diffMs = dDate - now;
+      const dStr = t.deadline.slice(0, 10);
+      
+      if (diffMs <= 0 || t.status === 'Overdue') {
+        groups.Overdue.push(t);
+      } else if (dStr === todayStr) {
+        groups.Today.push(t);
+      } else if (dStr === tomorrowStr) {
+        groups.Tomorrow.push(t);
+      } else if (diffMs > 0 && diffMs <= 7 * 24 * 60 * 60 * 1000) {
+        groups['This Week'].push(t);
+      }
+    });
+
+    let count = 0;
+    for (const [groupName, items] of Object.entries(groups)) {
+      if (items.length > 0) {
+        count += items.length;
+        const header = document.createElement('div');
+        header.style.fontSize = '10px';
+        header.style.fontWeight = '700';
+        header.style.textTransform = 'uppercase';
+        header.style.color = groupName === 'Overdue' ? '#ff6b6b' : 'var(--mint)';
+        header.style.marginTop = '6px';
+        header.style.letterSpacing = '0.5px';
+        header.textContent = groupName;
+        list.appendChild(header);
+
+        items.forEach(item => {
+          const row = document.createElement('div');
+          row.style.background = 'rgba(255,255,255,0.02)';
+          row.style.border = '1px solid rgba(255,255,255,0.05)';
+          row.style.padding = '8px 12px';
+          row.style.borderRadius = '8px';
+          row.style.fontSize = '12px';
+          row.style.display = 'flex';
+          row.style.justifyContent = 'space-between';
+          row.style.alignItems = 'center';
+          row.style.cursor = 'pointer';
+          row.onclick = () => {
+            if (typeof window.openEditTaskModal === 'function') {
+              window.openEditTaskModal(item.id);
+            }
+          };
+
+          row.innerHTML = `
+            <span>${item.title}</span>
+            <div class="deadline-countdown" data-deadline="${item.deadline}" style="font-size: 10px; font-weight: 600; color: ${groupName === 'Overdue' ? '#ff6b6b' : 'var(--mint)'};"></div>
+          `;
+          list.appendChild(row);
+        });
+      }
+    }
+
+    if (count === 0) {
+      list.innerHTML = `
+        <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; padding: 20px 0; width: 100%;">No active deadlines detected.</p>
+      `;
+    } else {
+      if (typeof window.updateCountdownTimers === 'function') {
+        window.updateCountdownTimers();
+      }
+    }
+  };
+
+  window.loadRecentActivities = async () => {
+    const list = document.getElementById('dash-activity-feed');
+    if (!list) return;
+
+    try {
+      const res = await fetch('/api/activity/recent');
+      if (!res.ok) throw new Error('Activity fetch failed');
+      const data = await res.json();
+      
+      list.innerHTML = '';
+      if (data.activities && data.activities.length > 0) {
+        data.activities.forEach(act => {
+          const item = document.createElement('div');
+          item.style.display = 'flex';
+          item.style.gap = '10px';
+          item.style.fontSize = '12px';
+          item.style.alignItems = 'flex-start';
+          item.style.padding = '6px 0';
+          item.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+
+          let icon = 'fa-info-circle';
+          let color = 'rgba(255,255,255,0.4)';
+          if (act.activity_type === 'Task Created') { icon = 'fa-plus-circle'; color = 'var(--mint)'; }
+          else if (act.activity_type === 'Task Finished') { icon = 'fa-check-circle'; color = '#2ecc71'; }
+          else if (act.activity_type === 'Task Deleted') { icon = 'fa-trash-alt'; color = '#ff6b6b'; }
+          else if (act.activity_type === 'Subtask Completed') { icon = 'fa-check-double'; color = '#3498db'; }
+          else if (act.activity_type === 'Planner Generated') { icon = 'fa-calendar-check'; color = '#9b59b6'; }
+          else if (act.activity_type === 'Panic Mode Detected') { icon = 'fa-radiation'; color = '#e74c3c'; }
+          else if (act.activity_type === 'Deadline Detected') { icon = 'fa-exclamation-triangle'; color = '#e67e22'; }
+
+          let timeDisplay = act.timestamp;
+          try {
+            const date = new Date(act.timestamp.replace(' ', 'T'));
+            if (!isNaN(date)) {
+              timeDisplay = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+          } catch(e){}
+
+          item.innerHTML = `
+            <i class="fas ${icon}" style="color: ${color}; margin-top: 3px; font-size: 13px;"></i>
+            <div style="display: flex; flex-direction: column; flex: 1; text-align: left;">
+              <span style="color: #ffffff;">${act.details}</span>
+              <span style="font-size: 9px; color: rgba(255,255,255,0.4);">${timeDisplay}</span>
+            </div>
+          `;
+          list.appendChild(item);
+        });
+      } else {
+        list.innerHTML = `
+          <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; padding: 20px 0; width: 100%;">No activities logged yet.</p>
+        `;
+      }
+    } catch(err){
+      console.error(err);
+    }
+  };
+
+  window.loadAIInsights = async () => {
+    const container = document.getElementById('dash-insights-container');
+    if (!container) return;
+
+    try {
+      let params = new URLSearchParams();
+      const byok = window.getLLMConfig ? window.getLLMConfig() : {};
+      if (byok && byok.apiKey) {
+        params.append('apiKey', byok.apiKey);
+        params.append('provider', byok.provider);
+        params.append('model', byok.model);
+      }
+
+      const res = await fetch(`/api/productivity/insights?${params.toString()}`);
+      if (!res.ok) throw new Error('Insights fetch failed');
+      const data = await res.json();
+      
+      container.innerHTML = '';
+      if (data.insights && data.insights.length > 0) {
+        data.insights.forEach(insight => {
+          const card = document.createElement('div');
+          card.style.background = 'rgba(255,255,255,0.02)';
+          card.style.border = '1px solid rgba(255,255,255,0.05)';
+          card.style.padding = '10px 12px';
+          card.style.borderRadius = '8px';
+          card.style.fontSize = '12px';
+          card.style.display = 'flex';
+          card.style.alignItems = 'center';
+          card.style.gap = '8px';
+          card.style.textAlign = 'left';
+          
+          let icon = 'fa-chart-line';
+          if (insight.includes('busy') || insight.includes('packed')) icon = 'fa-calendar-day';
+          else if (insight.includes('overdue') || insight.includes('immediately')) icon = 'fa-exclamation-triangle';
+          else if (insight.includes('priority') || insight.includes('first')) icon = 'fa-star';
+          else if (insight.includes('prob') || insight.includes('success')) icon = 'fa-percentage';
+
+          card.innerHTML = `
+            <i class="fas ${icon}" style="color: var(--mint); font-size: 13px; flex-shrink: 0;"></i>
+            <span style="color: rgba(255,255,255,0.85);">${insight}</span>
+          `;
+          container.appendChild(card);
+        });
+      } else {
+        container.innerHTML = `
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04); font-size: 12px;">
+            <i class="fas fa-check-circle" style="color: var(--mint); margin-right: 6px;"></i> Workload cleared: no priority insights found.
+          </div>
+        `;
+      }
+    } catch(err){
+      console.error(err);
+      container.innerHTML = `
+        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04); font-size: 12px;">
+          <i class="fas fa-exclamation-triangle" style="color: #ff6b6b; margin-right: 6px;"></i> Failed to load AI insights.
+        </div>
+      `;
+    }
+  };
+
+  window.triggerPanicMode = async () => {
+    if (!confirm("🚨 Are you sure you want to activate Panic Mode? This will boost all active task urgencies to Critical and set high priority rankings across the board!")) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/panic_mode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': getCSRFToken()
+        }
+      });
+      if (!res.ok) throw new Error('Panic mode endpoint failed');
+      const data = await res.json();
+      
+      if (data.success) {
+        showToast("🚨 PANIC MODE ACTIVATED: Backlog boosted!", "warning");
+        
+        if (typeof window.showCustomAlert === 'function') {
+          const stepList = data.steps.map(s => `<li>${s}</li>`).join('');
+          window.showCustomAlert({
+            title: "🚨 Panic Mode Recovery Plan",
+            message: `
+              <div style="text-align: left; font-size: 13px;">
+                <p style="color: #ff6b6b; font-weight: 600; margin-top: 0;">We sorted and prioritized all your active tasks to get you back on track. Follow this checklist:</p>
+                <ul style="margin: 10px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; color: rgba(255,255,255,0.8);">
+                  ${stepList}
+                </ul>
+              </div>
+            `,
+            confirmText: "Acknowledge"
+          });
+        }
+        
+        if (typeof window.fetchTasks === 'function') {
+          window.fetchTasks();
+        }
+      } else {
+        showToast(data.message || "Failed to trigger panic mode.", "error");
+      }
+    } catch(err){
+      console.error(err);
+      showToast(err.message, "error");
+    }
+  };
+
+  // Add click listeners to dashboard buttons
+  const bindDashboardEvents = () => {
+    const btnPanicHero = document.getElementById('btn-panic-mode-hero');
+    const btnPanicDash = document.getElementById('btn-panic-mode-dash');
+    const btnGenPlanDash = document.getElementById('btn-generate-plan-dash');
+    const btnGenPlanDashFooter = document.getElementById('btn-generate-plan-dash-footer');
+    const btnRefreshInsights = document.getElementById('btn-refresh-insights-dash');
+    const btnRefreshAnalysis = document.getElementById('btn-refresh-analysis-dash');
+    const btnGlobalRefresh = document.getElementById('btn-global-refresh');
+    
+    const btnFocusHighest = document.getElementById('btn-focus-highest-prio');
+    const btnFocusStart = document.getElementById('btn-focus-start-working');
+
+    if (btnPanicHero) btnPanicHero.onclick = window.triggerPanicMode;
+    if (btnPanicDash) btnPanicDash.onclick = window.triggerPanicMode;
+    
+    if (btnGenPlanDash) btnGenPlanDash.onclick = window.generateDailyPlan;
+    if (btnGenPlanDashFooter) btnGenPlanDashFooter.onclick = window.generateDailyPlan;
+    
+    if (btnRefreshInsights) btnRefreshInsights.onclick = window.loadAIInsights;
+    if (btnRefreshAnalysis) btnRefreshAnalysis.onclick = window.fetchTasks;
+    if (btnGlobalRefresh) btnGlobalRefresh.onclick = window.fetchTasks;
+
+    const handleFocusStart = () => {
+      showToast('🚀 Session started! Focus on the current task.');
+    };
+    if (btnFocusHighest) btnFocusHighest.onclick = handleFocusStart;
+    if (btnFocusStart) btnFocusStart.onclick = handleFocusStart;
+  };
+
+  // Proactive AI Coach Drawer functions and bindings
+  window.loadAICoach = async () => {
+    const greeting = document.getElementById('coach-greeting');
+    const rec = document.getElementById('coach-top-recommendation');
+    const focus = document.getElementById('coach-current-focus');
+    const nextS = document.getElementById('coach-next-suggested');
+    const deadline = document.getElementById('coach-upcoming-deadline');
+    const motivation = document.getElementById('coach-motivation');
+    const eta = document.getElementById('coach-finish-eta');
+    
+    try {
+      const res = await fetch('/api/coach/analyze');
+      if (!res.ok) throw new Error('Coach fetch failed');
+      const data = await res.json();
+      
+      if (data.success && data.coach) {
+        const coach = data.coach;
+        if (greeting) greeting.textContent = coach.greeting;
+        if (rec) rec.textContent = coach.top_recommendation;
+        if (focus) focus.textContent = coach.current_focus;
+        if (nextS) nextS.textContent = coach.next_suggested_task;
+        if (deadline) deadline.textContent = coach.upcoming_deadline;
+        if (motivation) motivation.textContent = coach.today_motivation;
+        if (eta) eta.textContent = coach.estimated_finish_time;
+        
+        window.checkSmartNotifications(coach);
+      }
+    } catch (err) {
+      console.error('Failed to load AI Coach data:', err);
+    }
+  };
+
+  window.checkSmartNotifications = async (coach) => {
+    // 1. Critical Risk check
+    if (coach.top_recommendation && coach.top_recommendation.startsWith('⚠️')) {
+      const key = `notified_critical_${coach.current_focus}`;
+      if (!sessionStorage.getItem(key)) {
+        showToast(coach.top_recommendation, 'warning');
+        sessionStorage.setItem(key, 'true');
+      }
+    }
+
+    // 2. One Task Away check
+    if (coach.total_active_count === 1 && coach.completed_today_count > 0) {
+      const key = 'notified_one_away';
+      if (!sessionStorage.getItem(key)) {
+        showToast("🎯 You're only one task away from today's goal!", 'success');
+        sessionStorage.setItem(key, 'true');
+      }
+    }
+
+    // 3. Ahead of Schedule check
+    if (coach.avg_prob >= 90 && coach.completed_today_count >= 3) {
+      const key = 'notified_ahead';
+      if (!sessionStorage.getItem(key)) {
+        showToast("🎉 Excellent! You're ahead of schedule.", 'success');
+        sessionStorage.setItem(key, 'true');
+      }
+    }
+
+    // 4. Planned Task check
+    try {
+      const pRes = await fetch('/api/planner/current');
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        if (pData.plan && pData.plan.length > 0) {
+          const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+          pData.plan.forEach(slot => {
+            if (slot.start_time === nowStr && slot.type !== 'break') {
+              const key = `notified_planner_${slot.title}_${slot.start_time}`;
+              if (!sessionStorage.getItem(key)) {
+                showToast(`📅 Time to begin your next planned task: ${slot.title}`, 'info');
+                sessionStorage.setItem(key, 'true');
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // AI Coach Drawer Bindings
+  const coachToggle = document.getElementById('coach-toggle-btn');
+  const coachDrawer = document.getElementById('coach-drawer');
+  const coachClose = document.getElementById('coach-drawer-close');
+  const coachRefreshBtn = document.getElementById('btn-coach-refresh');
+
+  if (coachToggle && coachDrawer) {
+    coachToggle.addEventListener('click', () => {
+      const isShowing = coachDrawer.classList.contains('show');
+      if (isShowing) {
+        coachDrawer.classList.remove('show');
+      } else {
+        coachDrawer.classList.add('show');
+        window.loadAICoach();
+      }
+    });
+  }
+  if (coachClose && coachDrawer) {
+    coachClose.addEventListener('click', () => {
+      coachDrawer.classList.remove('show');
+    });
+  }
+  // Click outside to close (without overlay)
+  document.addEventListener('click', (e) => {
+    if (coachDrawer && coachDrawer.classList.contains('show')) {
+      if (!coachDrawer.contains(e.target) && e.target !== coachToggle && !coachToggle.contains(e.target)) {
+        coachDrawer.classList.remove('show');
+      }
+    }
+  });
+  if (coachRefreshBtn) {
+    coachRefreshBtn.addEventListener('click', () => {
+      window.loadAICoach();
+    });
+  }
+
+  // Bind on fetch completion
+  const oldFetchTasks = window.fetchTasks;
+  window.fetchTasks = async (...args) => {
+    await oldFetchTasks(...args);
+    bindDashboardEvents();
+    window.loadAICoach();
+  };
+
+  // --- 🚨 Panic Mode Client Controller ---
+  const panicToggle = document.getElementById('panic-toggle-btn');
+  const panicModal = document.getElementById('panic-modal');
+  const panicClose = document.getElementById('panic-modal-close');
+  const btnPanicRecover = document.getElementById('btn-panic-recover');
+
+  let activePanicTasks = []; // Stored local active tasks
+  let originalPanicData = null; // Original backend response data
+
+  window.openPanicMode = async () => {
+    if (!panicModal) return;
+    panicModal.classList.add('show');
+    
+    // Set initial loading states
+    document.getElementById('panic-stat-remaining').textContent = '...';
+    document.getElementById('panic-stat-critical').textContent = '...';
+    document.getElementById('panic-stat-work').textContent = '...';
+    document.getElementById('panic-stat-available').textContent = '...';
+    document.getElementById('panic-stat-risk').textContent = '...';
+    document.getElementById('panic-stat-prob').textContent = '...';
+    document.getElementById('panic-survival-value').textContent = '...';
+    document.getElementById('panic-motivation-text').textContent = 'Evaluating emergency recovery plans...';
+    
+    try {
+      const response = await fetch('/api/panic/analyze');
+      const data = await response.json();
+      
+      if (data.success && data.panic) {
+        originalPanicData = data.panic;
+        
+        // Grab task structures to simulate
+        const taskResp = await fetch('/api/tasks');
+        const tasksData = await taskResp.json();
+        const allTasks = tasksData.tasks || [];
+        activePanicTasks = allTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
+        
+        renderPanicReport(data.panic);
+        renderPanicSimulator(activePanicTasks);
+      } else {
+        showToast("Failed to compile emergency report.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error establishing connection to Emergency Engine.", "error");
+    }
+  };
+
+  function renderPanicReport(panic) {
+    const sit = panic.situation;
+    
+    document.getElementById('panic-stat-remaining').textContent = sit.remaining_tasks;
+    document.getElementById('panic-stat-critical').textContent = sit.critical_tasks;
+    
+    const workHours = Math.floor(sit.estimated_work_mins / 60);
+    const workMins = sit.estimated_work_mins % 60;
+    document.getElementById('panic-stat-work').textContent = `${workHours}h ${workMins}m`;
+    
+    const availHours = Math.floor(sit.time_available_mins / 60);
+    const availMins = sit.time_available_mins % 60;
+    document.getElementById('panic-stat-available').textContent = `${availHours}h ${availMins}m`;
+    
+    const riskEl = document.getElementById('panic-stat-risk');
+    riskEl.textContent = sit.overall_risk;
+    if (sit.overall_risk === 'CRITICAL' || sit.overall_risk === 'HIGH') {
+      riskEl.style.color = '#ff3838';
+    } else if (sit.overall_risk === 'MEDIUM') {
+      riskEl.style.color = '#ff8225';
+    } else {
+      riskEl.style.color = 'var(--mint)';
+    }
+    
+    document.getElementById('panic-stat-prob').textContent = `${sit.completion_probability}%`;
+    document.getElementById('panic-survival-value').textContent = `${sit.survival_score}%`;
+    document.getElementById('panic-motivation-text').textContent = panic.motivation;
+    
+    // Draw SVG circle
+    const circle = document.getElementById('panic-survival-circle');
+    if (circle) {
+      const radius = 60;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference - (sit.survival_score / 100) * circumference;
+      circle.style.strokeDashoffset = offset;
+    }
+    
+    // Render timeline
+    renderPanicTimeline(panic.timeline);
+  }
+
+  function renderPanicTimeline(timeline) {
+    const container = document.getElementById('panic-timeline-container');
+    if (!container) return;
+    
+    if (!timeline || timeline.length === 0) {
+      container.innerHTML = `<div style="text-align: center; color: rgba(255,255,255,0.4); padding: 20px; font-size: 13px;">No tasks on the emergency deck!</div>`;
+      return;
+    }
+    
+    container.innerHTML = timeline.map(item => {
+      let color = 'rgba(255,255,255,0.5)';
+      let border = '1px solid rgba(255,255,255,0.06)';
+      let badgeBg = 'rgba(255,255,255,0.05)';
+      
+      if (item.phase === 'RIGHT NOW') {
+        color = '#ff3838';
+        border = '1px solid rgba(255, 56, 56, 0.3)';
+        badgeBg = 'rgba(255, 56, 56, 0.15)';
+      } else if (item.phase === 'NEXT') {
+        color = '#ff8225';
+        border = '1px solid rgba(255, 130, 37, 0.2)';
+        badgeBg = 'rgba(255, 130, 37, 0.1)';
+      } else if (item.phase === 'AFTER THAT') {
+        color = 'var(--mint)';
+        border = '1px solid rgba(55, 230, 181, 0.2)';
+        badgeBg = 'rgba(55, 230, 181, 0.1)';
+      }
+      
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: rgba(255,255,255,0.01); border: ${border}; border-radius: 8px; font-size: 13px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 9px; font-weight: 800; padding: 4px 8px; border-radius: 4px; background: ${badgeBg}; color: ${color}; text-transform: uppercase; letter-spacing: 0.5px;">
+              ${item.phase}
+            </span>
+            <span style="font-weight: 600; color: #ffffff;">${item.title}</span>
+          </div>
+          <span style="font-size: 11px; color: ${color}; font-weight: 700;">
+            <i class="far fa-clock"></i> ${item.duration}
+          </span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderPanicSimulator(tasks) {
+    const container = document.getElementById('panic-simulator-list');
+    if (!container) return;
+    
+    if (tasks.length === 0) {
+      container.innerHTML = `<div style="text-align: center; color: rgba(255,255,255,0.3); padding: 10px;">No tasks available to simulate.</div>`;
+      return;
+    }
+    
+    container.innerHTML = tasks.map(t => `
+      <div class="panic-simulator-item" style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 8px; transition: all 0.2s;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <input type="checkbox" class="panic-task-checkbox" data-id="${t.id}" checked style="accent-color: #ff3838; width: 16px; height: 16px; cursor: pointer;" />
+          <div style="display: flex; flex-direction: column;">
+            <span style="font-size: 12.5px; font-weight: 600; color: #ffffff;">${t.title}</span>
+            <span style="font-size: 10px; color: rgba(255,255,255,0.4);">${t.category} | ${t.estimated_duration || '45m'}</span>
+          </div>
+        </div>
+        <span style="font-size: 10px; color: ${t.priority === 'High' ? '#ff6b6b' : 'rgba(255,255,255,0.5)'}; font-weight: 600; text-transform: uppercase;">
+          ${t.priority}
+        </span>
+      </div>
+    `).join('');
+    
+    // Add checkbox change listeners
+    document.querySelectorAll('.panic-task-checkbox').forEach(cb => {
+      cb.addEventListener('change', recalculatePanicSimulator);
+    });
+  }
+
+  function parseDurationToMins(durationStr) {
+    if (!durationStr) return 45;
+    try {
+      const match = durationStr.match(/(\d+)\s*(hour|hr|min|m)/i);
+      if (!match) return 45;
+      const num = parseInt(match[1]);
+      const unit = match[2].toLowerCase();
+      if (unit.startsWith('h')) return num * 60;
+      return num;
+    } catch {
+      return 45;
+    }
+  }
+
+  function recalculatePanicSimulator() {
+    // Collect unchecked task IDs
+    const skips = [];
+    document.querySelectorAll('.panic-task-checkbox').forEach(cb => {
+      if (!cb.checked) {
+        skips.push(parseInt(cb.dataset.id));
+      }
+    });
+    
+    // Filter simulated active tasks
+    const simActive = activePanicTasks.filter(t => !skips.includes(t.id));
+    
+    // Run recalculations
+    const remainingCount = simActive.length;
+    const criticalCount = simActive.filter(t => t.priority === 'High' || t.risk_level === 'High' || t.status === 'Overdue').length;
+    const totalWorkMins = simActive.reduce((acc, t) => acc + parseDurationToMins(t.estimated_duration), 0);
+    
+    // Remaining time available stays constant from original load
+    const timeAvailable = originalPanicData ? originalPanicData.situation.time_available_mins : 240;
+    
+    let prob = 100;
+    if (remainingCount > 0) {
+      if (totalWorkMins <= timeAvailable) {
+        prob = Math.min(95, Math.round(100 - (totalWorkMins / timeAvailable) * 30));
+      } else {
+        prob = Math.max(10, Math.round(100 - (totalWorkMins / timeAvailable) * 50));
+      }
+    }
+    
+    let risk = "LOW";
+    if (prob < 40) risk = "CRITICAL";
+    else if (prob < 60) risk = "HIGH";
+    else if (prob < 80) risk = "MEDIUM";
+    
+    const survival = Math.min(100, Math.max(0, Math.round(prob * 1.05)));
+    
+    // Update display values
+    document.getElementById('panic-stat-remaining').textContent = remainingCount;
+    document.getElementById('panic-stat-critical').textContent = criticalCount;
+    
+    const workHours = Math.floor(totalWorkMins / 60);
+    const workMins = totalWorkMins % 60;
+    document.getElementById('panic-stat-work').textContent = `${workHours}h ${workMins}m`;
+    
+    const riskEl = document.getElementById('panic-stat-risk');
+    riskEl.textContent = risk;
+    if (risk === 'CRITICAL' || risk === 'HIGH') {
+      riskEl.style.color = '#ff3838';
+    } else if (risk === 'MEDIUM') {
+      riskEl.style.color = '#ff8225';
+    } else {
+      riskEl.style.color = 'var(--mint)';
+    }
+    
+    document.getElementById('panic-stat-prob').textContent = `${prob}%`;
+    document.getElementById('panic-survival-value').textContent = `${survival}%`;
+    
+    // Redraw SVG ring
+    const circle = document.getElementById('panic-survival-circle');
+    if (circle) {
+      const radius = 60;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference - (survival / 100) * circumference;
+      circle.style.strokeDashoffset = offset;
+    }
+    
+    // Recalculate timeline order based on skips
+    const sorted = [...simActive].sort((a,b) => (b.priority === 'High' || b.status === 'Overdue') - (a.priority === 'High' || a.status === 'Overdue') || (b.priority_score || 0) - (a.priority_score || 0));
+    const timeline = [];
+    
+    // Add active items
+    sorted.forEach((t, idx) => {
+      let phase = "AFTER THAT";
+      if (idx === 0) phase = "RIGHT NOW";
+      else if (idx === 1) phase = "NEXT";
+      
+      timeline.push({
+        phase: phase,
+        task_id: t.id,
+        title: t.title,
+        duration: t.estimated_duration || '45 min'
+      });
+    });
+    
+    // Add skipped items
+    activePanicTasks.forEach(t => {
+      if (skips.includes(t.id)) {
+        timeline.push({
+          phase: "OPTIONAL",
+          task_id: t.id,
+          title: t.title,
+          duration: "Skip Today"
+        });
+      }
+    });
+    
+    renderPanicTimeline(timeline);
+    
+    // Dynamic simulated motivation
+    let advice = "Evaluating your recovery paths...";
+    if (skips.length > 0) {
+      const successBoost = Math.max(5, Math.min(60, skips.length * 15));
+      advice = `Skipping ${skips.length} low-priority work increases your Success Rate by ${successBoost}%. Focus exclusively on ${simActive[0] ? simActive[0].title : 'remaining tasks'} first.`;
+    } else {
+      advice = originalPanicData ? originalPanicData.motivation : "You can still finish everything if you begin now.";
+    }
+    document.getElementById('panic-motivation-text').textContent = advice;
+  }
+
+  if (panicToggle) {
+    panicToggle.addEventListener('click', window.openPanicMode);
+  }
+  if (panicClose && panicModal) {
+    panicClose.addEventListener('click', () => {
+      panicModal.classList.remove('show');
+    });
+  }
+  if (btnPanicRecover) {
+    btnPanicRecover.addEventListener('click', async () => {
+      // Find unchecked task IDs (skips)
+      const postponeTaskIds = [];
+      document.querySelectorAll('.panic-task-checkbox').forEach(cb => {
+        if (!cb.checked) {
+          postponeTaskIds.push(parseInt(cb.dataset.id));
+        }
+      });
+      
+      setStatus('sending', '⚡ Rebuilding and optimizing schedule...');
+      showToast("Triggering Emergency Recovery...", "info");
+      
+      try {
+        const response = await fetch('/api/panic/recover', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': getCSRFToken()
+          },
+          body: JSON.stringify({ postpone_task_ids: postponeTaskIds })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          if (typeof window.handleGamificationUpdate === 'function') {
+            window.handleGamificationUpdate(data.gamification);
+          }
+          showToast(data.message, "success");
+          panicModal.classList.remove('show');
+          
+          // Force a full task and planner reload!
+          if (typeof window.fetchTasks === 'function') {
+            window.fetchTasks();
+          }
+          if (typeof window.loadPlannerPlan === 'function') {
+            window.loadPlannerPlan();
+          }
+        } else {
+          showToast("Recovery optimization failed: " + data.error, "error");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Error connecting to recovery gateway.", "error");
+      } finally {
+        setStatus('idle');
+      }
+    });
+  }
+
+  // Start intervals
+  setInterval(window.updateCountdownTimers, 60000);
+
+  // Hero Mock metrics cycler
+  const mockStates = [
+    { score: '94/100 🔴', risk: 'Critical Risk', riskClass: 'risk-glow-red', riskColor: '#e74c3c', riskBg: 'rgba(231, 76, 60, 0.15)', scoreColor: '#ff6b6b', scoreBg: 'rgba(255, 107, 107, 0.15)', prob: '84%', probWidth: '84%' },
+    { score: '78/100 🟠', risk: 'High Risk', riskClass: 'risk-glow-orange', riskColor: '#e67e22', riskBg: 'rgba(230, 126, 34, 0.15)', scoreColor: '#e67e22', scoreBg: 'rgba(230, 126, 34, 0.15)', prob: '72%', probWidth: '72%' },
+    { score: '52/100 🟡', risk: 'Attention', riskClass: 'risk-glow-yellow', riskColor: '#f1c40f', riskBg: 'rgba(241, 196, 15, 0.15)', scoreColor: '#f1c40f', scoreBg: 'rgba(241, 196, 15, 0.15)', prob: '48%', probWidth: '48%' },
+    { score: '28/100 🟢', risk: 'Safe', riskClass: 'risk-glow-green', riskColor: '#2ecc71', riskBg: 'rgba(46, 204, 113, 0.15)', scoreColor: '#2ecc71', scoreBg: 'rgba(46, 204, 113, 0.15)', prob: '95%', probWidth: '95%' }
+  ];
+  let currentMockState = 0;
+  setInterval(() => {
+    const elScore = document.getElementById('hero-mock-score');
+    const elRisk = document.getElementById('hero-mock-risk');
+    const elProb = document.getElementById('hero-mock-prob');
+    const elProbBar = document.getElementById('hero-mock-prob-bar');
+    if (!elScore && !elRisk && !elProb && !elProbBar) return;
+
+    currentMockState = (currentMockState + 1) % mockStates.length;
+    const state = mockStates[currentMockState];
+    
+    if (elScore) {
+      elScore.textContent = state.score;
+      elScore.style.color = state.scoreColor;
+      elScore.style.background = state.scoreBg;
+      elScore.style.borderColor = state.scoreColor + '55';
+    }
+    if (elRisk) {
+      elRisk.textContent = state.risk;
+      elRisk.className = state.riskClass;
+      elRisk.style.color = state.riskColor;
+      elRisk.style.background = state.riskBg;
+      elRisk.style.borderColor = state.riskColor + '55';
+    }
+    if (elProb) {
+      elProb.textContent = state.prob;
+    }
+    if (elProbBar) {
+      elProbBar.style.width = state.probWidth;
+    }
+  }, 1000);
+
+  // Load gamification stats on startup
+  if (typeof window.loadGamificationStats === 'function') {
+    window.loadGamificationStats();
+  }
+});
+
+// --- Gamification System ---
+window.celebrateLevelUp = function(newLevel) {
+  return new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.className = 'mint-custom-modal level-up-celebration-modal';
+    modal.style.background = 'rgba(10, 10, 10, 0.85)';
+    modal.style.backdropFilter = 'blur(12px)';
+    modal.style.zIndex = '99999';
+    modal.innerHTML = `
+      <div class="mint-custom-modal-content level-up-content" style="text-align: center; max-width: 400px; padding: 40px 24px; border: 2px solid var(--mint); box-shadow: 0 0 30px rgba(55, 230, 181, 0.3); position: relative; overflow: hidden; animation: modal-pulse 2s infinite alternate;">
+        <!-- Glowing effect -->
+        <div style="position: absolute; top:-50%; left:-50%; width:200%; height:200%; background: radial-gradient(circle, rgba(55,230,181,0.15) 0%, transparent 60%); pointer-events: none; animation: rotate-glow 15s linear infinite;"></div>
+        
+        <div style="font-size: 70px; margin-bottom: 20px; filter: drop-shadow(0 0 15px var(--mint)); animation: bounce-emoji 1s ease infinite alternate;">🎉</div>
+        
+        <h2 style="margin: 0 0 8px 0; font-size: 28px; font-weight: 900; background: linear-gradient(135deg, var(--mint), #00d2ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; letter-spacing: 1px;">
+          Level Up!
+        </h2>
+        
+        <p style="margin: 0 0 24px 0; font-size: 15px; color: rgba(255,255,255,0.8);">
+          Congratulations! You have reached <strong style="color: var(--mint); font-size: 18px;">Level ${newLevel}</strong>!
+        </p>
+        
+        <div style="display: inline-flex; align-items: center; justify-content: center; width: 100px; height: 100px; border-radius: 50%; background: rgba(55,230,181,0.1); border: 4px solid var(--mint); font-size: 42px; font-weight: 900; color: var(--mint); text-shadow: 0 0 10px rgba(55,230,181,0.5); margin-bottom: 24px;">
+          ${newLevel}
+        </div>
+        
+        <div class="mint-custom-modal-actions" style="margin-top: 0; display: flex; justify-content: center; width: 100%;">
+          <button class="btn btn--mint mint-custom-modal-btn-confirm" style="padding: 10px 32px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 15px rgba(55, 230, 181, 0.4);">
+            Awesome!
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Add styling elements to document head
+    if (!document.getElementById('level-up-animations')) {
+      const style = document.createElement('style');
+      style.id = 'level-up-animations';
+      style.innerHTML = `
+        @keyframes bounce-emoji {
+          from { transform: translateY(0) scale(1); }
+          to { transform: translateY(-10px) scale(1.1); }
+        }
+        @keyframes rotate-glow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes modal-pulse {
+          from { box-shadow: 0 0 25px rgba(55, 230, 181, 0.25); }
+          to { box-shadow: 0 0 35px rgba(55, 230, 181, 0.45); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    // Force reflow and show
+    modal.offsetHeight;
+    modal.classList.add('show');
+    
+    const confirmBtn = modal.querySelector('.mint-custom-modal-btn-confirm');
+    confirmBtn.focus();
+    
+    const close = () => {
+      modal.classList.remove('show');
+      setTimeout(() => {
+        modal.remove();
+        resolve();
+      }, 200);
+    };
+    
+    confirmBtn.addEventListener('click', close);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) close();
+    });
+    
+    const keyHandler = (e) => {
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault();
+        document.removeEventListener('keydown', keyHandler);
+        close();
+      }
+    };
+    document.addEventListener('keydown', keyHandler);
+  });
+};
+
+window.handleGamificationUpdate = function(gamification) {
+  if (!gamification) return;
+  
+  // Reload stats to reflect new progress
+  window.loadGamificationStats();
+  
+  // Show toast for XP gained
+  if (gamification.xp_gained > 0) {
+    showToast(`+${gamification.xp_gained} XP: ${gamification.reason}`, "success");
+  }
+  
+  // Level up celebration
+  if (gamification.level_up) {
+    setTimeout(() => {
+      window.celebrateLevelUp(gamification.new_level);
+      if (typeof triggerConfetti === 'function') {
+        triggerConfetti();
+      }
+    }, 500);
+  }
+  
+  // New badges earned
+  if (gamification.new_badges && gamification.new_badges.length > 0) {
+    gamification.new_badges.forEach((badge, idx) => {
+      setTimeout(() => {
+        showToast(`🏆 New Badge: ${badge.badge_name}!`, "success");
+      }, 1000 + (idx * 1500));
+    });
+  }
+};
+
+window.loadGamificationStats = async function() {
+  try {
+    const res = await fetch('/api/gamification/stats');
+    const data = await res.json();
+    if (!data.success) return;
+    const stats = data.stats;
+    
+    // Update Analytics Tab elements if present
+    const elLevelText = document.getElementById('gam-level-text');
+    if (elLevelText) elLevelText.textContent = stats.level;
+    
+    const elLevelBadge = document.getElementById('gam-level-badge');
+    if (elLevelBadge) elLevelBadge.textContent = stats.level;
+    
+    const elXpText = document.getElementById('gam-xp-text');
+    if (elXpText) elXpText.textContent = `${stats.xp_in_level} / ${stats.xp_needed} XP`;
+    
+    const elStreakText = document.getElementById('gam-streak-text');
+    if (elStreakText) elStreakText.textContent = stats.streak;
+    
+    const elNextLevel = document.getElementById('gam-next-level');
+    if (elNextLevel) elNextLevel.textContent = stats.level + 1;
+    
+    const elXpPct = document.getElementById('gam-xp-percent');
+    if (elXpPct) elXpPct.textContent = `${stats.progress_pct}%`;
+    
+    const elXpBar = document.getElementById('gam-xp-bar');
+    if (elXpBar) elXpBar.style.width = `${stats.progress_pct}%`;
+    
+    const elAnStreak = document.getElementById('an-streak');
+    if (elAnStreak) elAnStreak.textContent = `${stats.streak} days`;
+    
+    const elBadgesContainer = document.getElementById('gam-badges-container');
+    if (elBadgesContainer) {
+      if (stats.badges && stats.badges.length > 0) {
+        elBadgesContainer.innerHTML = stats.badges.map(b => `
+          <div class="glass" style="padding: 8px 12px; border-radius: 8px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(55,230,181,0.3); background: rgba(55,230,181,0.05); min-width: 140px;" title="${b.badge_description}">
+            <span style="font-size: 20px;">${b.icon}</span>
+            <div style="text-align: left;">
+              <div style="font-size: 11px; font-weight: bold; color: #ffffff; white-space: nowrap;">${b.badge_name}</div>
+              <div style="font-size: 9px; color: rgba(255,255,255,0.6); max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${b.badge_description}</div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        elBadgesContainer.innerHTML = `<div style="color:rgba(255,255,255,0.3); font-size:12px; width:100%; text-align:center;">No badges earned yet. Complete tasks, generate plans, and stay productive to earn badges!</div>`;
+      }
+    }
+    
+    // Update Hero Banner Widget elements if present
+    const elHeroLevel = document.getElementById('hero-gam-level');
+    if (elHeroLevel) elHeroLevel.textContent = `Lvl ${stats.level}`;
+    
+    const elHeroXpText = document.getElementById('hero-gam-xp-text');
+    if (elHeroXpText) elHeroXpText.textContent = `${stats.xp_in_level} / ${stats.xp_needed} XP`;
+    
+    const elHeroXpPct = document.getElementById('hero-gam-xp-pct');
+    if (elHeroXpPct) elHeroXpPct.textContent = `${stats.progress_pct}%`;
+    
+    const elHeroXpBar = document.getElementById('hero-gam-xp-bar');
+    if (elHeroXpBar) elHeroXpBar.style.width = `${stats.progress_pct}%`;
+    
+  } catch (err) {
+    console.error("Error loading gamification stats:", err);
+  }
+};

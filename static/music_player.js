@@ -69,9 +69,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (jamendoBtn) {
     jamendoBtn.addEventListener('click', (e) => {
       e.preventDefault();
-      console.log("[Music Player] Centered popout panel opened.");
-      jamendoPanel.classList.add('show');
-      if (jamendoPanelBackdrop) jamendoPanelBackdrop.classList.add('show');
+      const isShowing = jamendoPanel.classList.contains('show');
+      if (isShowing) {
+        jamendoPanel.classList.remove('show');
+        if (jamendoPanelBackdrop) jamendoPanelBackdrop.classList.remove('show');
+      } else {
+        jamendoPanel.classList.add('show');
+        if (jamendoPanelBackdrop) jamendoPanelBackdrop.classList.add('show');
+      }
       const dropdown = document.getElementById('toolbar-dropdown');
       if (dropdown) dropdown.classList.remove('show');
     });
@@ -102,12 +107,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (jamendoPlayBtn) jamendoPlayBtn.innerHTML = '<i class="fas fa-pause"></i>';
       if (jamendoVisualizer) jamendoVisualizer.classList.add('active');
       startProgressPolling();
+      updateMusicBubbleUI();
     });
 
     nativeAudio.addEventListener('pause', () => {
       if (jamendoPlayBtn) jamendoPlayBtn.innerHTML = '<i class="fas fa-play"></i>';
       if (jamendoVisualizer) jamendoVisualizer.classList.remove('active');
       stopProgressPolling();
+      updateMusicBubbleUI();
     });
 
     nativeAudio.addEventListener('ended', () => {
@@ -116,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
       stopProgressPolling();
       if (jamendoProgress) jamendoProgress.style.width = '0%';
       if (jamendoCurrentTime) jamendoCurrentTime.textContent = '0:00';
+      updateMusicBubbleUI();
 
       console.log("[Music Player] Audio track ended.");
       if (isRepeat) {
@@ -131,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error("[Music Player] Native Audio Stream playback error:", e);
       if (jamendoVisualizer) jamendoVisualizer.classList.remove('active');
       stopProgressPolling();
+      updateMusicBubbleUI();
       showToast("Audio stream failed to buffer. Please try another track.", "error");
     });
   }
@@ -148,9 +157,10 @@ document.addEventListener('DOMContentLoaded', () => {
           if (jamendoProgress) jamendoProgress.style.width = `${pct}%`;
           if (jamendoCurrentTime) jamendoCurrentTime.textContent = formatTime(current);
           if (jamendoDuration) jamendoDuration.textContent = formatTime(duration);
+          updateMusicBubbleUI();
         }
       }
-    }, 500);
+    }, 250); // Faster polling for smoother circular progress border
   }
 
   function stopProgressPolling() {
@@ -480,6 +490,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     currentPlayingTrack = track;
+    if (typeof window.updateMusicBubbleExternal === 'function') {
+      window.updateMusicBubbleExternal();
+    }
 
     // YouTube mainstream tracks require server-side signature/stream URL resolution
     if (jamendoStatusMsg) {
@@ -1417,4 +1430,59 @@ document.addEventListener('DOMContentLoaded', () => {
     navItemLibrary.click();
     console.log("[Music Player] Auto-initialized list view to Library Queue on page load.");
   }
+
+  function updateMusicBubbleUI() {
+    const thumb = document.getElementById('music-bubble-thumb');
+    const icon = document.getElementById('music-bubble-icon');
+    const img = document.getElementById('music-bubble-img');
+    const circle = document.querySelector('.progress-ring__circle');
+
+    if (!thumb) return;
+
+    // Update spin class
+    if (nativeAudio && !nativeAudio.paused && !nativeAudio.ended) {
+      thumb.classList.add('music-playing-spin');
+    } else {
+      thumb.classList.remove('music-playing-spin');
+    }
+
+    // Update thumbnail image
+    if (currentPlayingTrack) {
+      if (currentPlayingTrack.thumbnail) {
+        if (img) {
+          img.src = currentPlayingTrack.thumbnail;
+          img.style.display = 'block';
+        }
+        if (icon) icon.style.display = 'none';
+      } else {
+        if (img) img.style.display = 'none';
+        if (icon) icon.style.display = 'block';
+      }
+    } else {
+      if (img) img.style.display = 'none';
+      if (icon) icon.style.display = 'block';
+    }
+
+    // Update progress circle
+    if (circle && nativeAudio && !isNaN(nativeAudio.duration) && nativeAudio.duration > 0) {
+      const current = nativeAudio.currentTime;
+      const duration = nativeAudio.duration;
+      const pct = (current / duration) * 100;
+      
+      const radius = 26.75; // Circumference is 168.08
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference - (pct / 100) * circumference;
+      circle.style.strokeDashoffset = offset;
+    } else if (circle) {
+      circle.style.strokeDashoffset = 168.08;
+    }
+  }
+
+  // Bind initial update call
+  updateMusicBubbleUI();
+  
+  // Expose it to playTrack
+  window.updateMusicBubbleExternal = () => {
+    updateMusicBubbleUI();
+  };
 });

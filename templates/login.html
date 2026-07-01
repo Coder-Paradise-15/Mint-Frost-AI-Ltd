@@ -25,7 +25,20 @@
       background-color: var(--bg-0);
       overflow-x: hidden;
       font-family: 'Inter', sans-serif;
-      zoom: 0.7;
+      zoom: 1;
+    }
+
+    .bg-gradient {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+      background:
+        radial-gradient(65vmax 65vmax at 10% 10%, rgba(55, 230, 181, 0.15), transparent 60%),
+        radial-gradient(55vmax 55vmax at 85% 20%, rgba(55, 230, 181, 0.10), transparent 65%),
+        linear-gradient(180deg, #0b0f14, #0e141d 60%, #0b0f14);
     }
 
     .login-container {
@@ -39,7 +52,7 @@
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      zoom: 1.4;
+      zoom: 1;
     }
 
     .login-card {

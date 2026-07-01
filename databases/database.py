@@ -203,6 +203,13 @@ def init_db():
 
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id)')
 
+            # Add API settings columns to user_settings
+            for col in ['api_provider TEXT', 'api_key TEXT', 'api_model TEXT']:
+                try:
+                    cursor.execute(f'ALTER TABLE user_settings ADD COLUMN {col}')
+                except sqlite3.OperationalError:
+                    pass
+
             # Create announcements table for history
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS announcements (
@@ -296,6 +303,115 @@ def init_db():
                 )
             ''')
 
+            # Create tasks table for AI Deadline Detection Engine
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    category TEXT,
+                    deadline TEXT,
+                    duration TEXT,
+                    confidence REAL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ''')
+
+            # Create subtasks table for AI Task Breakdown Engine
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS subtasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_id INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    duration TEXT,
+                    difficulty TEXT,
+                    priority TEXT,
+                    completed INTEGER DEFAULT 0,
+                    subtask_order INTEGER DEFAULT 0,
+                    dependency TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+                )
+            ''')
+
+            # Create daily_plans table for AI Smart Daily Planner
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS daily_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    generated_plan TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    UNIQUE(user_id, date)
+                )
+            ''')
+            # Create recent_activity table for AI Productivity Dashboard
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS recent_activity (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    activity_type TEXT NOT NULL,
+                    details TEXT NOT NULL,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ''')
+            # Create user_gamification table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_gamification (
+                    user_id TEXT PRIMARY KEY,
+                    xp INTEGER DEFAULT 0,
+                    level INTEGER DEFAULT 1,
+                    streak INTEGER DEFAULT 0,
+                    last_activity_date TEXT DEFAULT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ''')
+            # Create user_badges table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_badges (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    badge_id TEXT NOT NULL,
+                    badge_name TEXT NOT NULL,
+                    badge_description TEXT NOT NULL,
+                    icon TEXT NOT NULL,
+                    earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id, badge_id),
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ''')
+            try:
+                cursor.execute("ALTER TABLE subtasks ADD COLUMN dependency TEXT")
+            except Exception:
+                pass
+
+            # Safe database migrations for tasks table
+            for col_name, col_type in [
+                ("description", "TEXT"),
+                ("estimated_duration", "TEXT"),
+                ("priority", "TEXT"),
+                ("risk_level", "TEXT"),
+                ("status", "TEXT"),
+                ("progress", "INTEGER DEFAULT 0"),
+                ("updated_at", "TIMESTAMP"),
+                ("completed_at", "TEXT"),
+                ("ai_generated", "INTEGER DEFAULT 0"),
+                ("source_chat_message", "TEXT"),
+                ("priority_score", "INTEGER DEFAULT 50"),
+                ("completion_probability", "INTEGER DEFAULT 100"),
+                ("suggested_action", "TEXT"),
+                ("risk_reason", "TEXT")
+            ]:
+                try:
+                    cursor.execute(f"ALTER TABLE tasks ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
+
             # Populate system default settings if they do not exist
             default_configs = [
                 ('enable_registration', 'true'),
@@ -355,6 +471,29 @@ def init_db():
                 SET last_login_location = 'Mumbai, Maharashtra, India' 
                 WHERE last_login_location IN ('Localhost Network', 'Localhost Command Center', 'Localhost', 'Mumbai, India') OR last_login_location IS NULL
             """)
+
+            # Create AvailableModels table for Dynamic AI Model Discovery
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS AvailableModels (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    provider TEXT NOT NULL,
+                    model_id TEXT NOT NULL UNIQUE,
+                    display_name TEXT NOT NULL,
+                    description TEXT,
+                    supports_chat INTEGER DEFAULT 1,
+                    supports_reasoning INTEGER DEFAULT 0,
+                    supports_vision INTEGER DEFAULT 0,
+                    supports_audio INTEGER DEFAULT 0,
+                    supports_image_generation INTEGER DEFAULT 0,
+                    supports_function_calling INTEGER DEFAULT 0,
+                    supports_streaming INTEGER DEFAULT 1,
+                    context_window INTEGER,
+                    status TEXT DEFAULT 'active',
+                    is_available INTEGER DEFAULT 1,
+                    last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    api_owner TEXT
+                )
+            ''')
 
             conn.commit()
     except Exception as e:
@@ -888,7 +1027,13 @@ def reset_database():
                 'announcements',
                 'system_config',
                 'admin_audit_logs',
-                'active_sessions'
+                'active_sessions',
+                'tasks',
+                'subtasks',
+                'daily_plans',
+                'recent_activity',
+                'user_gamification',
+                'user_badges'
             ]
             cursor.execute('PRAGMA foreign_keys = OFF;')
             for table in tables:
@@ -1377,6 +1522,12 @@ def delete_user_admin(username, caller_level=1):
             # Delete linked OAuth accounts
             cursor.execute('DELETE FROM linked_accounts WHERE user_id = ?', (username,))
             
+            # Delete user tasks manually to avoid orphaned records
+            try:
+                cursor.execute('DELETE FROM tasks WHERE user_id = ?', (username,))
+            except Exception:
+                pass
+
             # Delete user record
             cursor.execute('DELETE FROM users WHERE id = ?', (username,))
             
@@ -1593,6 +1744,12 @@ def delete_user_self(username):
             cursor.execute('DELETE FROM user_passkeys WHERE user_id = ?', (username,))
             cursor.execute('DELETE FROM user_authenticators WHERE user_id = ?', (username,))
             
+            # Delete user tasks
+            try:
+                cursor.execute('DELETE FROM tasks WHERE user_id = ?', (username,))
+            except Exception:
+                pass
+
             # Delete active sessions
             cursor.execute('DELETE FROM active_sessions WHERE user_id = ?', (username,))
             
@@ -1686,3 +1843,912 @@ def delete_all_support_tickets():
         import logging
         logging.error(f"Error deleting all support tickets: {e}")
         return 0
+
+def create_task(user_id, title, category, deadline, duration, confidence):
+    """Create a new user task in the tasks table"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO tasks (user_id, title, category, deadline, duration, confidence)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, title, category, deadline, duration, confidence))
+            conn.commit()
+            return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error creating task: {e}")
+        return False
+
+def create_task_with_subtasks(user_id, title, category, deadline, duration, confidence, subtasks_list):
+    """Transaction to insert a task and its associated subtasks. Returns task_id if successful."""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            # 1. Insert the parent task
+            cursor.execute('''
+                INSERT INTO tasks (user_id, title, category, deadline, duration, confidence)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, title, category, deadline, duration, confidence))
+            task_id = cursor.lastrowid
+            
+            # 2. Insert each subtask
+            for idx, sub in enumerate(subtasks_list):
+                cursor.execute('''
+                    INSERT INTO subtasks (task_id, title, duration, difficulty, priority, completed, subtask_order, dependency)
+                    VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+                ''', (task_id, sub.get('title'), sub.get('duration'), sub.get('difficulty', 'Easy'), sub.get('priority', 'Medium'), idx, sub.get('dependency')))
+            
+            conn.commit()
+            return task_id
+    except Exception as e:
+        import logging
+        logging.error(f"Error creating task with subtasks: {e}")
+        return None
+
+def toggle_subtask(subtask_id, completed):
+    """Toggle a subtask completed status (0 or 1) and return parent task progress details"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE subtasks SET completed = ? WHERE id = ?', (int(completed), subtask_id))
+            
+            # Find parent task_id
+            cursor.execute('SELECT task_id FROM subtasks WHERE id = ?', (subtask_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.commit()
+                return None
+            task_id = row[0]
+            
+            # Compute progress
+            cursor.execute('SELECT COUNT(*), SUM(completed) FROM subtasks WHERE task_id = ?', (task_id,))
+            total, finished = cursor.fetchone()
+            progress = int((finished / total) * 100) if total > 0 else 0
+            
+            # Update parent task progress
+            cursor.execute('UPDATE tasks SET progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (progress, task_id))
+            
+            conn.commit()
+            
+            # Auto update status lifecycle
+            update_task_status_auto(task_id)
+            
+            return {
+                'task_id': task_id,
+                'progress': progress,
+                'is_completed': (progress == 100)
+            }
+    except Exception as e:
+        import logging
+        logging.error(f"Error toggling subtask: {e}")
+        return None
+
+def get_task_progress(task_id):
+    """Get the current progress of a task based on subtasks completion"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*), SUM(completed) FROM subtasks WHERE task_id = ?', (task_id,))
+            total, finished = cursor.fetchone()
+            progress = int((finished / total) * 100) if total > 0 else 0
+            return progress
+    except Exception as e:
+        import logging
+        logging.error(f"Error getting task progress: {e}")
+        return 0
+
+def check_duplicate_task(user_id, title, deadline):
+    """Check if a task with the same user, title, and deadline already exists"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id FROM tasks WHERE user_id = ? AND title = ? AND deadline = ?', (user_id, title, deadline))
+            return cursor.fetchone() is not None
+    except Exception as e:
+        import logging
+        logging.error(f"Error checking duplicate task: {e}")
+        return False
+
+def create_task_complete(user_id, title, description, category, deadline, estimated_duration, duration, confidence, priority, risk_level, status, progress, ai_generated, source_chat_message):
+    """Insert a complete task row with all enriched task metadata"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO tasks (
+                    user_id, title, description, category, deadline, estimated_duration, 
+                    duration, confidence, priority, risk_level, status, progress, 
+                    ai_generated, source_chat_message, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (
+                user_id, title, description, category, deadline, estimated_duration, 
+                duration, confidence, priority, risk_level, status, progress, 
+                ai_generated, source_chat_message
+            ))
+            conn.commit()
+            return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error creating complete task: {e}")
+        return False
+
+def get_user_tasks_filtered(user_id, search_query=None, category=None, priority=None, status=None, risk=None):
+    """Retrieve user tasks filtered by search keywords and metadata tags"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            query = "SELECT id, title, description, category, deadline, estimated_duration, duration, confidence, priority, risk_level, status, progress, created_at, updated_at, completed_at, ai_generated, source_chat_message, priority_score, completion_probability, suggested_action, risk_reason FROM tasks WHERE user_id = ?"
+            params = [user_id]
+            
+            if search_query:
+                query += " AND (title LIKE ? OR description LIKE ?)"
+                params.extend([f"%{search_query}%", f"%{search_query}%"])
+            if category:
+                query += " AND category = ?"
+                params.append(category)
+            if priority:
+                query += " AND priority = ?"
+                params.append(priority)
+            if status:
+                query += " AND status = ?"
+                params.append(status)
+            if risk:
+                query += " AND risk_level = ?"
+                params.append(risk)
+                
+            query += " ORDER BY deadline ASC, created_at DESC"
+            cursor.execute(query, params)
+            
+            tasks = []
+            for row in cursor.fetchall():
+                subtasks = []
+                cursor.execute("SELECT id, title, duration, difficulty, priority, completed, dependency FROM subtasks WHERE task_id = ? ORDER BY subtask_order ASC", (row[0],))
+                for s_row in cursor.fetchall():
+                    subtasks.append({
+                        "id": s_row[0],
+                        "title": s_row[1],
+                        "duration": s_row[2],
+                        "difficulty": s_row[3],
+                        "priority": s_row[4],
+                        "completed": bool(s_row[5]),
+                        "dependency": s_row[6]
+                    })
+                
+                tasks.append({
+                    "id": row[0],
+                    "title": row[1],
+                    "description": row[2],
+                    "category": row[3],
+                    "deadline": row[4],
+                    "estimated_duration": row[5],
+                    "duration": row[6],
+                    "confidence": row[7],
+                    "priority": row[8],
+                    "risk_level": row[9],
+                    "status": row[10],
+                    "progress": row[11],
+                    "created_at": row[12],
+                    "updated_at": row[13],
+                    "completed_at": row[14],
+                    "ai_generated": bool(row[15]),
+                    "source_chat_message": row[16],
+                    "priority_score": row[17] if row[17] is not None else 50,
+                    "completion_probability": row[18] if row[18] is not None else 100,
+                    "suggested_action": row[19] or "",
+                    "risk_reason": row[20] or "",
+                    "subtasks": subtasks
+                })
+            return tasks
+    except Exception as e:
+        import logging
+        logging.error(f"Error getting filtered tasks: {e}")
+        return []
+
+def verify_task_ownership(task_id, user_id):
+    """Ensure the user owns the task before modifying it"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id FROM tasks WHERE id = ? AND user_id = ?', (task_id, user_id))
+            return cursor.fetchone() is not None
+    except Exception as e:
+        import logging
+        logging.error(f"Error verifying task ownership: {e}")
+        return False
+
+def update_task_details(task_id, fields):
+    """Update arbitrary fields of a task dynamically"""
+    try:
+        if not fields:
+            return True
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            query = "UPDATE tasks SET "
+            params = []
+            updates = []
+            for k, v in fields.items():
+                updates.append(f"{k} = ?")
+                params.append(v)
+            query += ", ".join(updates) + ", updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            params.append(task_id)
+            cursor.execute(query, params)
+            conn.commit()
+            return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error updating task details: {e}")
+        return False
+
+def delete_task(task_id):
+    """Delete a task permanently from the database (subtasks will cascade delete)"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+            conn.commit()
+            return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error deleting task: {e}")
+        return False
+
+def update_task_status_auto(task_id):
+    """Automatically update the status of a task based on its progress and deadline"""
+    from datetime import datetime
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT deadline, progress, status FROM tasks WHERE id = ?', (task_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            
+            deadline_str, progress, current_status = row
+            if current_status == 'Cancelled':
+                return True
+                
+            new_status = 'Pending'
+            if progress == 100:
+                new_status = 'Completed'
+            else:
+                if progress > 0:
+                    new_status = 'In Progress'
+                
+                # Check for overdue
+                if deadline_str:
+                    try:
+                        # try standard YYYY-MM-DD HH:MM
+                        deadline_dt = datetime.strptime(deadline_str.strip(), '%Y-%m-%d %H:%M')
+                        if deadline_dt < datetime.now():
+                            new_status = 'Overdue'
+                    except Exception:
+                        try:
+                            # try YYYY-MM-DD
+                            deadline_dt = datetime.strptime(deadline_str.strip(), '%Y-%m-%d')
+                            if deadline_dt.date() < datetime.now().date():
+                                new_status = 'Overdue'
+                        except Exception:
+                            pass
+            
+            if new_status != current_status:
+                completed_at_val = datetime.now().strftime('%Y-%m-%d %H:%M') if new_status == 'Completed' else None
+                cursor.execute('''
+                    UPDATE tasks 
+                    SET status = ?, completed_at = ?, updated_at = CURRENT_TIMESTAMP 
+                    WHERE id = ?
+                ''', (new_status, completed_at_val, task_id))
+                conn.commit()
+            return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error updating task status automatically: {e}")
+        return False
+
+def save_daily_plan(user_id, date, plan_json):
+    """Save or update the daily plan for a user on a specific date"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO daily_plans (user_id, date, generated_plan, created_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id, date) DO UPDATE SET
+                    generated_plan = excluded.generated_plan,
+                    created_at = CURRENT_TIMESTAMP
+            ''', (user_id, date, plan_json))
+            conn.commit()
+            return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error saving daily plan: {e}")
+        return False
+
+def get_daily_plan(user_id, date):
+    """Retrieve the daily plan for a user on a specific date"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT generated_plan FROM daily_plans
+                WHERE user_id = ? AND date = ?
+            ''', (user_id, date))
+            row = cursor.fetchone()
+            return row[0] if row else None
+    except Exception as e:
+        import logging
+        logging.error(f"Error retrieving daily plan: {e}")
+        return None
+
+def log_user_activity(user_id, activity_type, details):
+    """Log user activity for recent activity feed"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO recent_activity (user_id, activity_type, details, timestamp)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (user_id, activity_type, details))
+            conn.commit()
+            return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error logging user activity: {e}")
+        return False
+
+def get_recent_activities(user_id, limit=10):
+    """Get recent activities for the user dashboard"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT activity_type, details, timestamp FROM recent_activity
+                WHERE user_id = ?
+                ORDER BY timestamp DESC LIMIT ?
+            ''', (user_id, limit))
+            rows = cursor.fetchall()
+            return [{
+                'activity_type': r[0],
+                'details': r[1],
+                'timestamp': r[2]
+            } for r in rows]
+    except Exception as e:
+        import logging
+        logging.error(f"Error retrieving user activity: {e}")
+        return []
+
+def ensure_model_sync_state(provider):
+    """Create a sync-status row for a provider if it does not exist yet."""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS model_sync_state (
+                    provider TEXT PRIMARY KEY,
+                    last_sync_at TIMESTAMP,
+                    last_success_at TIMESTAMP,
+                    status TEXT DEFAULT 'idle',
+                    last_error TEXT,
+                    failure_count INTEGER DEFAULT 0,
+                    model_count INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            cursor.execute('INSERT OR IGNORE INTO model_sync_state (provider, status) VALUES (?, ?)', (provider, 'idle'))
+            conn.commit()
+        return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error ensuring model sync state: {e}")
+        return False
+
+
+def update_model_sync_state(provider, status, error=None, model_count=None):
+    """Record the latest provider synchronization status without clearing cached models."""
+    try:
+        ensure_model_sync_state(provider)
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            if error:
+                cursor.execute('''
+                    UPDATE model_sync_state
+                    SET status = ?, last_error = ?, failure_count = failure_count + 1, updated_at = CURRENT_TIMESTAMP
+                    WHERE provider = ?
+                ''', (status, str(error)[:1000], provider))
+            else:
+                cursor.execute('''
+                    UPDATE model_sync_state
+                    SET status = ?, last_error = NULL, last_sync_at = CURRENT_TIMESTAMP,
+                        last_success_at = CURRENT_TIMESTAMP, failure_count = 0,
+                        model_count = COALESCE(?, model_count), updated_at = CURRENT_TIMESTAMP
+                    WHERE provider = ?
+                ''', (status, model_count, provider))
+            conn.commit()
+        return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error updating model sync state: {e}")
+        return False
+
+
+def get_model_sync_state():
+    """Retrieve provider sync metadata for the admin panel and diagnostics."""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT provider, last_sync_at, last_success_at, status, last_error, failure_count, model_count, updated_at
+                FROM model_sync_state
+                ORDER BY provider ASC
+            ''')
+            rows = cursor.fetchall()
+            return [{
+                'provider': row[0],
+                'last_sync_at': row[1],
+                'last_success_at': row[2],
+                'status': row[3],
+                'last_error': row[4],
+                'failure_count': row[5],
+                'model_count': row[6],
+                'updated_at': row[7]
+            } for row in rows]
+    except Exception as e:
+        import logging
+        logging.error(f"Error retrieving model sync state: {e}")
+        return []
+
+
+def get_all_api_settings():
+    """Retrieve saved provider API settings across users for admin refresh and discovery."""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, api_provider, api_key, api_model
+                FROM user_settings
+                WHERE TRIM(COALESCE(api_provider, '')) != ''
+                  AND TRIM(COALESCE(api_key, '')) != ''
+                ORDER BY id ASC
+            ''')
+            rows = cursor.fetchall()
+            return [{
+                'user_id': row[0],
+                'api_provider': row[1],
+                'api_key': row[2],
+                'api_model': row[3]
+            } for row in rows]
+    except Exception as e:
+        import logging
+        logging.error(f"Error retrieving API settings: {e}")
+        return []
+
+
+def save_api_settings(user_id, provider, api_key, model):
+    """Save user-specific API provider, key, and model settings to user_settings table"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            # Ensure settings record exists first
+            cursor.execute('INSERT OR IGNORE INTO user_settings (id) VALUES (?)', (user_id,))
+            # Update columns
+            cursor.execute('''
+                UPDATE user_settings 
+                SET api_provider = ?, api_key = ?, api_model = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (provider, api_key, model, user_id))
+            conn.commit()
+            return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error saving API settings: {e}")
+        return False
+
+def get_api_settings(user_id):
+    """Retrieve API settings for a specific user"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT api_provider, api_key, api_model FROM user_settings WHERE id = ?
+            ''', (user_id,))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'api_provider': row[0],
+                    'api_key': row[1],
+                    'api_model': row[2]
+                }
+            return None
+    except Exception as e:
+        import logging
+        logging.error(f"Error retrieving API settings: {e}")
+        return None
+
+
+def get_gamification_stats(user_id):
+    """Retrieve gamification stats for a specific user, initializing if not present"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            
+            # Ensure gamification record exists
+            cursor.execute('INSERT OR IGNORE INTO user_gamification (user_id) VALUES (?)', (user_id,))
+            conn.commit()
+            
+            # Fetch gamification stats
+            cursor.execute('''
+                SELECT xp, level, streak, last_activity_date 
+                FROM user_gamification 
+                WHERE user_id = ?
+            ''', (user_id,))
+            row = cursor.fetchone()
+            
+            xp, level, streak, last_activity_date = row if row else (0, 1, 0, None)
+            
+            # Calculate next level info
+            current_level_min_xp = ((level - 1) ** 2) * 100
+            next_level_xp = (level ** 2) * 100
+            xp_in_level = xp - current_level_min_xp
+            xp_needed = next_level_xp - current_level_min_xp
+            progress_pct = int((xp_in_level / xp_needed) * 100) if xp_needed > 0 else 0
+            
+            # Fetch badges
+            cursor.execute('''
+                SELECT badge_id, badge_name, badge_description, icon, earned_at 
+                FROM user_badges 
+                WHERE user_id = ?
+                ORDER BY earned_at DESC
+            ''', (user_id,))
+            badges_rows = cursor.fetchall()
+            badges = []
+            for b in badges_rows:
+                badges.append({
+                    'badge_id': b[0],
+                    'badge_name': b[1],
+                    'badge_description': b[2],
+                    'icon': b[3],
+                    'earned_at': b[4]
+                })
+                
+            return {
+                'xp': xp,
+                'level': level,
+                'streak': streak,
+                'last_activity_date': last_activity_date,
+                'current_level_min_xp': current_level_min_xp,
+                'next_level_xp': next_level_xp,
+                'xp_in_level': xp_in_level,
+                'xp_needed': xp_needed,
+                'progress_pct': progress_pct,
+                'badges': badges
+            }
+    except Exception as e:
+        import logging
+        logging.error(f"Error getting gamification stats: {e}")
+        return {
+            'xp': 0,
+            'level': 1,
+            'streak': 0,
+            'last_activity_date': None,
+            'current_level_min_xp': 0,
+            'next_level_xp': 100,
+            'xp_in_level': 0,
+            'xp_needed': 100,
+            'progress_pct': 0,
+            'badges': []
+        }
+
+
+def award_xp(user_id, xp_amount, reason):
+    """
+    Award XP to a user, recalculate levels, handle streaks,
+    log activities, check for level ups, and return state changes.
+    """
+    import math
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            
+            # Ensure gamification record exists
+            cursor.execute('INSERT OR IGNORE INTO user_gamification (user_id) VALUES (?)', (user_id,))
+            
+            # Get current stats
+            cursor.execute('SELECT xp, level, streak, last_activity_date FROM user_gamification WHERE user_id = ?', (user_id,))
+            row = cursor.fetchone()
+            current_xp, current_level, streak, last_date_str = row
+            
+            new_xp = current_xp + xp_amount
+            new_level = math.floor(math.sqrt(new_xp / 100)) + 1
+            
+            level_up = new_level > current_level
+            
+            # Handle streak update
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            new_streak = streak
+            if last_date_str != today_str:
+                if last_date_str:
+                    try:
+                        last_date = datetime.strptime(last_date_str, '%Y-%m-%d').date()
+                        today = datetime.now().date()
+                        delta = (today - last_date).days
+                        if delta == 1:
+                            new_streak = streak + 1
+                        elif delta > 1:
+                            new_streak = 1
+                    except Exception:
+                        new_streak = 1
+                else:
+                    new_streak = 1
+            
+            # Update database
+            cursor.execute('''
+                UPDATE user_gamification 
+                SET xp = ?, level = ?, streak = ?, last_activity_date = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE user_id = ?
+            ''', (new_xp, new_level, new_streak, today_str, user_id))
+            conn.commit()
+            
+        # Log activity
+        log_user_activity(user_id, "XP_GAIN", f"Gained {xp_amount} XP for {reason}")
+        if level_up:
+            log_user_activity(user_id, "LEVEL_UP", f"Reached Level {new_level}!")
+            
+        # Check badges
+        new_badges = check_and_award_badges(user_id)
+        
+        # Return state changes
+        return {
+            'xp_gained': xp_amount,
+            'level_up': level_up,
+            'new_level': new_level,
+            'old_level': current_level,
+            'current_xp': new_xp,
+            'streak': new_streak,
+            'reason': reason,
+            'new_badges': new_badges
+        }
+    except Exception as e:
+        import logging
+        logging.error(f"Error awarding XP: {e}")
+        return {
+            'xp_gained': xp_amount,
+            'level_up': False,
+            'new_level': 1,
+            'old_level': 1,
+            'current_xp': 0,
+            'streak': 0,
+            'reason': reason,
+            'new_badges': []
+        }
+
+
+def award_badge(user_id, badge_id, badge_name, badge_description, icon):
+    """Award a badge to a user if they don't already have it"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            
+            # Check if badge already exists for this user
+            cursor.execute('SELECT id FROM user_badges WHERE user_id = ? AND badge_id = ?', (user_id, badge_id))
+            if cursor.fetchone():
+                return False
+                
+            cursor.execute('''
+                INSERT INTO user_badges (user_id, badge_id, badge_name, badge_description, icon, earned_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (user_id, badge_id, badge_name, badge_description, icon))
+            conn.commit()
+            
+        log_user_activity(user_id, "BADGE_EARNED", f"Earned badge: {badge_name} - {badge_description}")
+        return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error awarding badge: {e}")
+        return False
+
+
+def check_and_award_badges(user_id):
+    """Check user progress and award badges if criteria met. Returns a list of newly earned badge dicts."""
+    newly_earned = []
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            
+            # Fetch completed subtasks
+            cursor.execute('SELECT COUNT(*) FROM subtasks s JOIN tasks t ON s.task_id = t.id WHERE t.user_id = ? AND s.completed = 1', (user_id,))
+            subtasks_completed = cursor.fetchone()[0]
+            
+            # Fetch completed tasks
+            cursor.execute("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status = 'Completed'", (user_id,))
+            tasks_completed = cursor.fetchone()[0]
+            
+            # Fetch daily plans
+            cursor.execute('SELECT COUNT(*) FROM daily_plans WHERE user_id = ?', (user_id,))
+            plans_count = cursor.fetchone()[0]
+            
+            # Fetch gamification level & streak
+            cursor.execute('SELECT level, streak FROM user_gamification WHERE user_id = ?', (user_id,))
+            gam_row = cursor.fetchone()
+            level, streak = gam_row if gam_row else (1, 0)
+            
+            # Fetch panic recoveries from recent activity
+            cursor.execute("SELECT COUNT(*) FROM recent_activity WHERE user_id = ? AND activity_type = 'Panic Schedule Recovery'", (user_id,))
+            panic_recoveries = cursor.fetchone()[0]
+
+        # Define badge award helper
+        def try_award(badge_id, badge_name, badge_description, icon):
+            if award_badge(user_id, badge_id, badge_name, badge_description, icon):
+                newly_earned.append({
+                    'badge_id': badge_id,
+                    'badge_name': badge_name,
+                    'badge_description': badge_description,
+                    'icon': icon
+                })
+                
+        # Evaluate badges
+        if subtasks_completed >= 1:
+            try_award('first_step', 'First Step', 'Completed your first subtask!', '🎯')
+            
+        if tasks_completed >= 1:
+            try_award('first_task', 'Initiator', 'Completed your first full task!', '🚀')
+        if tasks_completed >= 5:
+            try_award('task_master', 'Task Master', 'Completed 5 tasks!', '🏆')
+        if tasks_completed >= 15:
+            try_award('grandmaster', 'Grandmaster', 'Completed 15 tasks!', '👑')
+            
+        if plans_count >= 1:
+            try_award('first_plan', 'Daily Architect', 'Generated your first daily plan!', '✍️')
+        if plans_count >= 5:
+            try_award('planner_pro', 'Planner Pro', 'Generated 5 daily plans!', '📅')
+            
+        if level >= 5:
+            try_award('level_5', 'High Achiever', 'Reached level 5!', '⭐')
+        if level >= 10:
+            try_award('level_10', 'Elite Performer', 'Reached level 10!', '🌟')
+            
+        if streak >= 3:
+            try_award('streak_3', 'Streak Starter', 'Maintained a 3-day activity streak!', '🔥')
+        if streak >= 7:
+            try_award('streak_7', 'Unstoppable', 'Maintained a 7-day activity streak!', '⚡')
+            
+        if panic_recoveries >= 1:
+            try_award('survivor', 'Survivor', 'Successfully executed panic recovery!', '🛡️')
+            
+        return newly_earned
+    except Exception as e:
+        import logging
+        logging.error(f"Error checking and awarding badges: {e}")
+        return newly_earned
+
+
+def sync_models_to_db(provider, models_list):
+    """
+    Synchronizes fetched models for a provider:
+    - Inserts new models.
+    - Updates attributes of existing ones.
+    - Sets is_available=0 for models no longer returned by the provider.
+    """
+    try:
+        ensure_model_sync_state(provider)
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            
+            # Fetch existing model_ids for this provider (excluding custom ones)
+            cursor.execute('SELECT model_id FROM AvailableModels WHERE provider = ? AND api_owner IS NULL', (provider,))
+            existing_ids = {row[0] for row in cursor.fetchall()}
+            
+            incoming_ids = set()
+            for m in models_list:
+                model_id = m['model_id']
+                incoming_ids.add(model_id)
+                
+                cursor.execute('''
+                    INSERT INTO AvailableModels (
+                        provider, model_id, display_name, description, 
+                        supports_chat, supports_reasoning, supports_vision, supports_audio, 
+                        supports_image_generation, supports_function_calling, supports_streaming, 
+                        context_window, status, is_available, last_synced
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+                    ON CONFLICT(model_id) DO UPDATE SET
+                        display_name = excluded.display_name,
+                        description = excluded.description,
+                        supports_chat = excluded.supports_chat,
+                        supports_reasoning = excluded.supports_reasoning,
+                        supports_vision = excluded.supports_vision,
+                        supports_audio = excluded.supports_audio,
+                        supports_image_generation = excluded.supports_image_generation,
+                        supports_function_calling = excluded.supports_function_calling,
+                        supports_streaming = excluded.supports_streaming,
+                        context_window = excluded.context_window,
+                        status = excluded.status,
+                        is_available = 1,
+                        last_synced = CURRENT_TIMESTAMP
+                ''', (
+                    provider, model_id, m.get('display_name', model_id), m.get('description'),
+                    m.get('supports_chat', 1), m.get('supports_reasoning', 0), m.get('supports_vision', 0),
+                    m.get('supports_audio', 0), m.get('supports_image_generation', 0), m.get('supports_function_calling', 0),
+                    m.get('supports_streaming', 1), m.get('context_window'), m.get('status', 'active')
+                ))
+            
+            # Mark discontinued models as unavailable
+            discontinued = existing_ids - incoming_ids
+            for model_id in discontinued:
+                cursor.execute('UPDATE AvailableModels SET is_available = 0, last_synced = CURRENT_TIMESTAMP WHERE model_id = ?', (model_id,))
+                
+            conn.commit()
+        update_model_sync_state(provider, 'ready', model_count=len(models_list))
+        return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error syncing models to db: {e}")
+        update_model_sync_state(provider, 'error', error=str(e), model_count=0)
+        return False
+
+
+def get_available_models():
+    """Retrieve all available models, grouped by provider (and admin custom models)"""
+    try:
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, provider, model_id, display_name, description, 
+                       supports_chat, supports_reasoning, supports_vision, supports_audio, 
+                       supports_image_generation, supports_function_calling, supports_streaming, 
+                       context_window, status, is_available, last_synced, api_owner
+                FROM AvailableModels
+                WHERE is_available = 1
+                ORDER BY provider ASC, display_name ASC
+            ''')
+            columns = [col[0] for col in cursor.description]
+            models = []
+            for row in cursor.fetchall():
+                models.append(dict(zip(columns, row)))
+            return models
+    except Exception as e:
+        import logging
+        logging.error(f"Error loading available models: {e}")
+        return []
+
+
+def register_custom_model_db(provider, model_id, display_name, description=None, context_window=None, features=None):
+    """Allows administrators to manually register custom models"""
+    try:
+        features = features or {}
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO AvailableModels (
+                    provider, model_id, display_name, description, 
+                    supports_chat, supports_reasoning, supports_vision, supports_audio, 
+                    supports_image_generation, supports_function_calling, supports_streaming, 
+                    context_window, status, is_available, last_synced, api_owner
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 1, CURRENT_TIMESTAMP, 'admin')
+                ON CONFLICT(model_id) DO UPDATE SET
+                    provider = excluded.provider,
+                    display_name = excluded.display_name,
+                    description = excluded.description,
+                    supports_chat = excluded.supports_chat,
+                    supports_reasoning = excluded.supports_reasoning,
+                    supports_vision = excluded.supports_vision,
+                    supports_audio = excluded.supports_audio,
+                    supports_image_generation = excluded.supports_image_generation,
+                    supports_function_calling = excluded.supports_function_calling,
+                    supports_streaming = excluded.supports_streaming,
+                    context_window = excluded.context_window,
+                    is_available = 1,
+                    last_synced = CURRENT_TIMESTAMP
+            ''', (
+                provider, model_id, display_name, description,
+                features.get('supports_chat', 1), features.get('supports_reasoning', 0),
+                features.get('supports_vision', 0), features.get('supports_audio', 0),
+                features.get('supports_image_generation', 0), features.get('supports_function_calling', 0),
+                features.get('supports_streaming', 1), context_window
+            ))
+            conn.commit()
+        return True
+    except Exception as e:
+        import logging
+        logging.error(f"Error registering custom model: {e}")
+        return False
+
+

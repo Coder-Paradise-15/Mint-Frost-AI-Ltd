@@ -156,6 +156,35 @@ def load_google_credentials():
 weather_service = WeatherService(api_key=load_weather_key())
 google_client_id, google_client_secret = load_google_credentials()
 
+class GeminiCompletionsWrapper:
+    def __init__(self, completions):
+        self.completions = completions
+
+    def create(self, *args, **kwargs):
+        model = kwargs.get('model')
+        if model and model.startswith('models/'):
+            model = model.replace('models/', '')
+            kwargs['model'] = model
+        try:
+            return self.completions.create(*args, **kwargs)
+        except Exception as e:
+            err_str = str(e).lower()
+            if "404" in err_str or "not found" in err_str or "not supported" in err_str:
+                import logging
+                logging.warning(f"Gemini model {model} failed. Falling back to gemini-3.5-flash. Error: {e}")
+                kwargs['model'] = 'gemini-3.5-flash'
+                return self.completions.create(*args, **kwargs)
+            raise
+
+class GeminiChatWrapper:
+    def __init__(self, chat):
+        self.completions = GeminiCompletionsWrapper(chat.completions)
+
+class GeminiWrapper:
+    def __init__(self, client):
+        self.client = client
+        self.chat = GeminiChatWrapper(client.chat)
+
 def get_llm_client(data):
     """
     Returns (llm_client, model_name) for the requested provider.
@@ -168,20 +197,36 @@ def get_llm_client(data):
     model    = (data or {}).get('model', '').strip()
 
     if not provider or provider == 'default' or not api_key:
+        user_id = None
+        try:
+            from flask import session
+            user_id = session.get('user_id')
+        except RuntimeError:
+            pass
+        if user_id:
+            settings = database.get_api_settings(user_id)
+            if settings and settings.get('api_provider') and settings.get('api_key'):
+                provider = settings['api_provider']
+                api_key = settings['api_key'].strip()
+                model = settings.get('api_model', '').strip()
+
+    if not provider or provider == 'default' or not api_key:
         raise ValueError(
             "No API key configured. Click ☰ → API Settings, "
             "choose a provider (Groq is free!), paste your key, "
             "then pick that model in the chat bar."
         )
     
-    if provider == 'gemini' and api_key:
+    if (provider == 'gemini' or provider == 'google') and api_key:
         try:
             gemini_client = OpenAI(
                 api_key=api_key,
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
             )
-            active_model = model if model else 'gemini-1.5-flash'
-            return gemini_client, active_model
+            active_model = model if model else 'gemini-3.5-flash'
+            if active_model.startswith('models/'):
+                active_model = active_model.replace('models/', '')
+            return GeminiWrapper(gemini_client), active_model
         except Exception as e:
             app.logger.warning(f"Failed to instantiate Gemini client: {e}")
             raise
@@ -476,6 +521,12 @@ def index():
         session.clear()
         session.modified = True
         return redirect("/login?error=deactivated")
+        
+    # Self-heal client cookies from oversized chat history data
+    if 'chat_history' in session:
+        session.pop('chat_history', None)
+        session.modified = True
+        
     return render_template("index.html")
 
 
@@ -646,9 +697,203 @@ def get_current_info(location=None, lat=None, lon=None):
     
     return time_info, weather_info
 
+def parse_deadline_fallback(message, base_date=None):
+    if base_date is None:
+        # Use timezone-aware current local time or server time
+        base_date = datetime.now()
+        
+    tasks = []
+    
+    # Define categories and keywords
+    categories = {
+        'Assignment': ['assignment', 'project', 'homework', 'submission', 'submit', 'report', 'essay'],
+        'Exam': ['exam', 'test', 'practical', 'quiz', 'midterm', 'final'],
+        'Meeting': ['meeting', 'interview', 'call', 'appointment', 'sync', 'discussion', 'presentation'],
+        'Bill': ['bill', 'pay', 'payment', 'rent', 'electricity', 'water', 'gas', 'internet'],
+        'Goal': ['goal', 'target', 'milestone', 'resolution', 'commit', 'commitment'],
+        'Reminder': ['remind', 'reminder', 'todo', 'task', 'remember']
+    }
+    
+    # Days of week mapping
+    days_of_week = {
+        'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+        'friday': 4, 'saturday': 5, 'sunday': 6
+    }
+    
+    # Simple regex to split sentences if multiple tasks might be present
+    sentences = re.split(r'[.,;!]\s*|\band\b', message)
+    
+    for sentence in sentences:
+        sentence_lower = sentence.lower().strip()
+        if not sentence_lower:
+            continue
+            
+        # Detect category and title
+        category = 'Reminder' # default
+        matched_cat_word = None
+        for cat, keywords in categories.items():
+            for kw in keywords:
+                if kw in sentence_lower:
+                    category = cat
+                    matched_cat_word = kw
+                    break
+            if matched_cat_word:
+                break
+                
+        # Try to find a date
+        detected_date = None
+        date_str = ""
+        
+        # Tomorrow
+        if 'tomorrow' in sentence_lower:
+            detected_date = base_date + timedelta(days=1)
+            date_str = "tomorrow"
+        # Today
+        elif 'today' in sentence_lower:
+            detected_date = base_date
+            date_str = "today"
+        # Next week
+        elif 'next week' in sentence_lower:
+            detected_date = base_date + timedelta(days=7)
+            date_str = "next week"
+        # Specific day of week
+        else:
+            for day, day_num in days_of_week.items():
+                if day in sentence_lower:
+                    # Find next day_num day of week
+                    days_ahead = day_num - base_date.weekday()
+                    if days_ahead <= 0: # Target day already happened this week or is today
+                        days_ahead += 7
+                    detected_date = base_date + timedelta(days=days_ahead)
+                    date_str = day
+                    break
+                    
+        # Check if we found a date. If not, check if we have time "before 5 pm" or "at 3 pm" but default to today
+        time_str = None
+        time_match = re.search(r'\b(?:at|before|by)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b', sentence_lower)
+        if time_match:
+            hours = int(time_match.group(1))
+            minutes = int(time_match.group(2)) if time_match.group(2) else 0
+            am_pm = time_match.group(3)
+            
+            if am_pm == 'pm' and hours < 12:
+                hours += 12
+            elif am_pm == 'am' and hours == 12:
+                hours = 0
+                
+            time_str = f"{hours:02d}:{minutes:02d}"
+            if not detected_date:
+                # If time was specified but no date, assume today
+                detected_date = base_date
+                date_str = "today"
+                
+        if not detected_date:
+            # If no date/time indicators found, it's not a deadline
+            continue
+            
+        # Extract Task Title: try to extract a clean title from the sentence
+        title = sentence.strip()
+        # Remove common prefix patterns
+        title = re.sub(r'^(i have my|my|i need to|remind me to|i have an)\s+', '', title, flags=re.IGNORECASE)
+        # Remove date/time suffixes
+        title = re.sub(r'\b(tomorrow|today|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.*$', '', title, flags=re.IGNORECASE).strip()
+        title = re.sub(r'\b(at|before|by)\s*\d+.*$', '', title, flags=re.IGNORECASE).strip()
+        # Clean trailing prepositions/verbs
+        title = re.sub(r'\s+(is on|on|at|is)$', '', title, flags=re.IGNORECASE).strip()
+        
+        # Fallback to category + keyword if title is too short or empty
+        if len(title) < 3:
+            title = f"{category} Task"
+            
+        # Estimate duration based on category
+        durations = {
+            'Assignment': '3 hours',
+            'Exam': '2 hours',
+            'Meeting': '1 hour',
+            'Bill': '15 minutes',
+            'Goal': '5 hours',
+            'Reminder': '30 minutes'
+        }
+        duration = durations.get(category, '1 hour')
+        
+        # Calculate confidence
+        confidence = 0.5
+        if matched_cat_word:
+            confidence += 0.2
+        if time_str:
+            confidence += 0.2
+        if date_str in ['tomorrow', 'today'] or date_str in days_of_week:
+            confidence += 0.1
+        confidence = min(0.95, confidence)
+        
+        tasks.append({
+            'task_name': title,
+            'category': category,
+            'date': detected_date.strftime('%Y-%m-%d'),
+            'time': time_str or '23:59',
+            'confidence': round(confidence, 2),
+            'duration': duration
+        })
+        
+    return tasks
+
+from datetime import timedelta
+
+def is_breakdown_request(text):
+    text_lower = text.lower()
+    action_verbs = ['break', 'split', 'plan', 'create', 'steps', 'add', 'new', 'schedule', 'todo', 'to-do', 'make', 'do', 'set']
+    task_nouns = ['task', 'assignment', 'project', 'subtask', 'subtasks', 'sub-task', 'sub-tasks', 'exam', 'test', 'meeting', 'reminder', 'goal', 'bill', 'homework', 'study']
+    
+    has_action = any(w in text_lower for w in action_verbs)
+    has_noun = any(w in text_lower for w in task_nouns)
+    return (has_action and has_noun) or any(kw in text_lower for kw in ['break down', 'help me plan', 'split this', 'create task', 'add task'])
+
+def generate_fallback_subtasks(category, task_title):
+    templates = {
+        'Assignment': [
+            {'title': f'Research {task_title}', 'duration': '30 min', 'priority': 'High', 'difficulty': 'Medium'},
+            {'title': 'Draft Outline', 'duration': '30 min', 'priority': 'Medium', 'difficulty': 'Easy'},
+            {'title': 'Solve/Write Content', 'duration': '60 min', 'priority': 'High', 'difficulty': 'Hard'},
+            {'title': 'Final Review', 'duration': '30 min', 'priority': 'Low', 'difficulty': 'Easy'},
+            {'title': 'Submit Assignment', 'duration': '10 min', 'priority': 'High', 'difficulty': 'Easy'}
+        ],
+        'Exam': [
+            {'title': 'Gather Study Materials', 'duration': '20 min', 'priority': 'Medium', 'difficulty': 'Easy'},
+            {'title': 'Review Lecture Notes', 'duration': '60 min', 'priority': 'High', 'difficulty': 'Medium'},
+            {'title': 'Solve Practice Questions', 'duration': '60 min', 'priority': 'High', 'difficulty': 'Hard'},
+            {'title': 'Revise Difficult Topics', 'duration': '30 min', 'priority': 'Medium', 'difficulty': 'Medium'},
+            {'title': 'Rest and Final Prep', 'duration': '15 min', 'priority': 'Low', 'difficulty': 'Easy'}
+        ],
+        'Meeting': [
+            {'title': 'Prepare Meeting Agenda', 'duration': '15 min', 'priority': 'High', 'difficulty': 'Easy'},
+            {'title': 'Research Background Context', 'duration': '20 min', 'priority': 'Medium', 'difficulty': 'Easy'},
+            {'title': 'Attend Meeting', 'duration': '60 min', 'priority': 'High', 'difficulty': 'Medium'},
+            {'title': 'Write and Send Minutes', 'duration': '15 min', 'priority': 'Low', 'difficulty': 'Easy'}
+        ],
+        'Bill': [
+            {'title': 'Retrieve Invoice Details', 'duration': '5 min', 'priority': 'High', 'difficulty': 'Easy'},
+            {'title': 'Verify Funds Availability', 'duration': '5 min', 'priority': 'Medium', 'difficulty': 'Easy'},
+            {'title': 'Process Payment Transfer', 'duration': '10 min', 'priority': 'High', 'difficulty': 'Easy'},
+            {'title': 'File Receipt Confirmation', 'duration': '5 min', 'priority': 'Low', 'difficulty': 'Easy'}
+        ],
+        'Goal': [
+            {'title': 'Define Milestones', 'duration': '30 min', 'priority': 'High', 'difficulty': 'Medium'},
+            {'title': 'Outline Daily Habits', 'duration': '20 min', 'priority': 'Medium', 'difficulty': 'Easy'},
+            {'title': 'Take First Action Step', 'duration': '60 min', 'priority': 'High', 'difficulty': 'Hard'},
+            {'title': 'Set Up Weekly Review', 'duration': '15 min', 'priority': 'Low', 'difficulty': 'Easy'}
+        ]
+    }
+    return templates.get(category, [
+        {'title': f'Prepare context for {task_title}', 'duration': '20 min', 'priority': 'Medium', 'difficulty': 'Easy'},
+        {'title': 'Execute core task actions', 'duration': '60 min', 'priority': 'High', 'difficulty': 'Medium'},
+        {'title': 'Verify results and submit', 'duration': '15 min', 'priority': 'Low', 'difficulty': 'Easy'}
+    ])
+
+
 @app.route("/chat", methods=["POST"])
 @login_required
 def chat(is_regenerate=False):
+    detected_tasks = []
     client_ip = request.remote_addr
     
     if not check_rate_limit(client_ip):
@@ -726,12 +971,166 @@ def chat(is_regenerate=False):
     
     messages = [{"role": "system", "content": system_prompt}]
     
-    recent_history = session['chat_history'][-10:] if len(session['chat_history']) > 10 else session['chat_history']
+    recent_history = []
+    active_session_id = session.get('current_session_id')
+    if active_session_id:
+        try:
+            db_msgs = database.get_session_messages(active_session_id)
+            user_msg = None
+            for msg in db_msgs:
+                if msg['who'] == 'user':
+                    user_msg = msg['text']
+                elif msg['who'] == 'ai' and user_msg:
+                    recent_history.append({
+                        'user': user_msg,
+                        'ai': msg['text']
+                    })
+                    user_msg = None
+            recent_history = recent_history[-10:]
+        except Exception as e:
+            app.logger.error(f"Error loading chat context from DB: {e}")
+            
     for msg in recent_history:
         messages.append({"role": "user", "content": msg['user']})
         messages.append({"role": "assistant", "content": msg['ai']})
     
     messages.append({"role": "user", "content": user_message})
+
+    # Intercept live task query requests
+    user_msg_lower = user_message.lower()
+    is_coach_query = any(phrase in user_msg_lower for phrase in [
+        'give me productivity advice', 'how am i doing today', 'what should i focus on', 
+        'am i behind schedule', 'productivity advice', 'coach advice', 'coaching advice',
+        'what should i do now'
+    ])
+    
+    is_task_query = any(phrase in user_msg_lower for phrase in [
+        'show my tasks', 'what is pending', 'what should i finish today', 'list my deadlines', 
+        'my tasks', 'my deadlines', 'list tasks', 'show tasks', 'what is due'
+    ])
+    
+    is_planner_query = any(phrase in user_msg_lower for phrase in [
+        'plan my day', "generate today's schedule", 
+        "create today's study plan", 'todays plan', 'today schedule', 'my schedule'
+    ])
+    
+    is_risk_query = any(phrase in user_msg_lower for phrase in [
+        'what should i do first', 'which task is most urgent', 'am i likely to miss any deadlines',
+        'what is my highest priority', 'highest priority task', 'risk analysis', 'productivity risk'
+    ])
+    
+    if is_coach_query:
+        tasks = database.get_user_tasks_filtered(session.get('user_id')) or []
+        active_tasks = [t for t in tasks if t.get('status') != 'Completed' and t.get('status') != 'Cancelled']
+        completed_today_tasks = [t for t in tasks if t.get('status') == 'Completed']
+        overdue_tasks = [t for t in active_tasks if t.get('status') == 'Overdue']
+        
+        # Calculate stats
+        total_active_count = len(active_tasks)
+        completed_today_count = len(completed_today_tasks)
+        
+        highest_prio_task = None
+        highest_score = -1
+        for t in active_tasks:
+            score = t.get('priority_score') or 0
+            if score > highest_score:
+                highest_score = score
+                highest_prio_task = t
+                
+        upcoming_deadline_task = None
+        closest_deadline = None
+        for t in active_tasks:
+            dl_str = t.get('deadline')
+            if dl_str:
+                try:
+                    dl_date = datetime.strptime(dl_str, '%Y-%m-%d')
+                    if closest_deadline is None or dl_date < closest_deadline:
+                        closest_deadline = dl_date
+                        upcoming_deadline_task = t
+                except:
+                    pass
+
+        probs = [t.get('completion_probability') for t in active_tasks if t.get('completion_probability') is not None]
+        avg_prob = int(sum(probs) / len(probs)) if probs else 100
+        
+        tasks_summary = ""
+        for t in active_tasks[:10]:
+            tasks_summary += f"- \"{t['title']}\" (Priority Score: {t.get('priority_score') or 50}, Risk: {t.get('risk_level') or 'Safe'}, Deadline: {t.get('deadline') or 'None'})\n"
+            
+        coach_context_prompt = (
+            f"You are Mint Frost AI, the user's proactive AI productivity coach. "
+            f"Below is a live productivity audit of the user's workload:\n"
+            f"- Active tasks remaining: {total_active_count}\n"
+            f"- Tasks completed today: {completed_today_count}\n"
+            f"- Average completion probability: {avg_prob}%\n"
+            f"- Overdue tasks: {len(overdue_tasks)}\n"
+            f"- Highest priority task: \"{highest_prio_task['title'] if highest_prio_task else 'None'}\"\n"
+            f"- Nearest upcoming deadline task: \"{upcoming_deadline_task['title'] if upcoming_deadline_task else 'None'}\" (Due: {upcoming_deadline_task.get('deadline') if upcoming_deadline_task else 'N/A'})\n\n"
+            f"Active tasks details:\n{tasks_summary if tasks_summary else 'No active tasks.'}\n\n"
+            f"Please answer the user's question directly with highly personalized, data-driven, motivational, and actionable advice based on this live context. Keep your response encouraging, clear, and focused on helping them optimize execution."
+        )
+        messages = [
+            {"role": "system", "content": coach_context_prompt},
+            {"role": "user", "content": user_message}
+        ]
+    elif is_task_query:
+        tasks_context = get_tasks_context_for_ai(session.get('user_id'))
+        task_system_prompt = f"You are Mint Frost AI, the user's task management assistant. Below is the LIVE list of the user's tasks fetched from the database:\n{tasks_context}\n\nPlease answer the user's question accurately based ONLY on this list. If they ask 'what should I finish today', look for tasks that have a deadline today or are overdue. Keep your response professional, encouraging, and clear. Format lists nicely using markdown bullet points."
+        messages = [
+            {"role": "system", "content": task_system_prompt},
+            {"role": "user", "content": user_message}
+        ]
+    elif is_planner_query:
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        plan_str = database.get_daily_plan(session.get('user_id'), date_str)
+        if not plan_str:
+            tasks = database.get_user_tasks_filtered(session.get('user_id'))
+            if tasks:
+                fallback_plan = generate_local_schedule(tasks)
+                plan_str = json.dumps(fallback_plan)
+                database.save_daily_plan(session.get('user_id'), date_str, plan_str)
+            else:
+                plan_str = "[]"
+                
+        plan = json.loads(plan_str)
+        if plan:
+            formatted_plan = ""
+            for item in plan:
+                prio_badge = f" [Priority: {item['priority']}]" if item.get('priority') else ""
+                formatted_plan += f"- **{item['start_time']} - {item['end_time']}**: {item['title']}{prio_badge}\n"
+        else:
+            formatted_plan = "No tasks available to schedule. Please create some tasks first!"
+            
+        planner_system_prompt = f"You are Mint Frost AI, the user's personal planning assistant. Below is the optimized daily schedule generated for the user today:\n\n{formatted_plan}\n\nPlease present this schedule to the user in a friendly, encouraging way. If they ask 'what should I do now', identify the current recommended item based on the timeline. Keep it professional and visually appealing with markdown."
+        messages = [
+            {"role": "system", "content": planner_system_prompt},
+            {"role": "user", "content": user_message}
+        ]
+    elif is_risk_query:
+        tasks = database.get_user_tasks_filtered(session.get('user_id'))
+        active_tasks = [t for t in tasks if t.get('status') != 'Completed']
+        active_tasks.sort(key=lambda x: x.get('priority_score', 0), reverse=True)
+        
+        if active_tasks:
+            formatted_tasks = ""
+            for t in active_tasks:
+                formatted_tasks += (
+                    f"- **{t['title']}**:\n"
+                    f"  * Priority Score: {t.get('priority_score', 50)}/100\n"
+                    f"  * Risk Level: {t.get('risk_level', 'Safe')}\n"
+                    f"  * Completion Probability: {t.get('completion_probability', 100)}%\n"
+                    f"  * Suggested Action: {t.get('suggested_action')}\n"
+                    f"  * Risk Reason: {t.get('risk_reason')}\n"
+                    f"  * Deadline: {t.get('deadline') or 'None'}\n"
+                )
+        else:
+            formatted_tasks = "No active tasks in database."
+
+        risk_system_prompt = f"You are Mint Frost AI, the user's priority intelligence assistant. Below is the live priority risk analysis of the user's tasks from the database:\n\n{formatted_tasks}\n\nPlease answer the user's question accurately based on this live risk and priority intelligence. If they ask what to do first, recommend the task with the highest priority score. Keep your response encouraging, clear, and professional."
+        messages = [
+            {"role": "system", "content": risk_system_prompt},
+            {"role": "user", "content": user_message}
+        ]
 
     try:
         active_client, active_model = get_llm_client(data)
@@ -752,6 +1151,200 @@ def chat(is_regenerate=False):
         else:
             ai_reply = "⚠️ No reply from AI."
             
+        try:
+            is_breakdown = is_breakdown_request(html.unescape(user_message))
+            if is_breakdown:
+                extraction_prompt = f"""You are a precise task planning assistant.
+Analyze the following user request to create a task: "{html.unescape(user_message)}"
+Today's date is: {datetime.now().strftime('%Y-%m-%d')} ({datetime.now().strftime('%A')}).
+
+Create a concise, professional, custom title for the overall task. Break down the task into AT LEAST 4 to 6 detailed, logical, specific subtasks (checklist steps) chronological from start to finish. Do not output generic placeholders.
+
+You MUST output ONLY a valid JSON object matching this structure (do not wrap in markdown block, do not include other text):
+{{
+  "task_name": "A descriptive customized title for the task (not just a copy of the request)",
+  "category": "One of: Assignment, Exam, Meeting, Reminder, Goal, Bill, Other",
+  "date": "YYYY-MM-DD",
+  "time": "HH:MM",
+  "duration": "Estimated total time",
+  "confidence": 1.0,
+  "subtasks": [
+    {{
+      "title": "Specific action-oriented subtask title",
+      "duration": "Est. duration (e.g. 20 min)",
+      "priority": "High/Medium/Low",
+      "difficulty": "Easy/Medium/Hard",
+      "dependency": "Title of a prerequisite subtask from this list or null if none"
+    }}
+  ]
+}}
+"""
+                extraction_completion = active_client.chat.completions.create(
+                    model=active_model,
+                    messages=[{"role": "user", "content": extraction_prompt}],
+                    max_tokens=800,
+                    temperature=0.0
+                )
+                extracted_text = extraction_completion.choices[0].message.content.strip()
+                # Robust json extraction
+                json_str = extracted_text.strip()
+                first = json_str.find('{')
+                last = json_str.rfind('}')
+                if first != -1 and last != -1:
+                    json_str = json_str[first:last+1]
+                
+                try:
+                    plan_data = json.loads(json_str)
+                except Exception:
+                    try:
+                        # Clean single quote replacements for keys/values
+                        cleaned = re.sub(r"'\s*([^']*?)\s*'\s*:", r'"\1":', json_str)
+                        cleaned = cleaned.replace("'", '"')
+                        plan_data = json.loads(cleaned)
+                    except Exception:
+                        raise
+                
+                task_name = plan_data.get("task_name", "Broken Task").strip()
+                category = plan_data.get("category", "Other").strip()
+                date = plan_data.get("date", datetime.now().strftime('%Y-%m-%d')).strip()
+                time = plan_data.get("time", "23:59").strip()
+                duration = plan_data.get("duration", "1 Hour").strip()
+                confidence = float(plan_data.get("confidence", 1.0))
+                subtasks = plan_data.get("subtasks", [])
+                
+                if not subtasks:
+                    subtasks = generate_fallback_subtasks(category, task_name)
+                    
+                # Save task + subtasks to DB
+                task_id = database.create_task_with_subtasks(
+                    user_id=session.get('user_id'),
+                    title=task_name,
+                    category=category,
+                    deadline=f"{date} {time}".strip(),
+                    duration=duration,
+                    confidence=confidence,
+                    subtasks_list=subtasks
+                )
+                
+                # Fetch subtasks from DB to get generated primary key IDs
+                subtasks_db = []
+                if task_id:
+                    with database.connect_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT id, title, duration, difficulty, priority, completed, dependency FROM subtasks WHERE task_id = ? ORDER BY subtask_order ASC", (task_id,))
+                        for row in cursor.fetchall():
+                            subtasks_db.append({
+                                "id": row[0],
+                                "title": row[1],
+                                "duration": row[2],
+                                "difficulty": row[3],
+                                "priority": row[4],
+                                "completed": bool(row[5]),
+                                "dependency": row[6]
+                            })
+                
+                detected_tasks = [{
+                    "task_name": task_name,
+                    "category": category,
+                    "date": date,
+                    "time": time,
+                    "confidence": confidence,
+                    "duration": duration,
+                    "task_id": task_id,
+                    "progress": 0,
+                    "subtasks": subtasks_db
+                }]
+            else:
+                extraction_prompt = f"""You are a precise data extraction system.
+Analyze the following user message and extract any deadlines, tasks, reminders, exams, meetings, assignments, interviews, bill payments, goals, or commitments.
+Today's date is: {datetime.now().strftime('%Y-%m-%d')} ({datetime.now().strftime('%A')}).
+
+User Message: "{html.unescape(user_message)}"
+
+You MUST output ONLY a JSON array of objects. Do not wrap it in markdown code blocks. If no tasks/deadlines are detected, output [].
+Each object in the array must have EXACTLY the following structure:
+{{
+  "task_name": "Short descriptive title of the task",
+  "category": "One of: Assignment, Exam, Meeting, Reminder, Goal, Bill, Other",
+  "date": "YYYY-MM-DD",
+  "time": "HH:MM",
+  "confidence": 0.0 to 1.0,
+  "duration": "Estimated completion duration"
+}}"""
+                extraction_completion = active_client.chat.completions.create(
+                    model=active_model,
+                    messages=[{"role": "user", "content": extraction_prompt}],
+                    max_tokens=500,
+                    temperature=0.0
+                )
+                extracted_text = extraction_completion.choices[0].message.content.strip()
+                if extracted_text.startswith("```"):
+                    extracted_text = re.sub(r"^```(?:json)?\n|```$", "", extracted_text, flags=re.MULTILINE).strip()
+                
+                if extracted_text.startswith("[") and extracted_text.endswith("]"):
+                    detected_tasks = json.loads(extracted_text)
+                else:
+                    detected_tasks = parse_deadline_fallback(html.unescape(user_message))
+        except Exception as ex:
+            app.logger.warning(f"AI deadline/subtask extraction failed: {ex}. Falling back to rule-based parser.")
+            if is_breakdown:
+                fallback_tasks = parse_deadline_fallback(html.unescape(user_message))
+                if fallback_tasks:
+                    task_name = fallback_tasks[0]["task_name"]
+                    category = fallback_tasks[0]["category"]
+                    date = fallback_tasks[0]["date"]
+                    time = fallback_tasks[0]["time"]
+                    duration = fallback_tasks[0]["duration"]
+                    confidence = fallback_tasks[0]["confidence"]
+                else:
+                    task_name = "Task Breakdown"
+                    category = "Other"
+                    date = datetime.now().strftime('%Y-%m-%d')
+                    time = "23:59"
+                    duration = "1 Hour"
+                    confidence = 0.5
+                
+                subtasks = generate_fallback_subtasks(category, task_name)
+                task_id = database.create_task_with_subtasks(
+                    user_id=session.get('user_id'),
+                    title=task_name,
+                    category=category,
+                    deadline=f"{date} {time}".strip(),
+                    duration=duration,
+                    confidence=confidence,
+                    subtasks_list=subtasks
+                )
+                
+                subtasks_db = []
+                if task_id:
+                    with database.connect_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT id, title, duration, difficulty, priority, completed, dependency FROM subtasks WHERE task_id = ? ORDER BY subtask_order ASC", (task_id,))
+                        for row in cursor.fetchall():
+                            subtasks_db.append({
+                                "id": row[0],
+                                "title": row[1],
+                                "duration": row[2],
+                                "difficulty": row[3],
+                                "priority": row[4],
+                                "completed": bool(row[5]),
+                                "dependency": row[6]
+                            })
+                
+                detected_tasks = [{
+                    "task_name": task_name,
+                    "category": category,
+                    "date": date,
+                    "time": time,
+                    "confidence": confidence,
+                    "duration": duration,
+                    "task_id": task_id,
+                    "progress": 0,
+                    "subtasks": subtasks_db
+                }]
+            else:
+                detected_tasks = parse_deadline_fallback(html.unescape(user_message))
+
         if 'current_session_id' not in session:
             session['current_session_id'] = str(uuid.uuid4())
             title = user_message[:50] + '...' if len(user_message) > 50 else user_message
@@ -766,20 +1359,6 @@ def chat(is_regenerate=False):
         except:
             pass
         
-        if 'chat_history' not in session:
-            session['chat_history'] = []
-        
-        ai_reply_for_session = re.sub(r'<img[^>]*data:image/[^>]*>', '[Image Generated]', ai_reply)
-        
-        session['chat_history'].append({
-            'user': user_message,
-            'ai': ai_reply_for_session,
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        })
-        
-        if len(session['chat_history']) > 10:
-            session['chat_history'] = session['chat_history'][-10:]
-            
         session.modified = True
         
     except Exception as e:
@@ -803,8 +1382,752 @@ def chat(is_regenerate=False):
         "reply": ai_reply,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "message_count": len(session.get('chat_history', [])),
-        "session_id": session['current_session_id']
+        "session_id": session['current_session_id'],
+        "detected_tasks": detected_tasks
     })
+
+def enrich_task_with_ai(title, category, deadline, duration):
+    """Call the LLM to auto-enrich a task with priority, risk level, estimated duration, suggested start/completion times"""
+    from datetime import datetime, timedelta
+    try:
+        enrichment_prompt = f"""You are a smart task planning system. Analyze the following task details:
+Task Title: "{title}"
+Input Category: "{category or 'Other'}"
+Input Deadline: "{deadline or 'No deadline'}"
+Input Duration: "{duration or '1 Hour'}"
+
+Today's date is: {datetime.now().strftime('%Y-%m-%d')} ({datetime.now().strftime('%A')}).
+
+You MUST output ONLY a valid JSON object matching this structure:
+{{
+  "estimated_duration": "Duration (e.g. 2 Hours)",
+  "priority": "High, Medium, or Low",
+  "difficulty": "Easy, Medium, or Hard",
+  "suggested_start_time": "YYYY-MM-DD HH:MM",
+  "suggested_completion_time": "YYYY-MM-DD HH:MM",
+  "category": "Assignment, Exam, Meeting, Reminder, Goal, Bill, or Other",
+  "risk_level": "High, Medium, or Low"
+}}
+"""
+        completion = active_client.chat.completions.create(
+            model=active_model,
+            messages=[{"role": "user", "content": enrichment_prompt}],
+            max_tokens=300,
+            temperature=0.0
+        )
+        resp_text = completion.choices[0].message.content.strip()
+        if resp_text.startswith("```"):
+            resp_text = re.sub(r"^```(?:json)?\n|```$", "", resp_text, flags=re.MULTILINE).strip()
+        
+        enriched = json.loads(resp_text)
+        return enriched
+    except Exception as e:
+        app.logger.warning(f"AI Enrichment failed: {e}. Using fallback defaults.")
+        suggested_start = datetime.now().strftime('%Y-%m-%d %H:%M')
+        suggested_end = deadline if deadline else (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d %H:%M')
+        return {
+            "estimated_duration": duration or "1 Hour",
+            "priority": "Medium",
+            "difficulty": "Medium",
+            "suggested_start_time": suggested_start,
+            "suggested_completion_time": suggested_end,
+            "category": category or "Other",
+            "risk_level": "Low"
+        }
+
+def get_tasks_context_for_ai(user_id):
+    """Fetch user tasks and format them as text context for the AI"""
+    tasks = database.get_user_tasks_filtered(user_id)
+    if not tasks:
+        return "You currently have no tasks in your list."
+    
+    lines = []
+    for t in tasks:
+        deadline_str = t.get('deadline') or 'No deadline'
+        status = t.get('status') or 'Pending'
+        progress = t.get('progress') or 0
+        priority = t.get('priority') or 'Medium'
+        risk = t.get('risk_level') or 'Low'
+        lines.append(
+            f"- Task: {t['title']} | Category: {t['category']} | Status: {status} ({progress}% done) | "
+            f"Priority: {priority} | Risk: {risk} | Deadline: {deadline_str} | Est: {t.get('estimated_duration') or '1 Hour'}"
+        )
+    return "\n".join(lines)
+
+@app.route("/api/tasks/create", methods=["POST"])
+@login_required
+def api_create_task():
+    try:
+        data = request.get_json() or {}
+        title = data.get("title", "").strip()
+        category = data.get("category", "").strip()
+        deadline = data.get("deadline", "").strip()
+        duration = data.get("duration", "").strip()
+        confidence = float(data.get("confidence", 1.0))
+        description = data.get("description", "").strip()
+        
+        priority = data.get("priority", "").strip()
+        risk_level = data.get("risk_level", "").strip()
+        status = data.get("status", "").strip()
+        estimated_duration = data.get("estimated_duration", "").strip()
+        
+        if not title:
+            return jsonify({"success": False, "error": "Task title is required"}), 400
+            
+        # Format date if needed
+        if deadline and 'T' in deadline:
+            deadline = deadline.replace('T', ' ')
+            
+        # Prevent duplicates
+        if database.check_duplicate_task(session.get("user_id"), title, deadline):
+            return jsonify({"success": False, "error": "A task with this title and deadline already exists"}), 400
+
+        # Auto enrich if priority/risk/etc. are not sent (meaning it's created from chat or standard button)
+        if not priority or not risk_level:
+            enriched = enrich_task_with_ai(title, category, deadline, duration)
+            priority = enriched.get("priority", "Medium")
+            risk_level = enriched.get("risk_level", "Low")
+            estimated_duration = enriched.get("estimated_duration", duration or "1 Hour")
+            category = enriched.get("category", category or "Other")
+            if not deadline:
+                deadline = enriched.get("suggested_completion_time", "")
+        
+        if not priority: priority = "Medium"
+        if not risk_level: risk_level = "Low"
+        if not status: status = "Pending"
+        if not estimated_duration: estimated_duration = duration or "1 Hour"
+
+        success = database.create_task_complete(
+            user_id=session.get("user_id"),
+            title=title,
+            description=description,
+            category=category,
+            deadline=deadline,
+            estimated_duration=estimated_duration,
+            duration=duration,
+            confidence=confidence,
+            priority=priority,
+            risk_level=risk_level,
+            status=status,
+            progress=0,
+            ai_generated=1,
+            source_chat_message=""
+        )
+        
+        if success:
+            recalculate_task_priority_risk(session.get("user_id"), data)
+            database.log_user_activity(session.get("user_id"), "Task Created", f"Created task: {title}")
+            if deadline:
+                database.log_user_activity(session.get("user_id"), "Deadline Detected", f"Deadline set for '{title}': {deadline}")
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": "Failed to save task to database"}), 500
+    except Exception as e:
+        import traceback
+        app.logger.error(f"Error in api_create_task: {e}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/tasks", methods=["GET"])
+@login_required
+def api_get_tasks():
+    try:
+        search_query = request.args.get("q", "").strip()
+        category = request.args.get("category", "").strip()
+        priority = request.args.get("priority", "").strip()
+        status = request.args.get("status", "").strip()
+        risk = request.args.get("risk", "").strip()
+        
+        tasks = database.get_user_tasks_filtered(
+            user_id=session.get("user_id"),
+            search_query=search_query,
+            category=category,
+            priority=priority,
+            status=status,
+            risk=risk
+        )
+        return jsonify({"success": True, "tasks": tasks})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/tasks/<int:task_id>", methods=["PUT"])
+@login_required
+def api_update_task(task_id):
+    try:
+        if not database.verify_task_ownership(task_id, session.get("user_id")):
+            return jsonify({"success": False, "error": "Access denied"}), 403
+            
+        data = request.get_json() or {}
+        
+        deadline = data.get("deadline")
+        if deadline and 'T' in deadline:
+            deadline = deadline.replace('T', ' ')
+            
+        fields = {
+            "title": data.get("title"),
+            "description": data.get("description"),
+            "category": data.get("category"),
+            "deadline": deadline,
+            "estimated_duration": data.get("estimated_duration"),
+            "priority": data.get("priority"),
+            "risk_level": data.get("risk_level"),
+            "status": data.get("status"),
+            "progress": data.get("progress")
+        }
+        # Filter out None fields
+        fields = {k: v for k, v in fields.items() if v is not None}
+        
+        # Get title
+        with database.connect_db() as conn:
+            row = conn.execute("SELECT title FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            task_title = row[0] if row else f"Task #{task_id}"
+            
+        success = database.update_task_details(task_id, fields)
+        if success:
+            database.update_task_status_auto(task_id)
+            recalculate_task_priority_risk(session.get("user_id"), data)
+            
+            if fields.get("status") == "Completed" or fields.get("progress") == 100:
+                database.log_user_activity(session.get("user_id"), "Task Finished", f"Completed task: {task_title}")
+            else:
+                database.log_user_activity(session.get("user_id"), "Task Updated", f"Updated task details: {task_title}")
+                
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": "Failed to update task"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/tasks/<int:task_id>", methods=["DELETE"])
+@login_required
+def api_delete_task(task_id):
+    try:
+        if not database.verify_task_ownership(task_id, session.get("user_id")):
+            return jsonify({"success": False, "error": "Access denied"}), 403
+            
+        with database.connect_db() as conn:
+            row = conn.execute("SELECT title FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            task_title = row[0] if row else f"Task #{task_id}"
+            
+        success = database.delete_task(task_id)
+        if success:
+            database.log_user_activity(session.get("user_id"), "Task Deleted", f"Deleted task: {task_title}")
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": "Failed to delete task"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/tasks/<int:task_id>/complete", methods=["POST"])
+@login_required
+def api_complete_task(task_id):
+    try:
+        if not database.verify_task_ownership(task_id, session.get("user_id")):
+            return jsonify({"success": False, "error": "Access denied"}), 403
+            
+        with database.connect_db() as conn:
+            row = conn.execute("SELECT title FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            task_title = row[0] if row else f"Task #{task_id}"
+            
+        success = database.update_task_details(task_id, {"progress": 100, "status": "Completed"})
+        if success:
+            database.update_task_status_auto(task_id)
+            req_data = request.get_json() or {}
+            recalculate_task_priority_risk(session.get("user_id"), req_data)
+            database.log_user_activity(session.get("user_id"), "Task Finished", f"Completed task: {task_title}")
+            xp_status = database.award_xp(session.get("user_id"), 50, f"task completion: {task_title}")
+            return jsonify({"success": True, "gamification": xp_status})
+        return jsonify({"success": False, "error": "Failed to complete task"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/subtasks/<int:subtask_id>/toggle", methods=["POST"])
+@login_required
+def api_toggle_subtask(subtask_id):
+    try:
+        data = request.get_json() or {}
+        completed = data.get("completed", False)
+        
+        with database.connect_db() as conn:
+            row = conn.execute("SELECT s.title, t.title FROM subtasks s JOIN tasks t ON s.task_id = t.id WHERE s.id = ?", (subtask_id,)).fetchone()
+            subtask_title = row[0] if row else f"Subtask #{subtask_id}"
+            task_title = row[1] if row else "Task"
+            
+        result = database.toggle_subtask(subtask_id, completed)
+        if result:
+            recalculate_task_priority_risk(session.get("user_id"), data)
+            action = "Completed" if completed else "Uncompleted"
+            database.log_user_activity(session.get("user_id"), "Subtask Completed" if completed else "Subtask Updated", f"{action} subtask '{subtask_title}' on task '{task_title}'")
+            
+            xp_status = None
+            if completed:
+                user_id = session.get("user_id")
+                xp_status = database.award_xp(user_id, 15, f"subtask: {subtask_title}")
+                if result.get('is_completed'):
+                    task_xp = database.award_xp(user_id, 50, f"task completion: {task_title}")
+                    xp_status['xp_gained'] += task_xp['xp_gained']
+                    xp_status['level_up'] = xp_status['level_up'] or task_xp['level_up']
+                    xp_status['new_level'] = max(xp_status['new_level'], task_xp['new_level'])
+                    xp_status['current_xp'] = task_xp['current_xp']
+                    xp_status['new_badges'].extend(task_xp['new_badges'])
+            
+            return jsonify({
+                "success": True,
+                "task_id": result['task_id'],
+                "progress": result['progress'],
+                "is_completed": result['is_completed'],
+                "gamification": xp_status
+            })
+        return jsonify({"success": False, "error": "Subtask not found"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+def generate_local_schedule(tasks):
+    """Fallback local priority-based scheduling algorithm when LLM is unavailable"""
+    active_tasks = []
+    for t in tasks:
+        if t.get('status') == 'Completed':
+            continue
+        pending_subtasks = [s for s in t.get('subtasks', []) if not s.get('completed')]
+        t_copy = dict(t)
+        t_copy['subtasks'] = pending_subtasks
+        active_tasks.append(t_copy)
+
+    # Sort key: 1. Deadline (closest first, none last) 2. Priority 3. Risk Level
+    def parse_deadline(d_str):
+        if not d_str:
+            return datetime.max
+        for fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%d'):
+            try:
+                return datetime.strptime(d_str.strip(), fmt)
+            except:
+                pass
+        return datetime.max
+
+    priority_map = {'High': 0, 'Medium': 1, 'Low': 2}
+    risk_map = {'High': 0, 'Medium': 1, 'Low': 2}
+
+    def sort_key(tk):
+        d_val = parse_deadline(tk.get('deadline'))
+        prio_val = priority_map.get(tk.get('priority', 'Medium'), 1)
+        risk_val = risk_map.get(tk.get('risk_level', 'Low'), 2)
+        return (d_val, prio_val, risk_val)
+
+    active_tasks.sort(key=sort_key)
+
+    items_to_schedule = []
+    for t in active_tasks:
+        if t['subtasks']:
+            for s in t['subtasks']:
+                items_to_schedule.append({
+                    "title": f"{s['title']} ({t['title']})",
+                    "priority": t['priority'] or 'Medium',
+                    "duration": s.get('duration') or '30 min',
+                    "type": "subtask",
+                    "id": s['id']
+                })
+        else:
+            items_to_schedule.append({
+                "title": t['title'],
+                "priority": t['priority'] or 'Medium',
+                "duration": t.get('estimated_duration') or t.get('duration') or '45 min',
+                "type": "task",
+                "id": t['id']
+            })
+
+    from datetime import timedelta
+    current_time = datetime.now()
+    if current_time.hour < 9:
+        start_dt = current_time.replace(hour=9, minute=0, second=0, microsecond=0)
+    else:
+        rem = 15 - (current_time.minute % 15)
+        start_dt = current_time.replace(second=0, microsecond=0) + timedelta(minutes=rem)
+
+    schedule = []
+    accumulated_work = 0
+
+    def parse_duration_minutes(dur_str):
+        if not dur_str:
+            return 30
+        dur_str = str(dur_str).lower().strip()
+        h_match = re.search(r'(\d+)\s*(?:hour|hr|h)', dur_str)
+        m_match = re.search(r'(\d+)\s*(?:min|m)', dur_str)
+        
+        minutes = 0
+        if h_match:
+            minutes += int(h_match.group(1)) * 60
+        if m_match:
+            minutes += int(m_match.group(1))
+        
+        if minutes == 0:
+            raw_match = re.match(r'^\d+$', dur_str)
+            if raw_match:
+                minutes = int(dur_str)
+            else:
+                minutes = 30
+        return minutes
+
+    for item in items_to_schedule:
+        item_dur = parse_duration_minutes(item['duration'])
+        
+        if accumulated_work >= 90:
+            break_start = start_dt.strftime('%I:%M %p')
+            start_dt += timedelta(minutes=15)
+            break_end = start_dt.strftime('%I:%M %p')
+            schedule.append({
+                "start_time": break_start,
+                "end_time": break_end,
+                "type": "break",
+                "title": "☕ Short Break",
+                "priority": "Low",
+                "id": None
+            })
+            accumulated_work = 0
+
+        start_str = start_dt.strftime('%I:%M %p')
+        start_dt += timedelta(minutes=item_dur)
+        end_str = start_dt.strftime('%I:%M %p')
+
+        schedule.append({
+            "start_time": start_str,
+            "end_time": end_str,
+            "type": item['type'],
+            "title": item['title'],
+            "priority": item['priority'],
+            "id": item['id']
+        })
+        accumulated_work += item_dur
+
+    return schedule
+
+@app.route("/api/planner/generate", methods=["POST"])
+@login_required
+def api_generate_plan():
+    try:
+        data = request.get_json() or {}
+        user_id = session.get("user_id")
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        tasks = database.get_user_tasks_filtered(user_id)
+        if not tasks:
+            database.save_daily_plan(user_id, date_str, "[]")
+            return jsonify({"success": True, "plan": []})
+            
+        ai_success = False
+        generated_plan = []
+        try:
+            active_client, active_model = get_llm_client(data)
+            
+            tasks_context = ""
+            for idx, t in enumerate(tasks):
+                if t.get('status') == 'Completed':
+                    continue
+                deadline_val = t.get('deadline') or 'None'
+                tasks_context += f"- Task ID {t['id']}: \"{t['title']}\" (Category: {t['category']}, Priority: {t['priority']}, Risk: {t['risk_level']}, Deadline: {deadline_val}, Duration: {t.get('estimated_duration') or '45m'})\n"
+                pending_subtasks = [s for s in t.get('subtasks', []) if not s.get('completed')]
+                for sub in pending_subtasks:
+                    tasks_context += f"   * Subtask ID {sub['id']}: \"{sub['title']}\" (Duration: {sub.get('duration') or '20m'}, Difficulty: {sub.get('difficulty') or 'Medium'}, Dependency: {sub.get('dependency') or 'None'})\n"
+            
+            current_time_str = datetime.now().strftime('%I:%M %p')
+            prompt = f"""You are an AI Smart Daily Planner assistant for Mint Frost AI.
+Today's date is {date_str} and the current local time is {current_time_str}.
+Below are the user's active tasks and pending subtasks:
+{tasks_context}
+
+Please organize these into a structured, chronological daily planner schedule starting from {current_time_str}.
+Ensure you follow these rules:
+1. Prioritize tasks with urgent deadlines (today or tomorrow) and high-priority / high-risk tasks.
+2. Order dependent subtasks after their prerequisites.
+3. Insert 10-15 minute breaks ("☕ Short Break", type: "break") after periods of continuous work exceeding 60-90 minutes.
+4. Output ONLY a valid JSON list. Do not include markdown code fences, headers, or any conversational text.
+
+JSON Schema format:
+[
+  {{
+    "start_time": "04:00 PM",
+    "end_time": "04:30 PM",
+    "type": "task or subtask or break",
+    "title": "Title description",
+    "priority": "High or Medium or Low",
+    "id": task_id_or_subtask_id_integer_or_null
+  }}
+]
+"""
+            completion = active_client.chat.completions.create(
+                model=active_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1500,
+                temperature=0.2
+            )
+            raw_text = completion.choices[0].message.content.strip()
+            if raw_text.startswith("```"):
+                raw_text = re.sub(r"^```(?:json)?\n|```$", "", raw_text, flags=re.MULTILINE).strip()
+            
+            generated_plan = json.loads(raw_text)
+            if isinstance(generated_plan, list):
+                ai_success = True
+        except Exception as e:
+            app.logger.warning(f"AI planner generation failed: {e}. Falling back to priority-based local scheduler.")
+            
+        if not ai_success:
+            generated_plan = generate_local_schedule(tasks)
+            
+        plan_json_str = json.dumps(generated_plan)
+        database.save_daily_plan(user_id, date_str, plan_json_str)
+        recalculate_task_priority_risk(user_id, data)
+        database.log_user_activity(user_id, "Planner Generated", f"Optimized daily schedule created for {date_str}")
+        xp_status = database.award_xp(user_id, 30, "daily plan generation")
+        return jsonify({"success": True, "plan": generated_plan, "fallback": not ai_success, "gamification": xp_status})
+    except Exception as e:
+        import traceback
+        app.logger.error(f"Error in api_generate_plan: {e}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/planner/current", methods=["GET"])
+@login_required
+def api_get_current_plan():
+    try:
+        user_id = session.get("user_id")
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        plan_str = database.get_daily_plan(user_id, date_str)
+        plan = json.loads(plan_str) if plan_str else None
+        return jsonify({"success": True, "plan": plan})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/planner/regenerate", methods=["POST"])
+@login_required
+def api_regenerate_plan():
+    return api_generate_plan()
+
+@app.route("/api/gamification/stats", methods=["GET"])
+@login_required
+def api_gamification_stats():
+    try:
+        user_id = session.get("user_id")
+        stats = database.get_gamification_stats(user_id)
+        return jsonify({"success": True, "stats": stats})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+def recalculate_task_priority_risk(user_id, data=None):
+    """
+    Recalculates priority_score, completion_probability, risk_level, suggested_action, and risk_reason
+    for all active user tasks. If AI key is present, queries LLM; otherwise uses weighted calculation.
+    """
+    try:
+        tasks = database.get_user_tasks_filtered(user_id)
+        if not tasks:
+            return True
+
+        # Try to use AI if client is configured
+        ai_success = False
+        if data:
+            try:
+                active_client, active_model = get_llm_client(data)
+                
+                # Context formatting
+                tasks_context = ""
+                for t in tasks:
+                    if t.get('status') == 'Completed':
+                        continue
+                    deadline_val = t.get('deadline') or 'None'
+                    tasks_context += f"- Task ID {t['id']}: \"{t['title']}\" (Category: {t['category']}, Priority: {t['priority']}, Risk: {t['risk_level']}, Deadline: {deadline_val}, Progress: {t['progress']}%, Duration: {t.get('estimated_duration') or '45m'})\n"
+                    pending_subtasks = [s for s in t.get('subtasks', []) if not s.get('completed')]
+                    for sub in pending_subtasks:
+                        tasks_context += f"   * Subtask ID {sub['id']}: \"{sub['title']}\" (Duration: {sub.get('duration') or '20m'}, Difficulty: {sub.get('difficulty') or 'Medium'})\n"
+
+                current_time_str = datetime.now().strftime('%Y-%m-%d %I:%M %p')
+                prompt = f"""You are the AI Priority Decision Engine for Mint Frost AI.
+Current time is {current_time_str}.
+Analyze the active tasks and subtasks for this user:
+{tasks_context}
+
+For each task, calculate:
+1. priority_score: integer from 0 to 100 based on urgency, priority badge, subtasks count, progress.
+2. risk_level: string (one of: Safe, Attention, Critical, Overdue).
+   - Overdue if deadline passed.
+   - Critical if remaining time < estimated duration.
+   - Attention if tight timeline.
+   - Safe if ample time remains.
+3. completion_probability: integer from 0 to 100 representing probability of completion before deadline.
+4. suggested_action: string (short actionable recommendation, e.g. "Start immediately", "Finish within the next hour", "Complete after X").
+5. risk_reason: string (brief explanation of risk level).
+
+Output ONLY a valid JSON list. Do not include markdown code fences or conversational text.
+JSON format:
+[
+  {{
+    "id": task_id_integer,
+    "priority_score": score_integer,
+    "risk_level": "Safe/Attention/Critical/Overdue",
+    "completion_probability": probability_integer,
+    "suggested_action": "action_string",
+    "risk_reason": "reason_string"
+  }}
+]
+"""
+                completion = active_client.chat.completions.create(
+                    model=active_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=2000,
+                    temperature=0.1
+                )
+                raw_text = completion.choices[0].message.content.strip()
+                if raw_text.startswith("```"):
+                    raw_text = re.sub(r"^```(?:json)?\n|```$", "", raw_text, flags=re.MULTILINE).strip()
+                
+                results = json.loads(raw_text)
+                if isinstance(results, list):
+                    for item in results:
+                        task_id = item.get('id')
+                        database.update_task_details(task_id, {
+                            "priority_score": int(item.get('priority_score', 50)),
+                            "risk_level": item.get('risk_level', 'Safe'),
+                            "completion_probability": int(item.get('completion_probability', 100)),
+                            "suggested_action": item.get('suggested_action', ''),
+                            "risk_reason": item.get('risk_reason', '')
+                        })
+                    ai_success = True
+            except Exception as e:
+                app.logger.warning(f"AI Recalculation failed: {e}. Falling back to programmatic engine.")
+
+        if not ai_success:
+            # Local weighted algorithm fallback
+            for t in tasks:
+                task_id = t['id']
+                if t.get('status') == 'Completed':
+                    database.update_task_details(task_id, {
+                        "priority_score": 0,
+                        "risk_level": "Safe",
+                        "completion_probability": 100,
+                        "suggested_action": "Task completed!",
+                        "risk_reason": "All items finished."
+                    })
+                    continue
+
+                # Parse deadline
+                deadline_str = t.get('deadline')
+                is_overdue = False
+                hours_remaining = 168.0
+
+                if deadline_str:
+                    try:
+                        deadline_dt = None
+                        for fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%d'):
+                            try:
+                                deadline_dt = datetime.strptime(deadline_str.strip(), fmt)
+                                break
+                            except:
+                                pass
+                        if deadline_dt:
+                            if deadline_dt < datetime.now():
+                                is_overdue = True
+                            else:
+                                hours_remaining = (deadline_dt - datetime.now()).total_seconds() / 3600.0
+                    except:
+                        pass
+
+                # Parse task duration helper
+                def parse_duration_hours(dur_str):
+                    if not dur_str:
+                        return 1.0
+                    dur_str = str(dur_str).lower().strip()
+                    h_match = re.search(r'(\d+)\s*(?:hour|hr|h)', dur_str)
+                    m_match = re.search(r'(\d+)\s*(?:min|m)', dur_str)
+                    hours = 0.0
+                    if h_match:
+                        hours += float(h_match.group(1))
+                    if m_match:
+                        hours += float(m_match.group(1)) / 60.0
+                    if hours == 0.0:
+                        try:
+                            hours = float(dur_str)
+                        except:
+                            hours = 1.0
+                    return hours
+
+                work_remaining = parse_duration_hours(t.get('estimated_duration'))
+                pending_subtasks = [s for s in t.get('subtasks', []) if not s.get('completed')]
+                for sub in pending_subtasks:
+                    work_remaining += parse_duration_hours(sub.get('duration'))
+
+                if is_overdue:
+                    database.update_task_details(task_id, {
+                        "priority_score": 100,
+                        "risk_level": "Overdue",
+                        "completion_probability": 0,
+                        "suggested_action": "Deadline missed. Take immediate action.",
+                        "risk_reason": "Task deadline has already passed."
+                    })
+                    continue
+
+                progress = t.get('progress') or 0
+                time_ratio = work_remaining / max(hours_remaining, 0.1)
+                prob = int(progress + (100 - progress) * (1.0 - min(time_ratio, 1.0)))
+                prob = max(0, min(100, prob))
+
+                base_urgency = 0.0
+                if hours_remaining <= 24:
+                    base_urgency = 50.0 * (1.0 - (hours_remaining / 24.0))
+                elif hours_remaining <= 72:
+                    base_urgency = 30.0 * (1.0 - (hours_remaining / 72.0))
+                else:
+                    base_urgency = 10.0
+
+                prio_map = {'High': 30, 'Medium': 15, 'Low': 0}
+                prio_weight = prio_map.get(t.get('priority', 'Medium'), 15)
+                progress_weight = (100 - progress) * 0.2
+                subtask_weight = min(len(pending_subtasks) * 2, 10)
+                
+                score = int(base_urgency + prio_weight + progress_weight + subtask_weight)
+                score = max(0, min(100, score))
+
+                risk = "Safe"
+                reason = "Sufficient time remains."
+                if hours_remaining < work_remaining:
+                    risk = "Critical"
+                    reason = "Estimated work exceeds remaining available time."
+                elif hours_remaining < work_remaining * 1.5:
+                    risk = "High"
+                    reason = "Tight deadline relative to remaining work duration."
+                elif hours_remaining < work_remaining * 2.5:
+                    risk = "Attention"
+                    reason = "Task is approaching; monitor completion rate."
+
+                action = "Proceed at your own pace."
+                if risk == "Critical":
+                    action = "Estimated work exceeds remaining time. Start immediately."
+                elif risk == "High":
+                    action = "Due soon. Finish within the next hour."
+                elif len(pending_subtasks) > 2:
+                    action = "Break this task into smaller pieces."
+                elif t.get('priority') == 'High':
+                    action = "High priority item. Focus today."
+
+                database.update_task_details(task_id, {
+                    "priority_score": score,
+                    "risk_level": risk,
+                    "completion_probability": prob,
+                    "suggested_action": action,
+                    "risk_reason": reason
+                })
+
+        return True
+    except Exception as e:
+        import traceback
+        app.logger.error(f"Error in recalculate_task_priority_risk: {e}\n{traceback.format_exc()}")
+        return False
+
+@app.route("/api/recalculate", methods=["POST"])
+@login_required
+def api_recalculate_tasks():
+    try:
+        data = request.get_json() or {}
+        user_id = session.get("user_id")
+        success = recalculate_task_priority_risk(user_id, data)
+        if success:
+            tasks = database.get_user_tasks_filtered(user_id)
+            return jsonify({"success": True, "tasks": tasks})
+        return jsonify({"success": False, "error": "Recalculation failed"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/api/sessions/<session_id>/load", methods=["POST"])
 @login_required
@@ -812,22 +2135,6 @@ def load_session(session_id):
     try:
         messages = database.get_session_messages(session_id)
         session['current_session_id'] = session_id
-        
-        chat_history = []
-        user_msg = None
-        for msg in messages:
-            if msg['who'] == 'user':
-                user_msg = msg['text']
-            elif msg['who'] == 'ai' and user_msg:
-                chat_history.append({
-                    'user': user_msg,
-                    'ai': msg['text'],
-                    'timestamp': msg.get('timestamp', datetime.now(timezone.utc).isoformat())
-                })
-                user_msg = None
-        
-        # Only keep last 10 pairs in session cookie (full history is in DB)
-        session['chat_history'] = chat_history[-10:]
         session.modified = True
         return jsonify({"success": True, "messages": messages})
     except Exception as e:
@@ -839,8 +2146,10 @@ def get_sessions():
     try:
         sessions = database.get_recent_sessions(user_id=session.get('user_id'))
         return jsonify({"sessions": sessions})
-    except:
-        return jsonify({"error": "Database error"}), 500
+    except Exception as e:
+        import traceback
+        app.logger.error(f"Error in get_sessions: {e}\n{traceback.format_exc()}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/sessions/<session_id>", methods=["GET"])
 @login_required
@@ -1068,6 +2377,22 @@ def theme_settings():
         except Exception as e:
             return jsonify({"error": "Failed to save theme"}), 500
     return jsonify({"error": "Invalid theme"}), 400
+
+@app.route("/api/settings/sync", methods=["GET", "POST"])
+@login_required
+def api_settings_sync():
+    user_id = session.get('user_id')
+    if request.method == "POST":
+        data = request.get_json() or {}
+        provider = data.get('api_provider')
+        api_key = data.get('api_key', '').strip()
+        model = data.get('api_model', '').strip()
+        success = database.save_api_settings(user_id, provider, api_key, model)
+        return jsonify({"success": success})
+    
+    # GET method
+    settings = database.get_api_settings(user_id)
+    return jsonify({"success": True, "settings": settings or {}})
 
 @app.route("/api/custom-theme", methods=["POST", "DELETE"])
 @login_required
@@ -1424,7 +2749,12 @@ def google_callback():
 
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     try:
-        resp = requests.post(token_url, data=data, headers=headers, timeout=10)
+        try:
+            resp = requests.post(token_url, data=data, headers=headers, timeout=10)
+        except requests.exceptions.SSLError:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            resp = requests.post(token_url, data=data, headers=headers, timeout=10, verify=False)
         if resp.status_code != 200:
             err_msg = f"Token exchange failed: {resp.text}"
             return render_template('google_callback.html', error=err_msg) if 'text/html' in request.headers.get('Accept', '') else jsonify({'error': err_msg}), 400
@@ -1441,7 +2771,12 @@ def google_callback():
 
         # fetch userinfo and persist tokens
         headers = {'Authorization': f'Bearer {access_token}'}
-        me_resp = requests.get('https://openidconnect.googleapis.com/v1/userinfo', headers=headers, timeout=10)
+        try:
+            me_resp = requests.get('https://openidconnect.googleapis.com/v1/userinfo', headers=headers, timeout=10)
+        except requests.exceptions.SSLError:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            me_resp = requests.get('https://openidconnect.googleapis.com/v1/userinfo', headers=headers, timeout=10, verify=False)
         if me_resp.status_code != 200:
             raise Exception(f"Google userinfo request failed with status {me_resp.status_code}: {me_resp.text}")
             
@@ -1559,7 +2894,12 @@ def google_me():
 
     headers = {'Authorization': f'Bearer {access_token}'}
     try:
-        resp = requests.get('https://openidconnect.googleapis.com/v1/userinfo', headers=headers, timeout=10)
+        try:
+            resp = requests.get('https://openidconnect.googleapis.com/v1/userinfo', headers=headers, timeout=10)
+        except requests.exceptions.SSLError:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            resp = requests.get('https://openidconnect.googleapis.com/v1/userinfo', headers=headers, timeout=10, verify=False)
         if resp.status_code == 200:
             return jsonify(resp.json())
         return jsonify({'error': 'Failed to fetch profile', 'details': resp.text}), resp.status_code
@@ -1721,6 +3061,220 @@ def api_user_delete():
 # --- end Spotify interaction ---
 
 
+def sync_provider_models(provider, api_key):
+    if not provider or not api_key:
+        return False
+    try:
+        import requests
+        parsed_models = []
+        provider_key = provider.lower().strip()
+        
+        if provider_key == 'openai':
+            resp = requests.get("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
+            resp.raise_for_status()
+            data = resp.json().get('data', [])
+            for m in data:
+                m_id = m['id']
+                if not any(keyword in m_id for keyword in ['gpt', 'o1', 'o3', 'davinci', 'curie', 'babbage', 'ada']):
+                    continue
+                display_name = m_id
+                if 'gpt-4o-mini' in m_id: display_name = 'GPT-4o Mini'
+                elif 'gpt-4o' in m_id: display_name = 'GPT-4o'
+                elif 'gpt-4-turbo' in m_id: display_name = 'GPT-4 Turbo'
+                elif 'o1' in m_id: display_name = 'o1 Reasoning'
+                elif 'o3' in m_id: display_name = 'o3 Reasoning'
+                
+                supports_reasoning = 1 if ('o1' in m_id or 'o3' in m_id) else 0
+                supports_vision = 1 if ('vision' in m_id or 'gpt-4o' in m_id) else 0
+                supports_function_calling = 1 if ('gpt-4' in m_id or 'gpt-3.5' in m_id or 'o1' in m_id) else 0
+                context_window = 128000
+                if 'gpt-3.5' in m_id: context_window = 16385
+                elif 'gpt-4' in m_id and '32k' in m_id: context_window = 32768
+                elif 'gpt-4' in m_id: context_window = 8192
+                
+                parsed_models.append({
+                    "model_id": m_id,
+                    "display_name": display_name,
+                    "description": f"Official OpenAI model: {m_id}",
+                    "supports_chat": 1,
+                    "supports_reasoning": supports_reasoning,
+                    "supports_vision": supports_vision,
+                    "supports_audio": 1 if 'audio' in m_id else 0,
+                    "supports_image_generation": 0,
+                    "supports_function_calling": supports_function_calling,
+                    "supports_streaming": 1,
+                    "context_window": context_window,
+                    "status": "active"
+                })
+                
+        elif provider_key in ('gemini', 'google'):
+            url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json().get('models', [])
+            for m in data:
+                m_name = m['name'].replace('models/', '')
+                if 'generateContent' not in str(m.get('supportedGenerationMethods', [])):
+                    continue
+                display_name = m.get('displayName', m_name)
+                supports_reasoning = 1 if 'thinking' in m_name.lower() else 0
+                supports_vision = 1 if any(w in m_name.lower() for w in ['vision', 'flash', 'pro', 'exp']) else 0
+                context_window = m.get('inputTokenLimit', 1048576)
+                
+                parsed_models.append({
+                    "model_id": m_name,
+                    "display_name": display_name,
+                    "description": m.get('description', f"Official Google Gemini model: {m_name}"),
+                    "supports_chat": 1,
+                    "supports_reasoning": supports_reasoning,
+                    "supports_vision": supports_vision,
+                    "supports_audio": 1 if 'audio' in m_name else 0,
+                    "supports_image_generation": 0,
+                    "supports_function_calling": 1 if 'pro' in m_name or 'flash' in m_name else 0,
+                    "supports_streaming": 1,
+                    "context_window": context_window,
+                    "status": "active"
+                })
+                
+        elif provider_key == 'anthropic':
+            try:
+                resp = requests.get("https://api.anthropic.com/v1/models", headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01"
+                }, timeout=10)
+                resp.raise_for_status()
+                data = resp.json().get('data', [])
+                for m in data:
+                    m_id = m['id']
+                    display_name = m_id.replace('claude-', '').replace('-', ' ').title()
+                    parsed_models.append({
+                        "model_id": m_id,
+                        "display_name": display_name,
+                        "description": f"Official Anthropic Claude model: {m_id}",
+                        "supports_chat": 1,
+                        "supports_reasoning": 1 if 'thinking' in m_id else 0,
+                        "supports_vision": 1 if '3' in m_id else 0,
+                        "supports_audio": 0,
+                        "supports_image_generation": 0,
+                        "supports_function_calling": 1,
+                        "supports_streaming": 1,
+                        "context_window": 200000,
+                        "status": "active"
+                    })
+            except Exception:
+                fallback_models = [
+                    {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "context": 200000, "vision": 1},
+                    {"id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku", "context": 200000, "vision": 0},
+                    {"id": "claude-3-opus-20240229", "name": "Claude 3 Opus", "context": 200000, "vision": 1}
+                ]
+                for fm in fallback_models:
+                    parsed_models.append({
+                        "model_id": fm["id"],
+                        "display_name": fm["name"],
+                        "description": f"Standard fallback Anthropic model: {fm['id']}",
+                        "supports_chat": 1,
+                        "supports_reasoning": 0,
+                        "supports_vision": fm["vision"],
+                        "supports_audio": 0,
+                        "supports_image_generation": 0,
+                        "supports_function_calling": 1,
+                        "supports_streaming": 1,
+                        "context_window": fm["context"],
+                        "status": "active"
+                    })
+                    
+        elif provider_key == 'groq':
+            resp = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
+            resp.raise_for_status()
+            data = resp.json().get('data', [])
+            for m in data:
+                m_id = m['id']
+                display_name = m_id
+                supports_reasoning = 1 if 'r1' in m_id.lower() or 'reasoning' in m_id.lower() else 0
+                context_window = 8192
+                if '8192' in m_id: context_window = 8192
+                elif '32768' in m_id: context_window = 32768
+                elif '70b' in m_id.lower(): context_window = 128000
+                elif 'r1' in m_id.lower(): context_window = 128000
+                
+                parsed_models.append({
+                    "model_id": m_id,
+                    "display_name": display_name,
+                    "description": f"Official Groq model: {m_id}",
+                    "supports_chat": 1,
+                    "supports_reasoning": supports_reasoning,
+                    "supports_vision": 1 if 'vision' in m_id.lower() else 0,
+                    "supports_audio": 0,
+                    "supports_image_generation": 0,
+                    "supports_function_calling": 1,
+                    "supports_streaming": 1,
+                    "context_window": context_window,
+                    "status": "active"
+                })
+                
+        elif provider_key == 'openrouter':
+            resp = requests.get("https://openrouter.ai/api/v1/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
+            resp.raise_for_status()
+            data = resp.json().get('data', [])
+            for m in data:
+                m_id = m['id']
+                display_name = m.get('name', m_id)
+                context_window = m.get('context_length', 8192)
+                features = m.get('architecture', {})
+                supports_reasoning = 1 if 'reasoning' in str(m.get('description', '')).lower() or 'r1' in m_id or 'o1' in m_id else 0
+                supports_vision = 1 if 'vision' in str(features.get('modalities', [])).lower() or 'vision' in m_id else 0
+                
+                parsed_models.append({
+                    "model_id": m_id,
+                    "display_name": display_name,
+                    "description": m.get('description', f"OpenRouter model: {m_id}"),
+                    "supports_chat": 1,
+                    "supports_reasoning": supports_reasoning,
+                    "supports_vision": supports_vision,
+                    "supports_audio": 0,
+                    "supports_image_generation": 0,
+                    "supports_function_calling": 1 if m.get('function_calling') else 0,
+                    "supports_streaming": 1,
+                    "context_window": context_window,
+                    "status": "active"
+                })
+                
+        elif provider_key == 'mistral':
+            resp = requests.get("https://api.mistral.ai/v1/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
+            resp.raise_for_status()
+            data = resp.json().get('data', [])
+            for m in data:
+                m_id = m['id']
+                display_name = m_id
+                context_window = 32000
+                if 'large' in m_id: context_window = 128000
+                elif 'codestral' in m_id: context_window = 32000
+                
+                parsed_models.append({
+                    "model_id": m_id,
+                    "display_name": display_name,
+                    "description": f"Official Mistral model: {m_id}",
+                    "supports_chat": 1,
+                    "supports_reasoning": 0,
+                    "supports_vision": 1 if 'pixtral' in m_id.lower() else 0,
+                    "supports_audio": 0,
+                    "supports_image_generation": 0,
+                    "supports_function_calling": 1,
+                    "supports_streaming": 1,
+                    "context_window": context_window,
+                    "status": "active"
+                })
+        
+        if parsed_models:
+            database.sync_models_to_db(provider_key, parsed_models)
+            return True
+        return False
+    except Exception as e:
+        import logging
+        logging.error(f"Error in sync_provider_models for {provider}: {e}")
+        return False
+
+
 @app.route('/api/fetch-models', methods=['POST'])
 @login_required
 def fetch_models():
@@ -1731,59 +3285,92 @@ def fetch_models():
     if not provider or not api_key:
         return jsonify({"error": "Missing provider or API key"}), 400
         
+    sync_provider_models(provider, api_key)
+    models = database.get_available_models()
+    provider_models = [m['model_id'] for m in models if m['provider'] == provider.lower().strip()]
+    return jsonify({"models": provider_models})
+
+
+@app.route('/api/settings/models', methods=['GET'])
+@login_required
+def api_get_models():
     try:
-        import requests
-        if provider == 'openai':
-            resp = requests.get("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
-            resp.raise_for_status()
-            models = [m['id'] for m in resp.json().get('data', []) if 'gpt' in m['id'] or 'o1' in m['id'] or 'o3' in m['id']]
-            # sort alphabetically
-            models.sort()
-            return jsonify({"models": models})
-            
-        elif provider == 'gemini':
-            url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-            models = [m['name'].replace('models/', '') for m in resp.json().get('models', []) if 'gemini' in m['name']]
-            models.sort()
-            return jsonify({"models": models})
-            
-        elif provider == 'groq':
-            resp = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
-            resp.raise_for_status()
-            models = [m['id'] for m in resp.json().get('data', [])]
-            models.sort()
-            return jsonify({"models": models})
-            
-        elif provider == 'openrouter':
-            resp = requests.get("https://openrouter.ai/api/v1/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
-            resp.raise_for_status()
-            models = [m['id'] for m in resp.json().get('data', [])]
-            models.sort()
-            return jsonify({"models": models})
-            
-        elif provider == 'mistral':
-            resp = requests.get("https://api.mistral.ai/v1/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
-            resp.raise_for_status()
-            models = [m['id'] for m in resp.json().get('data', [])]
-            models.sort()
-            return jsonify({"models": models})
-            
-        elif provider == 'anthropic':
-            resp = requests.get("https://api.anthropic.com/v1/models", headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01"
-            }, timeout=10)
-            resp.raise_for_status()
-            models = [m['id'] for m in resp.json().get('data', [])]
-            models.sort()
-            return jsonify({"models": models})
-            
+        models = database.get_available_models()
+        return jsonify({"success": True, "models": models})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/settings/models/sync', methods=['POST'])
+@login_required
+def api_sync_models():
+    data = request.get_json() or {}
+    provider = data.get('provider')
+    api_key = data.get('api_key', '').strip()
+    
+    if not provider or not api_key:
+        return jsonify({"success": False, "error": "Missing provider or API key"}), 400
         
-    return jsonify({"error": "Unsupported provider"}), 400
+    success = sync_provider_models(provider, api_key)
+    if success:
+        return jsonify({"success": True})
+    return jsonify({"success": False, "error": "Sync failed. Kept last successful sync list."}), 500
+
+
+@app.route('/api/admin/models/custom', methods=['POST'])
+@login_required
+def api_register_custom_model():
+    user_id = session.get('user_id')
+    user = database.get_user_secure(user_id)
+    if not user or not user.get('is_admin'):
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+        
+    data = request.get_json() or {}
+    provider = data.get('provider')
+    model_id = data.get('model_id')
+    display_name = data.get('display_name')
+    description = data.get('description', '')
+    context_window = data.get('context_window')
+    features = data.get('features', {})
+    
+    if not provider or not model_id or not display_name:
+        return jsonify({"success": False, "error": "Missing required fields"}), 400
+        
+    success = database.register_custom_model_db(provider, model_id, display_name, description, context_window, features)
+    if success:
+        return jsonify({"success": True})
+    return jsonify({"success": False, "error": "Failed to register custom model"}), 500
+
+@app.route('/api/admin/models/status', methods=['GET'])
+@login_required
+def api_admin_model_status():
+    user_id = session.get('user_id')
+    user = database.get_user_secure(user_id)
+    if not user or not user.get('is_admin'):
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+    return jsonify({"success": True, "providers": database.get_model_sync_state(), "models": database.get_available_models()})
+
+@app.route('/api/admin/models/refresh', methods=['POST'])
+@login_required
+def api_admin_model_refresh():
+    user_id = session.get('user_id')
+    user = database.get_user_secure(user_id)
+    if not user or not user.get('is_admin'):
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    settings = database.get_all_api_settings()
+    refreshed = []
+    failed = []
+    for entry in settings:
+        provider = (entry.get('api_provider') or '').strip()
+        api_key = (entry.get('api_key') or '').strip()
+        if not provider or not api_key:
+            continue
+        if sync_provider_models(provider, api_key):
+            refreshed.append(provider)
+        else:
+            failed.append(provider)
+    return jsonify({"success": True, "refreshed": refreshed, "failed": failed, "providers": database.get_model_sync_state()})
 
 # --- Administrative Authentication Guard and Routes ---
 
@@ -4658,8 +6245,679 @@ def api_mfa_totp_delete():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/productivity/insights", methods=["GET"])
+@login_required
+def api_productivity_insights():
+    try:
+        user_id = session.get("user_id")
+        tasks = database.get_user_tasks_filtered(user_id) or []
+        
+        insights = []
+        active_tasks = [t for t in tasks if t.get('status') != 'Completed']
+        overdue_tasks = [t for t in active_tasks if t.get('status') == 'Overdue']
+        highest_prio_task = None
+        highest_score = -1
+        for t in active_tasks:
+            score = t.get('priority_score') or 0
+            if score > highest_score:
+                highest_score = score
+                highest_prio_task = t
+                
+        if len(tasks) == 0:
+            insights.append("No active tasks found. Start by creating a task to receive AI coaching!")
+        elif len(active_tasks) > 5:
+            insights.append("Your schedule is highly packed today. Focus on completing critical tasks first.")
+        else:
+            insights.append("You have a balanced workload today. Keep up the great pace!")
+            
+        if overdue_tasks:
+            insights.append(f"You have {len(overdue_tasks)} overdue tasks. Resolve these immediately to protect your completion rate.")
+            
+        if highest_prio_task:
+            insights.append(f"'{highest_prio_task['title']}' is currently your highest priority. Finishing it now boosts success probability.")
+            
+        cat_counts = defaultdict(int)
+        for t in active_tasks:
+            cat_counts[t.get('category') or 'Other'] += 1
+        if cat_counts:
+            top_cat = max(cat_counts, key=cat_counts.get)
+            if cat_counts[top_cat] >= 3:
+                insights.append(f"'{top_cat}' tasks make up the majority of your current backlog.")
+
+        ai_success = False
+        try:
+            data = request.args.to_dict()
+            active_client, active_model = get_llm_client(data)
+            
+            tasks_ctx = ""
+            for t in active_tasks[:10]:
+                tasks_ctx += f"- Task: \"{t['title']}\" (PrioScore: {t.get('priority_score') or 50}, Risk: {t.get('risk_level') or 'Safe'}, Deadline: {t.get('deadline') or 'None'})\n"
+                
+            prompt = f"""You are a productivity coach for Mint Frost AI.
+Here is a list of the user's active tasks:
+{tasks_ctx}
+
+Please generate exactly 4 concise, highly personalized, motivational and actionable productivity insights for today (1 sentence each).
+Respond ONLY with a JSON list of strings. Do not include markdown formatting or extra text.
+Example:
+[
+  "Today is your busiest day. Focus on completing your 3 critical tasks first.",
+  "Completing Chemistry now increases your success probability."
+]
+"""
+            completion = active_client.chat.completions.create(
+                model=active_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=500,
+                temperature=0.3
+            )
+            raw_text = completion.choices[0].message.content.strip()
+            if raw_text.startswith("```"):
+                raw_text = re.sub(r"^```(?:json)?\n|```$", "", raw_text, flags=re.MULTILINE).strip()
+            parsed = json.loads(raw_text)
+            if isinstance(parsed, list) and parsed:
+                insights = parsed
+                ai_success = True
+        except Exception:
+            pass
+            
+        return jsonify({"success": True, "insights": insights[:4], "ai_generated": ai_success})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+def parse_duration_to_minutes(duration_str):
+    if not duration_str:
+        return 60
+    try:
+        val = duration_str.lower().strip()
+        digits = re.findall(r"[-+]?\d*\.\d+|\d+", val)
+        if not digits:
+            return 60
+        num = float(digits[0])
+        if "hour" in val or "hr" in val or "h" in val:
+            return int(num * 60)
+        return int(num)
+    except:
+        return 60
+
+@app.route("/api/coach/analyze", methods=["GET"])
+@login_required
+def api_coach_analyze():
+    try:
+        user_id = session.get("user_id")
+        tasks = database.get_user_tasks_filtered(user_id) or []
+        
+        # Filter tasks
+        active_tasks = [t for t in tasks if t.get('status') != 'Completed' and t.get('status') != 'Cancelled']
+        completed_today_tasks = [t for t in tasks if t.get('status') == 'Completed']
+        overdue_tasks = [t for t in active_tasks if t.get('status') == 'Overdue']
+        
+        # Calculate stats
+        total_active_count = len(active_tasks)
+        completed_today_count = len(completed_today_tasks)
+        
+        # Find highest priority active task
+        highest_prio_task = None
+        highest_score = -1
+        for t in active_tasks:
+            score = t.get('priority_score') or 0
+            if score > highest_score:
+                highest_score = score
+                highest_prio_task = t
+                
+        # Find next suggested task
+        next_suggested = None
+        sorted_active = sorted(active_tasks, key=lambda x: x.get('priority_score', 0), reverse=True)
+        if len(sorted_active) > 1:
+            next_suggested = sorted_active[1]
+        elif len(sorted_active) == 1:
+            next_suggested = sorted_active[0]
+            
+        # Find upcoming deadline
+        upcoming_deadline_task = None
+        closest_deadline = None
+        for t in active_tasks:
+            dl_str = t.get('deadline')
+            if dl_str:
+                try:
+                    dl_date = datetime.strptime(dl_str, '%Y-%m-%d')
+                    if closest_deadline is None or dl_date < closest_deadline:
+                        closest_deadline = dl_date
+                        upcoming_deadline_task = t
+                except:
+                    pass
+
+        # Calculate completion probability average
+        probs = [t.get('completion_probability') for t in active_tasks if t.get('completion_probability') is not None]
+        avg_prob = int(sum(probs) / len(probs)) if probs else 100
+        
+        # Calculate ETA
+        from datetime import timedelta
+        total_mins = sum(parse_duration_to_minutes(t.get('estimated_duration')) for t in active_tasks)
+        eta_desc = "No work remaining!"
+        if total_mins > 0:
+            now_time = datetime.now()
+            eta_time = now_time + timedelta(minutes=total_mins)
+            hrs = total_mins / 60.0
+            eta_desc = f"{eta_time.strftime('%I:%M %p')} ({hrs:.1f} hrs of work left)"
+            
+        # Time of day greeting
+        hour = datetime.now().hour
+        if hour < 12:
+            greeting = "Good morning!"
+        elif hour < 17:
+            greeting = "Good afternoon!"
+        else:
+            greeting = "Good evening!"
+            
+        # Fallback rule-based values
+        top_rec = "All Caught Up! Start planning your next project or goal."
+        if overdue_tasks:
+            top_rec = f"⚠️ You have overdue tasks! Resolve '{overdue_tasks[0]['title']}' immediately to recover."
+        elif highest_prio_task:
+            top_rec = f"🎯 Direct focus to '{highest_prio_task['title']}' next. It is your highest priority task."
+        elif total_active_count > 0:
+            top_rec = "Keep working through your daily task checklist."
+            
+        motivation = "Consistency is the key to steady progress. Keep up the momentum!"
+        if completed_today_count > 0:
+            motivation = f"Great job! You have completed {completed_today_count} tasks today. Keep moving!"
+        elif avg_prob < 60:
+            motivation = "A few high-risk tasks are lowering your success odds. Let's break one down."
+        elif avg_prob >= 85 and total_active_count > 0:
+            motivation = f"Success rate is high! You have a {avg_prob}% probability of finishing your work today."
+
+        # Package data
+        coach_data = {
+            "greeting": greeting,
+            "top_recommendation": top_rec,
+            "current_focus": highest_prio_task['title'] if highest_prio_task else "None",
+            "upcoming_deadline": f"{upcoming_deadline_task['title']} (Due {upcoming_deadline_task['deadline']})" if upcoming_deadline_task else "No upcoming deadlines",
+            "today_motivation": motivation,
+            "next_suggested_task": next_suggested['title'] if next_suggested else "None",
+            "estimated_finish_time": eta_desc,
+            "total_active_count": total_active_count,
+            "completed_today_count": completed_today_count,
+            "avg_prob": avg_prob
+        }
+        
+        # Try AI Generation
+        ai_success = False
+        try:
+            active_client, active_model = get_llm_client(request.args.to_dict())
+            
+            # Format context for AI
+            tasks_ctx = ""
+            for t in active_tasks[:10]:
+                tasks_ctx += f"- Task: \"{t['title']}\" (PrioScore: {t.get('priority_score') or 50}, Risk: {t.get('risk_level') or 'Safe'}, Duration: {t.get('estimated_duration') or '1h'}, Deadline: {t.get('deadline') or 'None'})\n"
+                
+            prompt = f"""You are an elite productivity coach for Mint Frost AI.
+Here is the user's current metrics context:
+- Current Time: {datetime.now().strftime('%I:%M %p')}
+- Active Tasks: {total_active_count}
+- Completed Today: {completed_today_count}
+- Average Completion Probability: {avg_prob}%
+- Total Estimated Duration: {total_mins} mins
+- Overdue Tasks Count: {len(overdue_tasks)}
+- Highest Priority Task: "{highest_prio_task['title'] if highest_prio_task else 'None'}"
+- Nearest Deadline: "{upcoming_deadline_task['title'] if upcoming_deadline_task else 'None'}"
+
+Here are their active tasks details:
+{tasks_ctx}
+
+Generate highly personalized, professional, and actionable coaching insights.
+Format the output as a JSON object matching this schema exactly (do not include markdown headers or other text):
+{{
+  "greeting": "[Time-of-day greeting, e.g. Good afternoon, Alex!]",
+  "top_recommendation": "[The single most critical, specific recommendation for this instant based on deadlines and risk]",
+  "current_focus": "[Title of the task the user should focus on now]",
+  "upcoming_deadline": "[The name and deadline indicator of the closest task]",
+  "today_motivation": "[Data-driven motivational insight based on their completion probability and completed tasks counts]",
+  "next_suggested_task": "[The next logical task to pick up after the current focus]",
+  "estimated_finish_time": "[Estimated time they will finish work, e.g. 4:30 PM (2.5 hours of work left)]"
+}}
+"""
+            completion = active_client.chat.completions.create(
+                model=active_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=600,
+                temperature=0.5
+            )
+            raw_text = completion.choices[0].message.content.strip()
+            if raw_text.startswith("```"):
+                raw_text = re.sub(r"^```(?:json)?\n|```$", "", raw_text, flags=re.MULTILINE).strip()
+            try:
+                parsed = json.loads(raw_text)
+            except Exception as json_err:
+                parsed = {}
+                keys = ["greeting", "top_recommendation", "current_focus", "upcoming_deadline", "today_motivation", "next_suggested_task", "estimated_finish_time"]
+                for key in keys:
+                    pattern = rf'"{key}"\s*:\s*"(.*?)"'
+                    match = re.search(pattern, raw_text, re.DOTALL)
+                    if match:
+                        parsed[key] = match.group(1).replace('\\"', '"').replace('\\n', '\n').strip()
+            
+            # Merge parsed fields to coach_data
+            for key in ["greeting", "top_recommendation", "current_focus", "upcoming_deadline", "today_motivation", "next_suggested_task", "estimated_finish_time"]:
+                if key in parsed and parsed[key]:
+                    coach_data[key] = parsed[key]
+            ai_success = True
+        except Exception as e:
+            app.logger.warning(f"Coach AI generation failed: {e}. Falling back to rule-based logic.")
+
+        return jsonify({"success": True, "coach": coach_data, "ai_generated": ai_success})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/activity/recent", methods=["GET"])
+@login_required
+def api_recent_activity():
+    try:
+        user_id = session.get("user_id")
+        activities = database.get_recent_activities(user_id, limit=10)
+        return jsonify({"success": True, "activities": activities})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/panic/analyze", methods=["GET", "POST"])
+@login_required
+def api_panic_analyze():
+    try:
+        user_id = session.get("user_id")
+        data = request.get_json() or {} if request.method == "POST" else {}
+        simulated_skips = data.get("simulated_skips", [])
+        
+        # Fetch tasks
+        tasks = database.get_user_tasks_filtered(user_id) or []
+        
+        # Filter active tasks
+        active_tasks = [t for t in tasks if t.get('status') != 'Completed' and t.get('status') != 'Cancelled']
+        completed_today_tasks = [t for t in tasks if t.get('status') == 'Completed']
+        
+        # Filter out simulated skips
+        active_tasks = [t for t in active_tasks if t['id'] not in simulated_skips]
+        
+        # Workload calculations
+        remaining_tasks_count = len(active_tasks)
+        critical_tasks_count = len([t for t in active_tasks if t.get('priority') == 'High' or t.get('risk_level') == 'High' or t.get('status') == 'Overdue'])
+        
+        total_work_mins = sum(parse_duration_to_minutes(t.get('estimated_duration')) for t in active_tasks)
+        
+        # Time available today (mins remaining from now until 23:59:59)
+        now = datetime.now()
+        end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=0)
+        time_available_mins = max(60, int((end_of_day - now).total_seconds() / 60))
+        
+        # Completion probability & risk
+        if remaining_tasks_count == 0:
+            completion_prob = 100
+        elif total_work_mins <= time_available_mins:
+            completion_prob = int(min(95, 100 - (total_work_mins / time_available_mins) * 30))
+        else:
+            completion_prob = int(max(10, 100 - (total_work_mins / time_available_mins) * 50))
+            
+        if completion_prob >= 80:
+            overall_risk = "LOW"
+        elif completion_prob >= 60:
+            overall_risk = "MEDIUM"
+        elif completion_prob >= 40:
+            overall_risk = "HIGH"
+        else:
+            overall_risk = "CRITICAL"
+            
+        survival_score = int(min(100, max(0, completion_prob * 1.05)))
+        
+        # Try AI decision engine
+        ai_success = False
+        result = {}
+        try:
+            active_client, active_model = get_llm_client(data)
+            
+            tasks_context = ""
+            for t in active_tasks:
+                dl_val = t.get('deadline') or 'None'
+                tasks_context += f"- Task ID {t['id']}: \"{t['title']}\" (Category: {t['category']}, Priority: {t['priority']}, Risk: {t['risk_level']}, Deadline: {dl_val}, Duration: {t.get('estimated_duration') or '45m'})\n"
+                
+            prompt = f"""You are an AI Emergency Productivity Expert for Mint Frost AI.
+The current time is {now.strftime('%I:%M %p')} and the user is in a state of high productivity panic.
+They have {time_available_mins} minutes of time remaining today, and the following active tasks:
+{tasks_context}
+
+Please analyze their workload and output a structured recovery plan in JSON format.
+Determine:
+1. Which tasks they must do RIGHT NOW (urgently).
+2. Which tasks they must do NEXT.
+3. Which tasks they should do AFTER THAT.
+4. Which tasks are OPTIONAL or should be postponed/skipped to tomorrow.
+5. Provide a specific, highly encouraging and quantitative motivation sentence.
+6. Rate their Deadline Survival Score (0-100) and Overall Risk (LOW/MEDIUM/HIGH/CRITICAL) based on the remaining work vs available time.
+
+Ensure you output ONLY a valid JSON object. Do not include markdown code fences, headers, or any conversational text.
+
+JSON Schema:
+{{
+  "survival_score": 65,
+  "completion_probability": 63,
+  "overall_risk": "HIGH",
+  "timeline": [
+    {{
+      "phase": "RIGHT NOW",
+      "task_id": 12,
+      "title": "Physics Assignment",
+      "duration": "45 min"
+    }},
+    ...
+  ],
+  "motivation": "Skipping low-priority work increases your success chance by 24%. focus on Physics first."
+}}
+"""
+            completion = active_client.chat.completions.create(
+                model=active_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1000,
+                temperature=0.3
+            )
+            raw_text = completion.choices[0].message.content.strip()
+            if raw_text.startswith("```"):
+                raw_text = re.sub(r"^```(?:json)?\n|```$", "", raw_text, flags=re.MULTILINE).strip()
+            
+            res_json = json.loads(raw_text)
+            if "timeline" in res_json and "motivation" in res_json:
+                result = res_json
+                ai_success = True
+        except Exception as e:
+            app.logger.warning(f"Panic Mode AI analysis failed: {e}. Falling back to rule-based logic.")
+            
+        if not ai_success:
+            # Rule-based fallback scheduler
+            sorted_tasks = sorted(active_tasks, key=lambda x: (
+                x.get('priority') == 'High' or x.get('status') == 'Overdue',
+                x.get('priority_score', 0)
+            ), reverse=True)
+            
+            timeline = []
+            for idx, t in enumerate(sorted_tasks):
+                if idx == 0:
+                    phase = "RIGHT NOW"
+                elif idx == 1:
+                    phase = "NEXT"
+                elif idx == 2 or idx == 3:
+                    phase = "AFTER THAT"
+                else:
+                    phase = "OPTIONAL"
+                    
+                dur = t.get('estimated_duration') or '45 min'
+                if phase == "OPTIONAL":
+                    dur = "Skip Today"
+                    
+                timeline.append({
+                    "phase": phase,
+                    "task_id": t['id'],
+                    "title": t['title'],
+                    "duration": dur
+                })
+                
+            if survival_score > 80:
+                motivation = "You can still finish everything if you begin now. Workload is manageable!"
+            elif survival_score > 50:
+                motivation = "Focus on the high-priority item. Skipping optional tasks will increase your success probability by 20%."
+            else:
+                motivation = "Workload is critical. Postpone optional work to tomorrow and focus on one single task right now."
+                
+            result = {
+                "survival_score": survival_score,
+                "completion_probability": completion_prob,
+                "overall_risk": overall_risk,
+                "timeline": timeline,
+                "motivation": motivation
+            }
+            
+        # Add situation metrics to response
+        result["situation"] = {
+            "remaining_tasks": remaining_tasks_count,
+            "critical_tasks": critical_tasks_count,
+            "estimated_work_mins": total_work_mins,
+            "time_available_mins": time_available_mins,
+            "completion_probability": result.get("completion_probability", completion_prob),
+            "overall_risk": result.get("overall_risk", overall_risk),
+            "survival_score": result.get("survival_score", survival_score)
+        }
+        
+        return jsonify({"success": True, "panic": result, "ai_generated": ai_success})
+    except Exception as e:
+        import traceback
+        app.logger.error(f"Error in api_panic_analyze: {e}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/panic/recover", methods=["POST"])
+@login_required
+def api_panic_recover():
+    try:
+        user_id = session.get("user_id")
+        data = request.get_json() or {}
+        postpone_task_ids = data.get("postpone_task_ids", [])
+        skip_subtask_ids = data.get("skip_subtask_ids", [])
+        
+        tomorrow_str = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        with database.connect_db() as conn:
+            # 1. Postpone selected tasks
+            for tid in postpone_task_ids:
+                # Increment postponed count and shift deadline
+                conn.execute('''
+                    UPDATE tasks 
+                    SET deadline = ?, priority = 'Low', priority_score = 15,
+                        postponed_count = postponed_count + 1
+                    WHERE id = ? AND user_id = ?
+                ''', (tomorrow_str, tid, user_id))
+                
+                # Fetch task title to log activity
+                row = conn.execute("SELECT title FROM tasks WHERE id = ?", (tid,)).fetchone()
+                title = row[0] if row else f"Task #{tid}"
+                database.log_user_activity(user_id, "Task Postponed", f"Task '{title}' postponed to tomorrow during Panic Mode recovery.")
+                
+            # 2. Skip selected subtasks
+            for sid in skip_subtask_ids:
+                conn.execute('''
+                    UPDATE subtasks
+                    SET completed = 1
+                    WHERE id = ? AND task_id IN (SELECT id FROM tasks WHERE user_id = ?)
+                ''', (sid, user_id))
+                
+            conn.commit()
+            
+        # 3. Recalculate priority scores
+        recalculate_task_priority_risk(user_id, data)
+        
+        # 4. Rebuild the planner schedule for today
+        with app.test_request_context(json=data):
+            api_generate_plan()
+            
+        database.log_user_activity(user_id, "Panic Schedule Recovery", "⚡ Panic recovery completed. Schedule rebuilt and optimized.")
+        xp_status = database.award_xp(user_id, 40, "panic recovery")
+        return jsonify({"success": True, "message": "Schedule recovered and optimized successfully!", "gamification": xp_status})
+    except Exception as e:
+        import traceback
+        app.logger.error(f"Error in api_panic_recover: {e}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/panic_mode", methods=["POST"])
+@login_required
+def api_panic_mode():
+    try:
+        user_id = session.get("user_id")
+        tasks = database.get_user_tasks_filtered(user_id) or []
+        active_tasks = [t for t in tasks if t.get('status') != 'Completed']
+        
+        if not active_tasks:
+            return jsonify({
+                "success": False,
+                "message": "No active tasks found. You have nothing to panic about!"
+            })
+            
+        with database.connect_db() as conn:
+            for t in active_tasks:
+                conn.execute('''
+                    UPDATE tasks 
+                    SET priority = 'High', priority_score = 95, 
+                        suggested_action = 'CRITICAL WORKLOAD - Immediate Action Required. Focus exclusively on this task.',
+                        risk_reason = 'Panic Mode activated: urgent backlog optimization triggered.'
+                    WHERE id = ?
+                ''', (t['id'],))
+            conn.commit()
+            
+        database.log_user_activity(user_id, "Panic Mode Detected", "Workload prioritized: all active tasks boosted to High Urgency.")
+        recalculate_task_priority_risk(user_id)
+        
+        steps = [
+            "1. Take a deep breath: all active tasks have been sorted and prioritized.",
+            "2. Stop multitasking: focus exclusively on the highest priority task card.",
+            "3. Complete pending subtasks one-by-one; do not skip prerequisites.",
+            "4. Regenerate your Daily Planner now to get a simplified hour-by-hour focus timeline."
+        ]
+        
+        return jsonify({
+            "success": True,
+            "message": "Panic Mode Activated! BACKLOG BOOSTED TO CRITICAL STATUS.",
+            "steps": steps
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+
+
+# ─── AI Analytics & Productivity Insights ────────────────────────────────────
+@app.route("/api/analytics/data", methods=["GET"])
+@login_required
+def api_analytics_data():
+    try:
+        from datetime import timedelta
+        user_id = session.get("user_id")
+        all_tasks = database.get_user_tasks_filtered(user_id) or []
+
+        total      = len(all_tasks)
+        completed  = [t for t in all_tasks if t.get("status") == "Completed"]
+        pending    = [t for t in all_tasks if t.get("status") not in ("Completed","Cancelled","Overdue")]
+        overdue    = [t for t in all_tasks if t.get("status") == "Overdue"]
+        completion_rate = round(len(completed)/total*100,1) if total else 0
+
+        # Productivity score (0-100)
+        score = min(40, round(len(completed)/total*40)) if total else 0
+        score -= min(20, len(overdue)*4)
+        score += min(20, len([t for t in completed if t.get("priority")=="High"])*5)
+        score += min(20, len(completed)*2) if len(completed)<=10 else 20
+        score = max(0, min(100, score))
+        score_label = "Excellent" if score>=80 else ("Good" if score>=60 else ("Average" if score>=40 else "Needs Improvement"))
+
+        # Streak
+        streak = 0
+        if completed:
+            dates = sorted(set(t.get("completed_at","")[:10] for t in completed if t.get("completed_at")), reverse=True)
+            today_d = datetime.now().date()
+            for i,d in enumerate(dates):
+                try:
+                    if datetime.strptime(d,"%Y-%m-%d").date() == today_d - timedelta(days=i):
+                        streak += 1
+                    else:
+                        break
+                except:
+                    break
+
+        today_dt = datetime.now().date()
+
+        # Daily completion (last 7 days)
+        daily_labels,daily_values=[],[]
+        for i in range(6,-1,-1):
+            day=today_dt-timedelta(days=i)
+            daily_labels.append(day.strftime("%a"))
+            daily_values.append(sum(1 for t in completed if t.get("completed_at","")[:10]==str(day)))
+
+        # Weekly completion (last 4 weeks)
+        weekly_labels,weekly_values=[],[]
+        for w in range(3,-1,-1):
+            ws=today_dt-timedelta(days=today_dt.weekday()+7*w)
+            we=ws+timedelta(days=6)
+            count=sum(1 for t in completed if t.get("completed_at") and ws<=datetime.strptime(t["completed_at"][:10],"%Y-%m-%d").date()<=we)
+            weekly_labels.append(f"Week {4-w}"); weekly_values.append(count)
+
+        # Monthly completion (last 6 months)
+        monthly_labels,monthly_values=[],[]
+        for m in range(5,-1,-1):
+            yr,mo=today_dt.year,today_dt.month-m
+            while mo<=0: mo+=12; yr-=1
+            label=datetime(yr,mo,1).strftime("%b")
+            count=sum(1 for t in completed if t.get("completed_at") and t["completed_at"][5:7]==f"{mo:02d}" and t["completed_at"][:4]==str(yr))
+            monthly_labels.append(label); monthly_values.append(count)
+
+        # Distributions
+        risk_dist=defaultdict(int); prio_dist=defaultdict(int); cat_dist=defaultdict(int)
+        for t in all_tasks:
+            risk_dist[t.get("risk_level") or "Safe"]+=1
+            prio_dist[t.get("priority") or "Medium"]+=1
+            cat_dist[t.get("category") or "Other"]+=1
+
+        # Trends
+        day_counts=defaultdict(int)
+        for t in completed:
+            if t.get("completed_at"):
+                try: day_counts[datetime.strptime(t["completed_at"][:10],"%Y-%m-%d").strftime("%A")]+=1
+                except: pass
+        most_prod  = max(day_counts,key=day_counts.get) if day_counts else "N/A"
+        least_prod = min(day_counts,key=day_counts.get) if day_counts else "N/A"
+
+        # Predictions
+        tomorrow_risk="High" if len(overdue)>=2 or len(pending)>6 else ("Medium" if len(pending)>3 else "Low")
+        expected_comp=max(0,min(100,round(completion_rate*0.95)))
+        expected_plan=max(0,min(100,score-len(overdue)*5))
+
+        # AI Insights
+        insights=[]; ai_generated=False
+        try:
+            client,model=get_llm_client({})
+            ctx="\n".join(f"- {t['title']} | Pri:{t.get('priority','?')} | Risk:{t.get('risk_level','?')} | Cat:{t.get('category','?')} | Status:{t.get('status','?')}" for t in all_tasks[:12])
+            prompt=f"""You are a productivity analyst for Mint Frost AI.
+Stats: {total} tasks, {len(completed)} completed ({completion_rate}%), {len(overdue)} overdue, score {score}/100, most productive day: {most_prod}.
+Tasks:\n{ctx}
+Generate exactly 5 concise data-driven analytical insights (1-2 sentences each). Focus on patterns, weak areas, and actionable advice.
+Respond ONLY as a JSON array of strings. No markdown."""
+            resp=client.chat.completions.create(model=model,messages=[{"role":"user","content":prompt}],max_tokens=600,temperature=0.4)
+            raw=resp.choices[0].message.content.strip()
+            if raw.startswith("```"): raw=re.sub(r"^```(?:json)?\n|```$","",raw,flags=re.MULTILINE).strip()
+            parsed=json.loads(raw)
+            if isinstance(parsed,list) and parsed: insights=parsed[:5]; ai_generated=True
+        except: pass
+
+        if not insights:
+            if overdue: insights.append(f"You have {len(overdue)} overdue task(s) — resolving them now protects your completion rate.")
+            if most_prod!="N/A": insights.append(f"{most_prod} is your most productive day. Schedule critical tasks on this day.")
+            top_cats=sorted(cat_dist.items(),key=lambda x:-x[1])
+            if top_cats: insights.append(f"'{top_cats[0][0]}' tasks dominate your backlog. Consider balancing across categories.")
+            insights.append("Breaking tasks into subtasks consistently improves completion speed." if completion_rate<50 else f"Solid {completion_rate}% completion rate — keep the consistency going.")
+            insights.append(f"Productivity score: {score}/100 ({score_label}). " + ("Reduce overdue tasks to climb higher." if overdue else "Keep the momentum alive!"))
+
+        return jsonify({
+            "success": True,
+            "stats": {"total":total,"completed":len(completed),"pending":len(pending),"overdue":len(overdue),"completion_rate":completion_rate,"productivity_score":score,"score_label":score_label,"streak":streak},
+            "charts": {
+                "daily":    {"labels":daily_labels,  "values":daily_values},
+                "weekly":   {"labels":weekly_labels, "values":weekly_values},
+                "monthly":  {"labels":monthly_labels,"values":monthly_values},
+                "risk":     {"labels":list(risk_dist.keys()), "values":list(risk_dist.values())},
+                "priority": {"labels":list(prio_dist.keys()),"values":list(prio_dist.values())},
+                "category": {"labels":list(cat_dist.keys()), "values":list(cat_dist.values())},
+            },
+            "trends": {"most_productive":most_prod,"least_productive":least_prod,"avg_overdue_rate":round(len(overdue)/total*100,1) if total else 0},
+            "predictions": {"tomorrow_load":len(pending),"tomorrow_risk":tomorrow_risk,"expected_completion":expected_comp,"expected_planner_success":expected_plan},
+            "insights": insights,
+            "ai_generated": ai_generated,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
     # Start Flask development server
     app.run(host='0.0.0.0', port=5001, debug=True)
-    # Spotify credentials updated reload trigger

@@ -1,40 +1,13 @@
-# API Keys & Secrets
-google_credentials.txt
-OpenAI-Key.txt
-weather_key.txt
-.flask_secret
-.env
-.env*.local
-mail_password.txt
-mail_id.txt
-supabase_db_url.txt
-turso_db_url.txt
-turso_auth_token.txt
-
-# Python Build and Cache
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.venv/
-venv/
-ENV/
-
-# Database files (prevent copying active or malformed databases)
 *.db
 *.db-journal
-*.db-wal
-*.db-shm
-databases/*.db
-databases/*.sqlite
-
-# Archive files
-*.zip
-
-# Local scratch space and stale versions
-scratch/
-Mint-Frost-AI_V4.0/
-Mint-Frost-AI_V5.0/
-Mint-Frost-AI_Vercel/
-yt_contents_keys.json
+.flask_secret
+mail_id.txt
+mail_password.txt
+weather_key.txt
+__pycache__/
+*.pyc
+venv/
+.venv/
+.agents/
+search_gamification.py
+test_create_task.py

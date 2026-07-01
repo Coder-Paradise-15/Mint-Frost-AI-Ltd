@@ -1,30 +1,21 @@
-# Mint Frost AI Chat - Enhanced Version 5.0
+# Mint Frost AI Chat - Enhanced Version 4.0
 
-A modern, feature-rich AI chat application built with Flask, featuring advanced UI/UX, real-time interactions, comprehensive chat management, and a complete administrative control suite.
+A modern, feature-rich AI chat application built with Flask, featuring advanced UI/UX, real-time interactions, and comprehensive chat management.
 
 ## 🚀 New Features & Enhancements
 
 ### 🎨 **Advanced UI/UX**
-- **Dark/Light Theme Toggle** - Switch between themes with localStorage persistence
-- **Glassmorphism Design** - Sleek frosted glass effects with custom blurs and harmonies
-- **Responsive Layout** - Optimized layout structures with a 100% responsive user panel
-- **Custom-Themed Modals** - Premium glassmorphic confirmation dialogs replacing raw native browser alerts
-- **Micro-animations & Interactions** - Smooth transition animations, hover effects, and slide-in views
+- **Dark/Light Theme Toggle** - Switch between themes with smooth transitions
+- **Glassmorphism Design** - Enhanced frosted glass effects with better blur
+- **Responsive Layout** - Optimized for all screen sizes, including a new flexible 100% width chat panel
+- **Smooth Animations** - Fade-in messages, typing indicators, and micro-interactions
+- **Custom Scrollbars** - Styled scrollbars for better visual consistency
 
-### 🛡️ **Administrative Suite (Version 5.0)**
-- **Admin Support Inbox Dashboard** - View, filter (Open, Resolved, Closed), search, and delete user support tickets from a unified dashboard.
-- **Inline Reply Drawer** - Quick-reply drawer with rich styling directly in the ticket details pane.
-- **Right-Click Context Menus** - Right-click a ticket to immediately View, Reply, or Delete it.
-- **Dynamic Status Badges** - Color-coded indicators tracking ticket statuses in real time.
-- **In-Web File Explorer & Editor** - Browse project directories and edit source code live with syntax styling and save capabilities directly from the Admin Panel.
-
-### ✉️ **Support Hub & SMTP Enhancements**
-- **User-Side Support Hub** - Embedded Support panel featuring Knowledge Base, Contact Us, and Community Forum cards.
-- **Gmail-style Email Composer** - Centered glassmorphic mail composer built directly into the UI.
-- **Daily Newsletter Subscription** - Dynamic subscription system with immediate toast status notifications.
-- **SMTP Anti-Spam Optimization** - Embedded logo branding via secure public HTTPS URLs instead of local file attachments to ensure high inbox delivery rates.
-- **Persistent User Notifications** - User-side notification deletion blacklisted in `localStorage` to permanently clear announcements without database deletion.
-- **Bring Your Own Key (BYOK)** - Fixed OpenAI initialization crash to enable stable startup fallback.
+### 🛠️ **Dedicated Support Hub & Tools**
+- **In-App Support Tab** - A new dedicated Support panel without leaving the page
+- **Email Composer Modal** - Fully functional Gmail-style message composer built directly into the UI with toast notifications
+- **Daily Newsletter Subscription** - Easy to use newsletter enrollment card with instant feedback
+- **Bring Your Own Key (BYOK)** - Fixed OpenAI auto-crash to ensure pure BYOK capability on startup
 
 ### 💬 **Enhanced Chat Features**
 - **Message History** - Persistent chat history with session management
@@ -82,13 +73,6 @@ A modern, feature-rich AI chat application built with Flask, featuring advanced 
 | `POST` | `/api/weather/set-key` | Set weather API key |
 | `GET` | `/api/sessions` | Get chat sessions |
 | `GET` | `/ping` | Health check |
-| `GET` | `/api/announcements` | Get announcements list |
-| `GET` | `/api/announcement` | Get active site announcement config |
-| `POST` | `/api/support/send` | Send support contact inquiry |
-| `POST` | `/api/admin/support-tickets/reply` | Reply to support ticket (SMTP) |
-| `POST` | `/api/admin/support-tickets/update-status` | Update ticket status |
-| `DELETE` | `/api/admin/support-tickets/<id>` | Delete individual support ticket |
-| `DELETE` | `/api/admin/support-tickets/clear-all` | Purge all support tickets |
 
 ## 🎯 **Installation & Setup**
 
@@ -113,23 +97,16 @@ A modern, feature-rich AI chat application built with Flask, featuring advanced 
 
 ## 🌟 **Key Improvements Made**
 
-✅ **Backend & Administrative Enhancements:**
-- Administrative Support Inbox persistence with status routing
-- Administrative Code Editor & File Explorer built-in
-- SMTP spam prevention with HTTPS inline branding logo
-- User-specific notification local persistence
+✅ **Backend Enhancements:**
 - Session-based chat history with context memory
 - Rate limiting (10 messages/minute per IP)
 - Advanced error handling with user-friendly messages
 - Input validation and security improvements
 - Real-time weather API integration with OpenWeatherMap
 - Comprehensive weather service with fallback support
-- New API endpoints for support ticket management and system config
+- New API endpoints for chat and weather management
 
 ✅ **Frontend Enhancements:**
-- Custom confirmation modals replacing native alerts
-- Right-click context menus for support registry
-- Modern sliding pill filter tab transitions
 - Dark/Light theme toggle with localStorage persistence
 - Advanced message UI with copy/reaction buttons
 - Real-time typing indicators and smooth animations
@@ -142,12 +119,22 @@ A modern, feature-rich AI chat application built with Flask, featuring advanced 
 - Auto-save draft functionality
 
 ✅ **UI/UX Improvements:**
-- Premium glassmorphic theme elements and custom scrollbars
-- Enhanced accessibility with ARIA labels
+- Enhanced glassmorphism design
+- Improved accessibility with ARIA labels
 - Responsive design for all devices
+- Custom scrollbars and smooth scrolling
 - Toast notifications for user feedback
+- Loading states and error handling
 - New Support tab with Knowledge Base, Contact Us, and Community links
 - Embedded Email Composer modal for direct support requests
+- New Support tab with Knowledge Base, Contact Us, and Community links
+- Embedded Email Composer modal for direct support requests
+
+✅ **Performance Optimizations:**
+- Efficient DOM manipulation
+- Smooth animations with CSS transitions
+- Memory management for chat history
+- Optimized message rendering
 
 ## 🎨 **Visual Enhancements**
 

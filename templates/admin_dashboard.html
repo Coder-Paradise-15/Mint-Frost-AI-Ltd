@@ -2329,6 +2329,23 @@
             </div>
           </div>
 
+          <div class="filter-panel-premium" style="margin-top: 16px;">
+            <div class="filter-row-container">
+              <div class="filter-title-group">
+                <i class="fas fa-brain" style="color: var(--mint); font-size: 14px;"></i>
+                <span style="font-size: 12px; font-weight: 800; color: var(--fg); text-transform: uppercase; letter-spacing: 0.6px; font-family: 'Outfit', sans-serif;">Model Discovery</span>
+              </div>
+              <div class="filter-inputs-group">
+                <button type="button" class="premium-action-btn" onclick="refreshModelDiscovery()">
+                  <i class="fas fa-sync-alt"></i> Refresh Models
+                </button>
+              </div>
+            </div>
+            <div id="modelDiscoveryStatus" style="margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5;">
+              Loading provider model status...
+            </div>
+          </div>
+
         </section>
 
         <!-- 3B. CONSOLE TAB -->
@@ -3694,6 +3711,7 @@
         }
         if (targetTab === 'tab-health') {
           fetchSystemHealth();
+          loadModelDiscoveryStatus();
         }
         if (targetTab === 'tab-console') {
           // Focus the command input when switching to console tab
@@ -3807,6 +3825,51 @@
         }
       } catch (err) {
         appendTerminalLog('Failed to synchronize server health API metrics.', 'error');
+      }
+    }
+
+    async function refreshModelDiscovery() {
+      const statusBox = document.getElementById('modelDiscoveryStatus');
+      if (!statusBox) return;
+      statusBox.innerHTML = '<span style="color: var(--mint);">Refreshing provider model catalogs...</span>';
+      try {
+        const response = await fetch('/api/admin/models/refresh', { method: 'POST' });
+        const data = await response.json();
+        if (!data.success) {
+          statusBox.innerHTML = '<span style="color: var(--warning);">Refresh failed.</span>';
+          return;
+        }
+        const providers = Array.isArray(data.providers) ? data.providers : [];
+        const lines = providers.map(item => {
+          const state = item.status || 'idle';
+          const badge = state === 'ready' ? '✓' : (state === 'error' ? '⚠' : '•');
+          return `<div><strong>${item.provider}</strong> ${badge} ${state} · models: ${item.model_count || 0}${item.last_error ? ` · ${item.last_error}` : ''}</div>`;
+        });
+        statusBox.innerHTML = lines.join('') || '<span style="color: var(--muted);">No provider model data yet.</span>';
+      } catch (err) {
+        statusBox.innerHTML = '<span style="color: var(--warning);">Refresh request failed.</span>';
+      }
+    }
+
+    async function loadModelDiscoveryStatus() {
+      const statusBox = document.getElementById('modelDiscoveryStatus');
+      if (!statusBox) return;
+      try {
+        const response = await fetch('/api/admin/models/status');
+        const data = await response.json();
+        if (!data.success) {
+          statusBox.innerHTML = '<span style="color: var(--warning);">Unable to load provider model status.</span>';
+          return;
+        }
+        const providers = Array.isArray(data.providers) ? data.providers : [];
+        const lines = providers.map(item => {
+          const state = item.status || 'idle';
+          const badge = state === 'ready' ? '✓' : (state === 'error' ? '⚠' : '•');
+          return `<div><strong>${item.provider}</strong> ${badge} ${state} · models: ${item.model_count || 0}${item.last_error ? ` · ${item.last_error}` : ''}</div>`;
+        });
+        statusBox.innerHTML = lines.join('') || '<span style="color: var(--muted);">No provider model data yet.</span>';
+      } catch (err) {
+        statusBox.innerHTML = '<span style="color: var(--warning);">Unable to load provider model status.</span>';
       }
     }
 

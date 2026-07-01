@@ -32,29 +32,26 @@
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" media="(prefers-color-scheme: light)">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-dark.svg') }}" media="(prefers-color-scheme: dark)">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='1.0.2') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='1.2.1') }}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="{{ url_for('static', filename='custom_modals.js') }}"></script>
   <style>
     /* Nav Tab Styles */
     .nav__links a.active-tab { color: var(--mint); border-bottom: 2px solid var(--mint); }
-    #tab-home, #tab-chat, #tab-support { display: none; }
-    #tab-home.active-tab-content, #tab-chat.active-tab-content, #tab-support.active-tab-content { display: block; }
-    #tab-chat.active-tab-content {
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      margin: 10px auto;
-      height: 125vh;
-      width: 275vh;
-      right: 416px;
-      box-sizing: border-box;
-      z-index: 100;
-      background: var(--bg-0);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-xl);
-      overflow: hidden;
-    }
+    #tab-home, #tab-chat, #tab-support, #tab-tasks, #tab-todo, #tab-planner, #tab-analytics { display: none; }
+    #tab-home.active-tab-content, #tab-chat.active-tab-content, #tab-support.active-tab-content, #tab-tasks.active-tab-content, #tab-todo.active-tab-content, #tab-planner.active-tab-content, #tab-analytics.active-tab-content { display: block; }
+
+    /* Pulse glow visual indicators */
+    @keyframes pulse-glow-green { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(46, 204, 113, 0); } 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); } }
+    @keyframes pulse-glow-yellow { 0% { box-shadow: 0 0 0 0 rgba(241, 196, 15, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(241, 196, 15, 0); } 100% { box-shadow: 0 0 0 0 rgba(241, 196, 15, 0); } }
+    @keyframes pulse-glow-orange { 0% { box-shadow: 0 0 0 0 rgba(230, 126, 34, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(230, 126, 34, 0); } 100% { box-shadow: 0 0 0 0 rgba(230, 126, 34, 0); } }
+    @keyframes pulse-glow-red { 0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(231, 76, 60, 0); } 100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); } }
+
+    .risk-glow-green { animation: pulse-glow-green 2s infinite; }
+    .risk-glow-yellow { animation: pulse-glow-yellow 2s infinite; }
+    .risk-glow-orange { animation: pulse-glow-orange 2s infinite; }
+    .risk-glow-red { animation: pulse-glow-red 2s infinite; }
+
     /* Limit chat panel width so it doesn't cover Home */
     #tab-chat .panel.glass {
       flex: 1;
@@ -84,13 +81,7 @@
       padding: 12px 60px !important;
       gap: 12px !important;
     }
-    #tab-chat .panel-sidebar {
-      max-height: 100%;
-      overflow-y: auto;
-      border: none !important;
-      border-right: 1px solid var(--border) !important;
-      border-radius: 0 !important;
-    }
+
     #tab-chat .composer {
       margin-top: 8px !important;
       gap: 8px !important;
@@ -323,6 +314,297 @@
     .mfa-delete-btn:hover {
       background: rgba(255, 107, 107, 0.1);
     }
+    /* Proactive AI Coach Panel Card styles */
+    .coach-drawer {
+      position: fixed;
+      bottom: 228px; /* Spaced perfectly above the stacked action deck */
+      right: 24px;
+      width: 380px;
+      max-width: 90vw;
+      max-height: 70vh;
+      z-index: 15001;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(30px) scale(0.95);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.45);
+      border-radius: 16px;
+      overflow: hidden;
+      background: rgba(15, 22, 32, 0.92);
+      backdrop-filter: blur(25px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #e9fbf5;
+    }
+    .coach-drawer.show {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    .coach-drawer__header {
+      padding: 20px 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255,255,255,0.02);
+    }
+    .coach-drawer__title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 0;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .coach-drawer__close {
+      background: none;
+      border: none;
+      color: var(--muted, rgba(255,255,255,0.5));
+      font-size: 24px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+      transition: color 0.2s;
+    }
+    .coach-drawer__close:hover {
+      color: #ffffff;
+    }
+
+    .coach-drawer__body {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Floating Coach Toggle Button */
+    .coach-toggle-btn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--mint) 0%, #3498db 100%);
+      box-shadow: 0 4px 20px rgba(55, 230, 181, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0f1620;
+      font-size: 20px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      z-index: 9998;
+      border: 2px solid rgba(255,255,255,0.1);
+    }
+    .coach-toggle-btn:hover {
+      transform: scale(1.1) rotate(5deg);
+      box-shadow: 0 6px 24px rgba(55, 230, 181, 0.6);
+    }
+    .coach-toggle-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* Floating Music Toggle Button and Vinyl Spin Animation */
+    .music-toggle-btn {
+      position: fixed;
+      bottom: 92px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      box-shadow: 0 4px 20px rgba(55, 230, 181, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--mint);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      z-index: 9998;
+      border: 2px solid rgba(255,255,255,0.1);
+      background: rgba(15, 22, 32, 0.9);
+      padding: 0;
+    }
+    .music-toggle-btn:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 24px rgba(55, 230, 181, 0.45);
+    }
+    .music-toggle-btn:active {
+      transform: scale(0.95);
+    }
+
+    @keyframes spin-record {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .music-playing-spin {
+      animation: spin-record 8s linear infinite;
+    }
+
+    /* 🚨 Panic Mode Overlay Modal styles */
+    .panic-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 142.86vw; /* Fit zoomed screen perfectly */
+      height: 142.86vh;
+      background: rgba(8, 12, 18, 0.85);
+      backdrop-filter: blur(25px);
+      z-index: 21000;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #e9fbf5;
+    }
+    .panic-modal.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .panic-modal__content {
+      width: 900px;
+      max-width: 95vw;
+      background: rgba(15, 22, 32, 0.95);
+      border: 1px solid rgba(255, 56, 56, 0.3);
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(255, 56, 56, 0.15);
+      display: flex;
+      flex-direction: column;
+      max-height: 85vh;
+      overflow: hidden;
+      transform: scale(0.9) translateY(20px);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .panic-modal.show .panic-modal__content {
+      transform: scale(1) translateY(0);
+    }
+    .panic-modal__header {
+      padding: 20px 30px;
+      border-bottom: 1px solid rgba(255, 56, 56, 0.2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(90deg, rgba(255, 56, 56, 0.1) 0%, rgba(0, 0, 0, 0) 100%);
+    }
+    .panic-modal__title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #ff3838;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      animation: panic-title-blink 1.5s infinite alternate;
+    }
+    @keyframes panic-title-blink {
+      0% { text-shadow: 0 0 5px rgba(255,56,56,0.3); }
+      100% { text-shadow: 0 0 15px rgba(255,56,56,0.8); }
+    }
+    .panic-modal.safe-state .panic-modal__content {
+      border-color: rgba(55, 230, 181, 0.3);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(55, 230, 181, 0.15);
+    }
+    .panic-modal.safe-state .panic-modal__header {
+      background: linear-gradient(90deg, rgba(55, 230, 181, 0.1) 0%, rgba(0, 0, 0, 0) 100%);
+      border-bottom-color: rgba(55, 230, 181, 0.2);
+    }
+    .panic-modal.safe-state .panic-modal__title {
+      color: var(--mint);
+      animation: safe-title-blink 1.5s infinite alternate;
+    }
+    @keyframes safe-title-blink {
+      0% { text-shadow: 0 0 5px rgba(55,230,181,0.3); }
+      100% { text-shadow: 0 0 15px rgba(55,230,181,0.6); }
+    }
+    .panic-modal__body {
+      padding: 30px;
+      overflow-y: auto;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.2fr 1.8fr;
+      gap: 30px;
+    }
+    .panic-metric-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      text-align: center;
+    }
+    .panic-metric-card.critical {
+      border-color: rgba(255, 56, 56, 0.4);
+      background: rgba(255, 56, 56, 0.02);
+    }
+    .panic-toggle-btn {
+      position: fixed;
+      bottom: 170px; /* Shifted vertically upward by +10px (was 160px) */
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ff3838 0%, #ff8225 100%);
+      box-shadow: 0 4px 20px rgba(255, 56, 56, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 9998;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      animation: panic-pulse 2s infinite;
+      transition: all 0.3s ease;
+    }
+    .panic-toggle-btn.safe-state {
+      background: linear-gradient(135deg, var(--mint) 0%, #00d2ff 100%);
+      box-shadow: 0 4px 20px rgba(55, 230, 181, 0.3);
+      animation: safe-pulse 3s infinite;
+    }
+    @keyframes panic-pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(255, 56, 56, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 15px rgba(255, 56, 56, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 56, 56, 0);
+      }
+    }
+    @keyframes safe-pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(55, 230, 181, 0.4);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(55, 230, 181, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(55, 230, 181, 0);
+      }
+    }
+    .panic-toggle-btn:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 24px rgba(255, 56, 56, 0.7);
+    }
+    .panic-toggle-btn.safe-state:hover {
+      box-shadow: 0 6px 24px rgba(55, 230, 181, 0.5);
+    }
+    .panic-toggle-btn:active {
+      transform: scale(0.95);
+    }
   </style>
 </head>
 
@@ -344,7 +626,6 @@
     <nav class="nav__links" role="navigation" aria-label="Main">
       <a href="#" class="nav-tab active-tab" data-tab="tab-home" aria-current="page">Home</a>
       <a href="#" class="nav-tab" data-tab="tab-chat">Chat</a>
-      <a href="#">Features</a>
       <a href="#">Docs</a>
       <a href="#" class="nav-tab" data-tab="tab-support">Support</a>
       <!-- Notification Center Dropdown -->
@@ -380,6 +661,19 @@
           <img id="profile-menu-img" style="display: none; width: 100%; height: 100%; object-fit: cover;" />
         </button>
         <div id="profile-dropdown" class="profile-dropdown glass">
+          <a href="#" class="nav-tab btn btn--ghost btn--sm" data-tab="tab-tasks" style="text-decoration: none; display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); border: none; background: transparent; cursor: pointer; transition: background 0.2s; color: #ffffff;">
+            <i class="fas fa-tasks" style="width: 16px; color: var(--mint);"></i> <span>My Tasks</span>
+          </a>
+          <a href="#" class="nav-tab btn btn--ghost btn--sm" data-tab="tab-todo" style="text-decoration: none; display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); border: none; background: transparent; cursor: pointer; transition: background 0.2s; color: #ffffff;">
+            <i class="fas fa-list-ul" style="width: 16px; color: var(--mint);"></i> <span>ToDo List</span>
+          </a>
+          <a href="#" class="nav-tab btn btn--ghost btn--sm" data-tab="tab-planner" style="text-decoration: none; display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); border: none; background: transparent; cursor: pointer; transition: background 0.2s; color: #ffffff;">
+            <i class="fas fa-calendar-alt" style="width: 16px; color: var(--mint);"></i> <span>Planner</span>
+          </a>
+          <a href="#" class="nav-tab btn btn--ghost btn--sm" data-tab="tab-analytics" style="text-decoration: none; display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); border: none; background: transparent; cursor: pointer; transition: background 0.2s; color: #ffffff;">
+            <i class="fas fa-chart-line" style="width: 16px; color: var(--mint);"></i> <span>Analytics</span>
+          </a>
+          <hr style="border: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 6px 0;" />
           <button id="profile-account-btn" class="btn btn--ghost btn--sm" style="display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); border: none; background: transparent; cursor: pointer; transition: background 0.2s;">
             <i class="fas fa-user" style="width: 16px;"></i> <span>Account</span>
           </button>
@@ -398,49 +692,287 @@
   <!-- MAIN -->
   <main class="shell" role="main">
     <div id="tab-home" class="active-tab-content">
-    <section class="hero glass" aria-labelledby="hero-title">
-      <div class="hero__text">
-        <h1 id="hero-title">Mint Frost AI • Live Chat</h1>
-        <p>Talk to your model through a clean JSON API. This UI sends text to <code>/api/chat</code> and renders replies
-          in real time.</p>
-        <div class="hero__cta">
-          <a class="btn btn--mint" href="#">Get started</a>
-          <a class="btn btn--ghost" href="/ping">Ping API</a>
-        </div>
-      </div>
+      <div style="padding: 20px; box-sizing: border-box; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px;">
+        
+        <!-- HERO BANNER -->
+        <section class="hero glass" aria-labelledby="hero-title" style="margin-top: 15px;">
+          <div class="hero__text">
+            <h1 id="hero-title">Mint Frost AI • Productivity Command Center</h1>
+            <p>Your real-time cognitive workstation. Live calculations monitor workload risk vectors, deadline velocities, and priority scoring to optimize daily execution plans.</p>
+            <div class="hero__cta">
+              <button class="btn btn--mint" onclick="if(typeof window.openCreateTaskModal === 'function') { window.openCreateTaskModal(); } else { showToast('Please navigate to My Tasks tab to create a task.', 'info'); }">＋ Add Task</button>
+              <button class="btn btn--ghost" id="btn-panic-mode-hero" style="border-color: rgba(255,107,107,0.3); color: #ff6b6b;"><i class="fas fa-radiation"></i> Panic Mode</button>
+            </div>
+          </div>
 
-      <div class="hero__card">
-        <div class="chip chip--mint">API • /api/chat</div>
-        <div class="hero__card__body">
-          <div class="line"><span class="tag">POST</span> <code>To Backend "/api/chat"</code></div>
-          <div class="line"><span class="muted">body</span> <code>User ask's {"message": "hello"}</code></div>
-          <div class="line"><span class="muted">returns</span>
-            <code>AI say's {"ai":"Hey There How may i help you!!"}</code>
+          <div class="hero__card" style="min-width: 290px;">
+            <div class="chip chip--mint" style="margin-bottom: 12px;">MOCK DECISION ENGINE • METRIC INSIGHTS</div>
+            <div class="hero__card__body" style="display: flex; flex-direction: column; height: 140px; gap: 12px; background: rgba(0,0,0,0.25); padding: 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); text-align: left;">
+              
+              <!-- Priority Score -->
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <span style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500;">Priority Score</span>
+                <span id="hero-mock-score" style="background: rgba(255, 107, 107, 0.15); color: #ff6b6b; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(255,107,107,0.3); transition: all 0.3s ease;">
+                  94/100 🔴
+                </span>
+              </div>
+
+              <!-- Risk Level -->
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <span style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500;">Projected Risk</span>
+                <span id="hero-mock-risk" class="risk-glow-red" style="background: rgba(231, 76, 60, 0.15); color: #e74c3c; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(231,76,60,0.3); text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.3s ease;">
+                  Critical Risk
+                </span>
+              </div>
+
+              <!-- Completion Probability -->
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; justify-content: space-between; font-size: 11px; align-items: center;">
+                  <span style="color: rgba(255,255,255,0.5); font-weight: 500;">Completion Prob.</span>
+                  <span id="hero-mock-prob" style="color: var(--mint); font-weight: 700; transition: all 0.3s ease;">84%</span>
+                </div>
+                <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-top: 2px;">
+                  <div id="hero-mock-prob-bar" style="width: 84%; height: 100%; background: var(--mint); border-radius: 3px; transition: width 0.5s ease;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- EMPTY STATE ILLUSTRATION -->
+        <div id="dashboard-empty-state" class="card glass" style="display: none; padding: 40px 20px; text-align: center; flex-direction: column; align-items: center; justify-content: center; gap: 16px; border-radius: var(--radius-xl);">
+          <div style="font-size: 48px; filter: drop-shadow(0 0 10px rgba(55,230,181,0.3));">✨</div>
+          <h2 style="color: #ffffff; font-size: 20px; font-weight: 600; margin: 0;">You're all caught up!</h2>
+          <p style="color: rgba(255,255,255,0.5); font-size: 13px; max-width: 320px; margin: 0;">No active tasks or deadline risks found. Enjoy your productive day or start planning new goals.</p>
+          <button class="btn btn--mint" onclick="if(typeof window.openCreateTaskModal === 'function') { window.openCreateTaskModal(); } else { showToast('Please navigate to My Tasks tab to create a task.', 'info'); }" style="margin-top: 8px;">Create Your First Task</button>
+        </div>
+
+        <!-- MAIN DASHBOARD CONTENT -->
+        <div id="dashboard-main-content" style="display: flex; flex-direction: column; gap: 24px;">
+
+                  <!-- Gamification Dashboard Panel -->
+        <div class="glass" style="padding:20px; border-radius:14px; margin-bottom:28px; border: 1px solid rgba(55,230,181,0.2);">
+          <h4 style="margin:0 0 16px; font-size:12px; color:var(--mint); text-transform:uppercase; letter-spacing:.5px; display:flex; align-items:center; gap:8px;">
+            <i class="fas fa-gamepad"></i> Progress Dashboard
+          </h4>
+          <div style="display:grid; grid-template-columns:1fr 2fr; gap:24px; align-items:center; flex-wrap:wrap;">
+            <!-- Left side: Level, Streak, XP details -->
+            <div style="display:flex; flex-direction:column; gap:16px;">
+              <div style="display:flex; align-items:center; gap:16px;">
+                <div style="width:70px; height:70px; border-radius:50%; background:linear-gradient(135deg, var(--mint), #00d2ff); display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:bold; color:#121212; border: 3px solid rgba(255,255,255,0.2);" id="gam-level-badge">
+                  1
+                </div>
+                <div>
+                  <div style="font-size:18px; font-weight:800; color:#ffffff;">Level <span id="gam-level-text">1</span></div>
+                  <div style="font-size:12px; color:rgba(255,255,255,0.6);" id="gam-xp-text">0 / 100 XP</div>
+                  <div style="font-size:12px; color:var(--mint); font-weight:bold; margin-top:2px;">Streak: <span id="gam-streak-text">0</span> days 🔥</div>
+                </div>
+              </div>
+              
+              <!-- XP progress bar -->
+              <div style="width:100%;">
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:rgba(255,255,255,0.45); margin-bottom:4px;">
+                  <span>Progress to Level <span id="gam-next-level">2</span></span>
+                  <span id="gam-xp-percent">0%</span>
+                </div>
+                <div style="width:100%; height:12px; background:rgba(255,255,255,0.1); border-radius:6px; overflow:hidden;">
+                  <div id="gam-xp-bar" style="width:0%; height:100%; background:linear-gradient(90deg, var(--mint), #00d2ff); transition:width 0.6s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Right side: Badges Shelf -->
+            <div>
+              <h5 style="margin:0 0 10px; font-size:11px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:.5px;">Earned Badges Shelf</h5>
+              <div id="gam-badges-container" style="display:flex; flex-wrap:wrap; gap:12px; min-height:60px; align-items:center; background:rgba(255,255,255,0.02); padding:12px; border-radius:10px; border:1px dashed rgba(255,255,255,0.1);">
+                <div style="color:rgba(255,255,255,0.3); font-size:12px; width:100%; text-align:center;">No badges earned yet. Complete tasks, generate plans, and stay productive to earn badges!</div>
+              </div>
+            </div>
           </div>
         </div>
+          
+
+          <!-- TOP SUMMARY CARDS GRID -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px;">
+            <!-- Total Tasks Card -->
+            <div class="card glass" style="padding: 16px; display: flex; flex-direction: column; gap: 6px; border-radius: 12px; transition: transform 0.2s;">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600; text-transform: uppercase;">📋 Total Tasks</span>
+              <strong id="dash-total-tasks" style="font-size: 24px; color: #ffffff; transition: all 0.3s ease;">0</strong>
+            </div>
+            <!-- Completed Today Card -->
+            <div class="card glass" style="padding: 16px; display: flex; flex-direction: column; gap: 6px; border-radius: 12px; transition: transform 0.2s;">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600; text-transform: uppercase;">✅ Completed</span>
+              <strong id="dash-completed-today" style="font-size: 24px; color: var(--mint); transition: all 0.3s ease;">0</strong>
+            </div>
+            <!-- Pending Tasks Card -->
+            <div class="card glass" style="padding: 16px; display: flex; flex-direction: column; gap: 6px; border-radius: 12px; transition: transform 0.2s;">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600; text-transform: uppercase;">⏳ Pending Tasks</span>
+              <strong id="dash-pending-tasks" style="font-size: 24px; color: #f1c40f; transition: all 0.3s ease;">0</strong>
+            </div>
+            <!-- Critical Tasks Card -->
+            <div class="card glass" style="padding: 16px; display: flex; flex-direction: column; gap: 6px; border-radius: 12px; transition: transform 0.2s;">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600; text-transform: uppercase;">🚨 Critical Tasks</span>
+              <strong id="dash-critical-tasks" style="font-size: 24px; color: #ff6b6b; transition: all 0.3s ease;">0</strong>
+            </div>
+            <!-- Productivity Score Card -->
+            <div class="card glass" style="padding: 16px; display: flex; flex-direction: column; gap: 6px; border-radius: 12px; transition: transform 0.2s;">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600; text-transform: uppercase;">📈 Prod. Score</span>
+              <strong id="dash-productivity-score" style="font-size: 24px; color: #3498db; transition: all 0.3s ease;">0%</strong>
+            </div>
+            <!-- Completion Probability Card -->
+            <div class="card glass" style="padding: 16px; display: flex; flex-direction: column; gap: 6px; border-radius: 12px; transition: transform 0.2s;">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600; text-transform: uppercase;">🎯 Completion Prob.</span>
+              <strong id="dash-completion-probability" style="font-size: 24px; color: #9b59b6; transition: all 0.3s ease;">0%</strong>
+            </div>
+          </div>
+
+          <!-- HIGHEST PRIORITY TASK BANNER -->
+          <div class="card glass" style="padding: 16px; border-left: 4px solid #ff6b6b; display: flex; justify-content: space-between; align-items: center; border-radius: 10px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; flex-direction: column; gap: 4px; text-align: left;">
+              <span style="font-size: 9px; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">⚡ Highest Priority Task</span>
+              <strong id="dash-highest-priority-task" style="font-size: 15px; color: #ffffff;">Loading priority backlog...</strong>
+            </div>
+            <button class="btn btn--mint btn--sm" id="btn-focus-highest-prio" style="font-size: 11px; padding: 6px 12px;">Start Working</button>
+          </div>
+
+          <!-- ROW 1: TODAY'S FOCUS & RISK PROFILE -->
+          <div style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+            <div style="display: grid; grid-template-columns: 1fr; md:grid-template-columns: 1.5fr 1fr; gap: 20px;">
+              
+              <!-- TODAY'S FOCUS SECTION -->
+              <div class="card glass" style="padding: 24px; display: flex; flex-direction: column; gap: 16px; border-radius: 14px; text-align: left;">
+                <h2 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px;">
+                  <i class="fas fa-bullseye" style="color: var(--mint);"></i> Today's Focus
+                </h2>
+                <div id="focus-task-container" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 16px; border-radius: 10px; display: flex; flex-direction: column; gap: 12px;">
+                  <div>
+                    <h3 id="focus-task-title" style="margin: 0 0 4px 0; font-size: 16px; color: #ffffff;">Recommended Task</h3>
+                    <p id="focus-task-desc" style="margin: 0; font-size: 12px; color: rgba(255,255,255,0.6); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">No unfinished tasks remaining.</p>
+                  </div>
+                  
+                  <div style="display: flex; gap: 12px; font-size: 10px; flex-wrap: wrap;">
+                    <span id="focus-task-time" style="background: rgba(255,255,255,0.06); padding: 4px 8px; border-radius: 4px; color: rgba(255,255,255,0.8);"><i class="far fa-clock"></i> -- Min</span>
+                    <span id="focus-task-priority" style="background: rgba(241,196,15,0.15); padding: 4px 8px; border-radius: 4px; color: #f1c40f; font-weight: 600;">--</span>
+                    <span id="focus-task-risk" style="background: rgba(231,76,60,0.15); padding: 4px 8px; border-radius: 4px; color: #e74c3c; font-weight: 600;">--</span>
+                  </div>
+                  
+                  <div style="background: rgba(55,230,181,0.05); border: 1px dashed rgba(55,230,181,0.2); padding: 12px; border-radius: 6px; font-size: 11px;">
+                    <strong style="color: var(--mint); display: block; margin-bottom: 2px;"><i class="fas fa-lightbulb"></i> AI Recommendation:</strong>
+                    <span id="focus-task-recommendation">Plan your daily tasks to start receiving AI coaching.</span>
+                  </div>
+                  
+                  <button class="btn btn--mint btn--full" id="btn-focus-start-working" style="padding: 10px; font-size: 12px;"><i class="fas fa-play"></i> Start Working</button>
+                </div>
+              </div>
+
+              <!-- RISK OVERVIEW & PROFILE -->
+              <div class="card glass" style="padding: 24px; display: flex; flex-direction: column; gap: 16px; border-radius: 14px; align-items: center; justify-content: center; text-align: center;">
+                <h2 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0 0 8px 0; align-self: flex-start;">
+                  <i class="fas fa-shield-alt" style="color: var(--mint);"></i> Risk Profile
+                </h2>
+                
+                <div style="position: relative; width: 140px; height: 140px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="140" height="140" viewBox="0 0 140 140" style="transform: rotate(-90deg);">
+                    <circle cx="70" cy="70" r="54" fill="transparent" stroke="rgba(255,255,255,0.06)" stroke-width="8"/>
+                    <circle id="risk-progress-ring" cx="70" cy="70" r="54" fill="transparent" stroke="var(--mint)" stroke-width="8" stroke-dasharray="339.29" stroke-dashoffset="339.29" style="transition: stroke-dashoffset 0.6s ease;"/>
+                  </svg>
+                  <div style="position: absolute; display: flex; flex-direction: column; align-items: center;">
+                    <strong id="risk-ring-percent" style="font-size: 22px; color: #ffffff;">0%</strong>
+                    <span style="font-size: 9px; color: rgba(255,255,255,0.5); text-transform: uppercase;">Safe Ratio</span>
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 12px;">
+                  <div style="background: rgba(255,255,255,0.02); padding: 8px; border-radius: 8px; font-size: 11px; color: #2ecc71;">
+                    🟢 Safe: <strong id="risk-stat-safe" style="color: #ffffff;">0</strong>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.02); padding: 8px; border-radius: 8px; font-size: 11px; color: #f1c40f;">
+                    🟡 Attention: <strong id="risk-stat-attention" style="color: #ffffff;">0</strong>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.02); padding: 8px; border-radius: 8px; font-size: 11px; color: #e67e22;">
+                    🟠 High: <strong id="risk-stat-high" style="color: #ffffff;">0</strong>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.02); padding: 8px; border-radius: 8px; font-size: 11px; color: #ff6b6b;">
+                    🔴 Critical: <strong id="risk-stat-critical" style="color: #ffffff;">0</strong>
+                  </div>
+                </div>
+                <div style="background: rgba(255,255,255,0.02); padding: 8px; border-radius: 8px; font-size: 11px; width: 100%; margin-top: 4px; color: rgba(255,255,255,0.4);">
+                  ⚫ Overdue: <strong id="risk-stat-overdue" style="color: #ffffff;">0</strong>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ROW 2: TODAY'S TIMELINE & DEADLINE MONITOR -->
+          <div style="display: grid; grid-template-columns: 1fr; md:grid-template-columns: 1.5fr 1fr; gap: 20px; text-align: left;">
+            
+            <!-- TODAY'S TIMELINE -->
+            <div class="card glass" style="padding: 24px; display: flex; flex-direction: column; gap: 16px; border-radius: 14px;">
+              <h2 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0; display: flex; align-items: center; justify-content: space-between;">
+                <span><i class="far fa-calendar-alt" style="color: var(--mint); margin-right: 6px;"></i> Today's Timeline</span>
+                <button class="btn btn--mint btn--sm" id="btn-generate-plan-dash" style="font-size: 10px; padding: 4px 10px;">📅 Generate Plan</button>
+              </h2>
+              
+              <div id="dash-timeline-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; padding-right: 4px;">
+                <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; padding: 20px 0;">No timeline slots generated yet. Click "Generate Plan" to begin.</p>
+              </div>
+            </div>
+
+            <!-- DEADLINE MONITOR -->
+            <div class="card glass" style="padding: 24px; display: flex; flex-direction: column; gap: 16px; border-radius: 14px;">
+              <h2 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0;">
+                <i class="far fa-hourglass" style="color: var(--mint); margin-right: 6px;"></i> Deadline Monitor
+              </h2>
+              
+              <div style="display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 320px; padding-right: 4px;" id="dash-deadline-list">
+                <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; padding: 20px 0;">No active deadlines detected in database.</p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ROW 3: AI INSIGHTS & RECENT ACTIVITY -->
+          <div style="display: grid; grid-template-columns: 1fr; md:grid-template-columns: 1.2fr 1.3fr; gap: 20px; text-align: left;">
+            
+            <!-- AI INSIGHTS PANEL -->
+            <div class="card glass" style="padding: 24px; display: flex; flex-direction: column; gap: 16px; border-radius: 14px;">
+              <h2 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0; display: flex; align-items: center; justify-content: space-between;">
+                <span><i class="fas fa-brain" style="color: var(--mint); margin-right: 6px;"></i> AI Insights</span>
+                <button class="btn btn--ghost btn--sm" id="btn-refresh-insights-dash" style="font-size: 10px; padding: 4px 8px; border: 1px solid rgba(255,255,255,0.1);"><i class="fas fa-sync-alt"></i> Refresh</button>
+              </h2>
+              
+              <div id="dash-insights-container" style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04); font-size: 12px; display: flex; align-items: center; gap: 6px;">
+                  <i class="fas fa-spinner fa-spin" style="color: var(--mint);"></i> <span>Analyzing active metrics...</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- RECENT ACTIVITY FEED -->
+            <div class="card glass" style="padding: 24px; display: flex; flex-direction: column; gap: 16px; border-radius: 14px;">
+              <h2 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0;">
+                <i class="fas fa-history" style="color: var(--mint); margin-right: 6px;"></i> Recent Activity
+              </h2>
+              
+              <div id="dash-activity-feed" style="display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; padding-right: 4px;">
+                <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; padding: 20px 0;">No activities logged yet.</p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- QUICK ACTIONS PANEL -->
+          <div class="card glass" style="padding: 16px; display: flex; justify-content: space-around; align-items: center; border-radius: 12px; gap: 12px; flex-wrap: wrap;">
+            <button class="btn btn--ghost" onclick="if(typeof window.showCreateTaskModal === 'function') { window.showCreateTaskModal(); } else { showToast('Please navigate to My Tasks tab to create a task.', 'info'); }" style="flex: 1; min-width: 130px; padding: 10px; font-size: 12px;"><i class="fas fa-plus"></i> Add Task</button>
+            <button class="btn btn--ghost" id="btn-generate-plan-dash-footer" style="flex: 1; min-width: 130px; padding: 10px; font-size: 12px;"><i class="far fa-calendar-alt"></i> Generate Plan</button>
+            <button class="btn btn--ghost" id="btn-panic-mode-dash" style="flex: 1; min-width: 130px; padding: 10px; font-size: 12px; border-color: rgba(255,107,107,0.3); color: #ff6b6b;"><i class="fas fa-radiation"></i> Panic Mode</button>
+            <button class="btn btn--ghost" id="btn-refresh-analysis-dash" style="flex: 1; min-width: 130px; padding: 10px; font-size: 12px;"><i class="fas fa-sync"></i> Refresh AI Analysis</button>
+          </div>
+
+        </div>
+
       </div>
-    </section>
-
-    <!-- GRID CARDS -->
-    <section class="grid">
-      <article class="card glass">
-        <h3 class="card__title">🚀 Fast Setup</h3>
-        <p>Spin up your AI backend in minutes with Flask. Zero fuss, pure Python.</p>
-        <a class="link-mint" href="#">Learn more →</a>
-      </article>
-
-      <article class="card glass">
-        <h3 class="card__title">🤖 Smart API</h3>
-        <p>Integrate with AI models easily through clean JSON endpoints, ready to plug into any frontend.</p>
-        <a class="link-mint" href="#">Design tokens →</a>
-      </article>
-
-      <article class="card glass">
-        <h3 class="card__title">🎨 Flexible UI</h3>
-        <p>Pair the backend with frosted-glass templates and mint aesthetics for a modern, polished feel.</p>
-        <a class="link-mint" href="#">API schema →</a>
-      </article>
-    </section>
     </div>
 
     <div id="tab-support">
@@ -480,8 +1012,9 @@
         </div>
       </section>
     </div>
+  </main>
 
-    <div id="tab-chat">
+  <div id="tab-chat">
     <!-- CHAT PANEL -->
     <section class="panel glass" aria-labelledby="chat-title">
       <div class="panel-container">
@@ -542,9 +1075,6 @@
                   <button id="api-settings-btn" class="btn btn--ghost btn--sm" title="API Settings" aria-label="Configure API Keys">
                     <i class="fas fa-cog" style="width: 16px;"></i> <span>API Settings</span>
                   </button>
-                  <button id="jamendo-btn" class="btn btn--ghost btn--sm" title="Music Player" aria-label="Music Player">
-                    <i class="fas fa-music" style="width: 16px; color: var(--mint);"></i> <span>Music Player</span>
-                  </button>
                   <!-- Logout removed from chat actions -->
                 </div>
               </div>
@@ -581,7 +1111,7 @@
             </div>
           </div>
 
-          <div id="typing-indicator" class="typing-indicator" style="padding: 10px 0; display: none;">
+          <div id="typing-indicator" class="typing-indicator" style="display: none;">
             <div class="bubble bubble--ai bubble--typing">
               <div class="typing-dots">
                 <span></span><span></span><span></span>
@@ -638,15 +1168,22 @@
                     <option value="openai:gpt-4">🤖 GPT-4 Standard</option>
                     <option value="openai:gpt-3.5-turbo">🤖 GPT-3.5 Turbo (Legacy)</option>
                   </optgroup>
-                  <optgroup label="Google Gemini - Multimodal &amp; Fast">
-                    <option value="gemini:gemini-2.0-flash">✨ Gemini 2.0 Flash (Recommended)</option>
-                    <option value="gemini:gemini-2.0-flash-lite-preview-02-05">✨ Gemini 2.0 Flash Lite</option>
-                    <option value="gemini:gemini-2.0-pro-exp-02-05">✨ Gemini 2.0 Pro Experimental</option>
-                    <option value="gemini:gemini-2.0-flash-thinking-exp-01-21">✨ Gemini 2.0 Thinking Experimental</option>
-                    <option value="gemini:gemini-1.5-pro">✨ Gemini 1.5 Pro (Recommended)</option>
-                    <option value="gemini:gemini-1.5-flash">✨ Gemini 1.5 Flash</option>
-                    <option value="gemini:gemini-1.5-flash-8b">✨ Gemini 1.5 Flash 8B</option>
-                    <option value="gemini:gemini-1.0-pro">✨ Gemini 1.0 Pro (Legacy)</option>
+                  <optgroup label="Google AI Studio (Gemini &amp; Gemma)">
+                    <option value="gemini:gemini-3.5-flash">✨ Gemini 3.5 Flash (Recommended)</option>
+                    <option value="gemini:gemini-3.1-pro-image">✨ Gemini 3.1 Pro Image</option>
+                    <option value="gemini:gemini-3.1-pro-preview">✨ Gemini 3.1 Pro Preview</option>
+                    <option value="gemini:gemini-3-flash-preview">✨ Gemini 3 Flash Preview</option>
+                    <option value="gemini:gemini-live-2.5-flash-native-audio">✨ Gemini Live 2.5 Flash Native Audio</option>
+                    <option value="gemini:gemini-2.5-pro">✨ Gemini 2.5 Pro</option>
+                    <option value="gemini:gemini-2.5-flash">✨ Gemini 2.5 Flash</option>
+                    <option value="gemini:gemma-4-E2B">✨ Gemma 4 E2B</option>
+                    <option value="gemini:gemma-4-E4B">✨ Gemma 4 E4B</option>
+                    <option value="gemini:gemma-4-12B">✨ Gemma 4 12B</option>
+                    <option value="gemini:gemma-4-26B-A4B">✨ Gemma 4 26B A4B</option>
+                    <option value="gemini:gemma-4-31B">✨ Gemma 4 31B</option>
+                    <option value="gemini:antigravity-preview-05-2026">✨ Antigravity Preview (05-2026)</option>
+                    <option value="gemini:gemini-robotics-er-1.6-preview">✨ Gemini Robotics ER 1.6 Preview</option>
+                    <option value="gemini:gemini-deep-research-preview">✨ Gemini Deep Research Preview</option>
                   </optgroup>
                   <optgroup label="Anthropic Claude - Smart &amp; Coding">
                     <option value="anthropic:claude-3-5-sonnet-latest">🎭 Claude 3.5 Sonnet (Latest - Recommended)</option>
@@ -757,10 +1294,315 @@
     </section>
     </div>
 
+    <div id="tab-tasks">
+      <div class="shell" style="margin-top: 110px; margin-bottom: 80px; padding-bottom: 40px;">
+        <!-- HEADER BAR -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+          <div>
+            <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px;">
+              <i class="fas fa-tasks" style="color: var(--mint);"></i> My Tasks
+            </h1>
+            <p style="color: rgba(255, 255, 255, 0.6); margin: 4px 0 0 0; font-size: 13px;">Manage, track, and breakdown your active goals and commitments</p>
+          </div>
+          <button class="btn btn--mint" id="btn-create-task-modal" style="display: flex; align-items: center; gap: 8px;">
+            <i class="fas fa-plus"></i> Create Task
+          </button>
+        </div>
+
+        <!-- SEARCH & FILTERS -->
+        <div class="card glass" style="padding: 16px; margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div style="flex: 1; position: relative;">
+              <input type="text" id="task-search-input" class="input" placeholder="Search tasks..." style="width: 100%; padding-left: 36px; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 8px; color: #ffffff;">
+              <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.4); font-size: 14px;"></i>
+            </div>
+          </div>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 130px;">
+              <label style="font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Category</label>
+              <select id="filter-category" class="input" style="padding: 4px 8px; font-size: 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; color: #ffffff;">
+                <option value="">All Categories</option>
+                <option value="Assignment">Assignment</option>
+                <option value="Exam">Exam</option>
+                <option value="Meeting">Meeting</option>
+                <option value="Reminder">Reminder</option>
+                <option value="Goal">Goal</option>
+                <option value="Bill">Bill</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 130px;">
+              <label style="font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Priority</label>
+              <select id="filter-priority" class="input" style="padding: 4px 8px; font-size: 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; color: #ffffff;">
+                <option value="">All Priorities</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 130px;">
+              <label style="font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Status</label>
+              <select id="filter-status" class="input" style="padding: 4px 8px; font-size: 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; color: #ffffff;">
+                <option value="">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+                <option value="Overdue">Overdue</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 130px;">
+              <label style="font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Risk Level</label>
+              <select id="filter-risk" class="input" style="padding: 4px 8px; font-size: 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; color: #ffffff;">
+                <option value="">All Risks</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <button id="btn-clear-filters" class="btn btn--secondary btn--sm" style="margin-top: 18px; padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+              Clear Filters
+            </button>
+          </div>
+        </div>
+
+        <!-- TASKS GRID -->
+        <div id="tasks-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+          <!-- Task cards will render dynamically here -->
+        </div>
+        <div id="tasks-empty-state" style="display: none; text-align: center; padding: 48px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: 12px; margin-top: 16px;">
+          <i class="fas fa-clipboard-list" style="font-size: 40px; color: rgba(255,255,255,0.2); margin-bottom: 12px;"></i>
+          <h3 style="margin: 0; color: rgba(255,255,255,0.8);">No tasks found</h3>
+          <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.4); font-size: 12px;">Try adjusting your filters or create a new task!</p>
+        </div>
+
+        </div>
+      </div>
+
+    <!-- TODO LIST TAB CONTENT -->
+    <div id="tab-todo">
+      <div class="shell" style="margin-top: 110px; margin-bottom: 80px; padding-bottom: 40px;">
+        <!-- HEADER BAR -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+          <div>
+            <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px;">
+              <i class="fas fa-check-square" style="color: var(--mint);"></i> ToDo List
+            </h1>
+            <p style="color: rgba(255, 255, 255, 0.6); margin: 4px 0 0 0; font-size: 13px;">Plan, add, and keep track of your quick checks and checklist items</p>
+          </div>
+        </div>
+
+        <!-- QUICK TO-DO LIST CONTAINER -->
+        <div class="card glass" style="padding: 24px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 16px; flex-wrap: wrap; gap: 16px;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <h2 style="color: #ffffff; font-size: 18px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px;">
+                Current Tasks
+              </h2>
+              <!-- Dynamic Status Indicators -->
+              <div id="todo-stats" style="font-size: 12px; color: rgba(255,255,255,0.5); display: flex; gap: 16px; margin-top: 4px;">
+                <span>Total: <strong id="todo-total-count" style="color: #fff;">0</strong></span>
+                <span>Completed: <strong id="todo-completed-count" style="color: var(--mint);">0</strong></span>
+                <span>Pending: <strong id="todo-pending-count" style="color: #ff6b6b;">0</strong></span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="quick-todo-input" class="input" placeholder="Add quick to-do..." style="font-size: 13px; padding: 6px 14px; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; width: 240px; color: #ffffff;">
+              <button id="btn-add-quick-todo" class="btn btn--mint btn--sm" style="padding: 8px 16px; font-size: 13px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;"><i class="fas fa-plus"></i> Add Task</button>
+            </div>
+          </div>
+          <div id="quick-todo-list" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Populate from app.js dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI SMART DAILY PLANNER TAB CONTENT -->
+    <div id="tab-planner">
+      <div class="shell" style="margin-top: 110px; margin-bottom: 80px; padding-bottom: 40px;">
+        <!-- HEADER BAR -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px;">
+              <i class="fas fa-calendar-alt" style="color: var(--mint);"></i> AI Daily Planner
+            </h1>
+            <p style="color: rgba(255, 255, 255, 0.6); margin: 4px 0 0 0; font-size: 13px;">Optimize your day with structured, prioritized scheduling & smart breaks</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button id="btn-generate-plan" class="btn btn--mint" style="display: inline-flex; align-items: center; gap: 8px;">
+              <i class="fas fa-magic"></i> Generate Today's Plan
+            </button>
+            <button id="btn-regenerate-plan" class="btn btn--secondary" style="display: none; inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,0.1);">
+              <i class="fas fa-sync-alt"></i> Regenerate Plan
+            </button>
+          </div>
+        </div>
+
+        <!-- PLANNER DASHBOARD GRID -->
+        <div id="planner-container" style="display: none; flex-direction: column; gap: 24px;">
+          
+          <!-- CURRENT RECOMMENDED FOCUS & UP NEXT WIDGET -->
+          <div class="card glass" style="padding: 24px; background: rgba(55, 230, 181, 0.03); border: 2px solid rgba(55, 230, 181, 0.25);">
+            <div style="display: grid; grid-template-columns: 1fr; md:grid-template-columns: 2fr 1fr; gap: 24px; align-items: start;">
+              <!-- Left side: Current recommended focus -->
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <span style="font-size: 10px; color: var(--mint); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Current Recommended Focus</span>
+                <h2 id="current-focus-title" style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600;">📖 Study Physics Lecture notes</h2>
+                <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 4px;">
+                  <span id="current-focus-time" style="font-size: 14px; color: rgba(255,255,255,0.8); display: flex; align-items: center; gap: 6px;">
+                    <i class="far fa-clock"></i> 4:00 PM - 4:30 PM
+                  </span>
+                  <span id="current-focus-prio-badge" class="badge" style="background: rgba(255, 107, 107, 0.15); color: #ff6b6b; border: 1px solid rgba(255, 107, 107, 0.3);">High Priority</span>
+                </div>
+                <div style="margin-top: 8px;">
+                  <button id="btn-start-current-focus" class="btn btn--mint" style="padding: 8px 20px; font-size: 13px; border-radius: 8px; display: inline-flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-play"></i> Start Now
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Right side: Up Next widget -->
+              <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px; margin-top: 16px; md:border-top: none; md:padding-top: 0; md:margin-top: 0;">
+                <span style="font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Up Next</span>
+                <div id="planner-up-next-item" style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; display: flex; flex-direction: column; gap: 4px;">
+                  <span id="up-next-title" style="color: #ffffff; font-size: 13px; font-weight: 500;">Solve Physics Numericals</span>
+                  <span id="up-next-time" style="color: rgba(255,255,255,0.4); font-size: 11px;">4:30 PM - 5:15 PM</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TIMELINE CONTAINER -->
+          <div class="card glass" style="padding: 24px;">
+            <h3 style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0 0 20px 0;">Today's Schedule</h3>
+            <div id="planner-timeline-list" style="position: relative; display: flex; flex-direction: column; gap: 16px; padding-left: 20px; border-left: 2px dashed rgba(255,255,255,0.08);">
+              <!-- Render timeline events here -->
+            </div>
+          </div>
+        </div>
+
+        <!-- PLANNER EMPTY STATE -->
+        <div id="planner-empty-state" style="text-align: center; padding: 64px 32px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: 16px; margin-top: 16px;">
+          <i class="fas fa-calendar-times" style="font-size: 48px; color: rgba(255,255,255,0.2); margin-bottom: 16px;"></i>
+          <h3 style="margin: 0; color: rgba(255,255,255,0.8); font-size: 18px; font-weight: 600;">No schedule generated</h3>
+          <p style="margin: 6px 0 20px 0; color: rgba(255,255,255,0.4); font-size: 13px;">No tasks available or plan is not generated yet. Start by generating your optimized plan!</p>
+          <button id="btn-generate-plan-empty" class="btn btn--mint" style="display: inline-flex; align-items: center; gap: 8px;">
+            <i class="fas fa-magic"></i> Generate Today's Plan
+          </button>
+        </div>
+
+        <!-- PLANNER NO TASKS STATE -->
+        <div id="planner-no-tasks-state" style="display: none; text-align: center; padding: 64px 32px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: 16px; margin-top: 16px;">
+          <i class="fas fa-clipboard-list" style="font-size: 48px; color: rgba(255,255,255,0.2); margin-bottom: 16px;"></i>
+          <h3 style="margin: 0; color: rgba(255,255,255,0.8); font-size: 18px; font-weight: 600;">No tasks available</h3>
+          <p style="margin: 6px 0 0 0; color: rgba(255,255,255,0.4); font-size: 13px;">No tasks available. Start by creating your first task under My Tasks tab!</p>
+        </div>
+
+      </div>
+    </div>
+
+
+
+
+    <!-- ═══ ANALYTICS TAB ═══════════════════════════════════════════════ -->
+    <div id="tab-analytics" class="tab-content" style="padding: 24px 0;">
+      <div class="shell" style="max-width:1100px; margin:0 auto; padding:0 18px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2 style="margin:0; font-size:1.6rem; font-weight:800; background:linear-gradient(135deg,var(--mint),#00d2ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
+              <i class="fas fa-chart-line" style="-webkit-text-fill-color:var(--mint); margin-right:10px;"></i>AI Analytics & Achivements
+            </h2>
+            <p style="margin:4px 0 0; color:rgba(255,255,255,0.45); font-size:13px;">Live productivity intelligence powered by your real data</p>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button id="btn-analytics-refresh" class="btn btn--ghost btn--sm"><i class="fas fa-sync-alt"></i> Refresh</button>
+            <button id="btn-analytics-csv" class="btn btn--ghost btn--sm"><i class="fas fa-file-csv"></i> CSV</button>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; margin-bottom:28px;">
+          <div class="glass" style="padding:18px; border-radius:14px; text-align:center;"><div style="font-size:28px; font-weight:800; color:var(--mint);" id="an-total">—</div><div style="font-size:11px; color:rgba(255,255,255,0.45); margin-top:4px;">Total Tasks</div></div>
+          <div class="glass" style="padding:18px; border-radius:14px; text-align:center;"><div style="font-size:28px; font-weight:800; color:#2ecc71;" id="an-completed">—</div><div style="font-size:11px; color:rgba(255,255,255,0.45); margin-top:4px;">Completed</div></div>
+          <div class="glass" style="padding:18px; border-radius:14px; text-align:center;"><div style="font-size:28px; font-weight:800; color:#f1c40f;" id="an-pending">—</div><div style="font-size:11px; color:rgba(255,255,255,0.45); margin-top:4px;">Pending</div></div>
+          <div class="glass" style="padding:18px; border-radius:14px; text-align:center;"><div style="font-size:28px; font-weight:800; color:#ff3838;" id="an-overdue">—</div><div style="font-size:11px; color:rgba(255,255,255,0.45); margin-top:4px;">Overdue</div></div>
+          <div class="glass" style="padding:18px; border-radius:14px; text-align:center;"><div style="font-size:28px; font-weight:800; color:var(--mint);" id="an-rate">—</div><div style="font-size:11px; color:rgba(255,255,255,0.45); margin-top:4px;">Completion Rate</div></div>
+          <div class="glass" style="padding:18px; border-radius:14px; text-align:center;"><div style="font-size:28px; font-weight:800; color:#00d2ff;" id="an-score">—</div><div style="font-size:11px; color:rgba(255,255,255,0.45); margin-top:4px;" id="an-score-label">Productivity Score</div></div>
+          <div class="glass" style="padding:18px; border-radius:14px; text-align:center;"><div style="font-size:28px; font-weight:800; color:#e67e22;" id="an-streak">—</div><div style="font-size:11px; color:rgba(255,255,255,0.45); margin-top:4px;">Day Streak 🔥</div></div>
+        </div>
+
+        <!-- Gamification Dashboard Panel -->
+        <div class="glass" style="padding:20px; border-radius:14px; margin-bottom:28px; border: 1px solid rgba(55,230,181,0.2);">
+          <h4 style="margin:0 0 16px; font-size:12px; color:var(--mint); text-transform:uppercase; letter-spacing:.5px; display:flex; align-items:center; gap:8px;">
+            <i class="fas fa-gamepad"></i> Progress Dashboard
+          </h4>
+          <div style="display:grid; grid-template-columns:1fr 2fr; gap:24px; align-items:center; flex-wrap:wrap;">
+            <!-- Left side: Level, Streak, XP details -->
+            <div style="display:flex; flex-direction:column; gap:16px;">
+              <div style="display:flex; align-items:center; gap:16px;">
+                <div style="width:70px; height:70px; border-radius:50%; background:linear-gradient(135deg, var(--mint), #00d2ff); display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:bold; color:#121212; border: 3px solid rgba(255,255,255,0.2);" id="gam-level-badge">
+                  1
+                </div>
+                <div>
+                  <div style="font-size:18px; font-weight:800; color:#ffffff;">Level <span id="gam-level-text">1</span></div>
+                  <div style="font-size:12px; color:rgba(255,255,255,0.6);" id="gam-xp-text">0 / 100 XP</div>
+                  <div style="font-size:12px; color:var(--mint); font-weight:bold; margin-top:2px;">Streak: <span id="gam-streak-text">0</span> days 🔥</div>
+                </div>
+              </div>
+              
+              <!-- XP progress bar -->
+              <div style="width:100%;">
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:rgba(255,255,255,0.45); margin-bottom:4px;">
+                  <span>Progress to Level <span id="gam-next-level">2</span></span>
+                  <span id="gam-xp-percent">0%</span>
+                </div>
+                <div style="width:100%; height:12px; background:rgba(255,255,255,0.1); border-radius:6px; overflow:hidden;">
+                  <div id="gam-xp-bar" style="width:0%; height:100%; background:linear-gradient(90deg, var(--mint), #00d2ff); transition:width 0.6s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Right side: Badges Shelf -->
+            <div>
+              <h5 style="margin:0 0 10px; font-size:11px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:.5px;">Earned Badges Shelf</h5>
+              <div id="gam-badges-container" style="display:flex; flex-wrap:wrap; gap:12px; min-height:60px; align-items:center; background:rgba(255,255,255,0.02); padding:12px; border-radius:10px; border:1px dashed rgba(255,255,255,0.1);">
+                <div style="color:rgba(255,255,255,0.3); font-size:12px; width:100%; text-align:center;">No badges earned yet. Complete tasks, generate plans, and stay productive to earn badges!</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
+          <div class="glass" style="padding:20px; border-radius:14px;"><h4 style="margin:0 0 14px; font-size:12px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:.5px;">Daily Completions (7 days)</h4><canvas id="chart-daily" height="160"></canvas></div>
+          <div class="glass" style="padding:20px; border-radius:14px;"><h4 style="margin:0 0 14px; font-size:12px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:.5px;">Weekly Completions (4 weeks)</h4><canvas id="chart-weekly" height="160"></canvas></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:20px;">
+          <div class="glass" style="padding:20px; border-radius:14px;"><h4 style="margin:0 0 14px; font-size:12px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:.5px;">Risk Distribution</h4><canvas id="chart-risk" height="180"></canvas></div>
+          <div class="glass" style="padding:20px; border-radius:14px;"><h4 style="margin:0 0 14px; font-size:12px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:.5px;">Priority Distribution</h4><canvas id="chart-priority" height="180"></canvas></div>
+          <div class="glass" style="padding:20px; border-radius:14px;"><h4 style="margin:0 0 14px; font-size:12px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:.5px;">Category Breakdown</h4><canvas id="chart-category" height="180"></canvas></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
+          <div class="glass" style="padding:20px; border-radius:14px;">
+            <h4 style="margin:0 0 16px; font-size:12px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:.5px;">Productivity Trends</h4>
+            <div id="an-trends" style="display:flex; flex-direction:column; gap:12px;"><div style="color:rgba(255,255,255,0.3); font-size:13px;">Loading...</div></div>
+          </div>
+          <div class="glass" style="padding:20px; border-radius:14px;">
+            <h4 style="margin:0 0 16px; font-size:12px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:.5px;">Tomorrow's Predictions</h4>
+            <div id="an-predictions" style="display:flex; flex-direction:column; gap:12px;"><div style="color:rgba(255,255,255,0.3); font-size:13px;">Loading...</div></div>
+          </div>
+        </div>
+        <div class="glass" style="padding:24px; border-radius:14px; border:1px solid rgba(55,230,181,0.2);">
+          <h4 style="margin:0 0 16px; font-size:12px; color:var(--mint); text-transform:uppercase; letter-spacing:.5px;">
+            <i class="fas fa-brain" style="margin-right:6px;"></i>AI Insights
+            <span id="an-ai-badge" style="display:none; font-size:9px; background:rgba(55,230,181,0.15); color:var(--mint); padding:2px 7px; border-radius:20px; margin-left:8px; vertical-align:middle;">AI Generated</span>
+          </h4>
+          <div id="an-insights" style="display:flex; flex-direction:column; gap:10px;"><div style="color:rgba(255,255,255,0.3); font-size:13px;">Analysing your data...</div></div>
+        </div>
+      </div>
+    </div>
+
     <footer class="foot glass">
       <p>© <span id="year"></span> Mint Frost AI • Built with Flask</p>
     </footer>
-  </main>
 
 
 
@@ -1026,14 +1868,21 @@
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label">Model</label>
             <select id="api-gemini-model" class="form-input" style="background: var(--bg1); color: var(--fg); border: 1px solid var(--border); width: 100%; height: 42px; border-radius: 8px; padding: 0 12px; font-family: inherit; font-size: 14px;">
-              <option value="gemini-2.0-flash">gemini-2.0-flash (Recommended)</option>
-              <option value="gemini-2.0-flash-lite-preview-02-05">gemini-2.0-flash-lite</option>
-              <option value="gemini-2.0-pro-exp-02-05">gemini-2.0-pro-exp</option>
-              <option value="gemini-2.0-flash-thinking-exp-01-21">gemini-2.0-flash-thinking</option>
-              <option value="gemini-1.5-pro">gemini-1.5-pro (Recommended)</option>
-              <option value="gemini-1.5-flash">gemini-1.5-flash</option>
-              <option value="gemini-1.5-flash-8b">gemini-1.5-flash-8b</option>
-              <option value="gemini-1.0-pro">gemini-1.0-pro</option>
+              <option value="gemini-3.5-flash">gemini-3.5-flash (Recommended)</option>
+              <option value="gemini-3.1-pro-image">gemini-3.1-pro-image</option>
+              <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+              <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+              <option value="gemini-live-2.5-flash-native-audio">gemini-live-2.5-flash-native-audio</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+              <option value="gemma-4-E2B">gemma-4-E2B</option>
+              <option value="gemma-4-E4B">gemma-4-E4B</option>
+              <option value="gemma-4-12B">gemma-4-12B</option>
+              <option value="gemma-4-26B-A4B">gemma-4-26B-A4B</option>
+              <option value="gemma-4-31B">gemma-4-31B</option>
+              <option value="antigravity-preview-05-2026">antigravity-preview-05-2026</option>
+              <option value="gemini-robotics-er-1.6-preview">gemini-robotics-er-1.6-preview</option>
+              <option value="gemini-deep-research-preview">gemini-deep-research-preview</option>
             </select>
           </div>
         </div>
@@ -1343,8 +2192,10 @@
   <!-- Native Audio Player (Unrestricted browser streaming) -->
   <audio id="music-audio-player" style="display: none;"></audio>
 
-  <script src="{{ url_for('static', filename='app.js', v='1.0.2') }}"></script>
-  <script src="{{ url_for('static', filename='music_player.js', v='1.0.2') }}"></script>
+  <script src="{{ url_for('static', filename='app.js', v='1.1.5') }}"></script>
+  <script src="{{ url_for('static', filename='music_player.js', v='1.0.3') }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="{{ url_for('static', filename='analytics.js', v='1.0.0') }}"></script>
 
   <script>
     // Global fetch interceptor to handle deactivation instantly
@@ -1384,9 +2235,24 @@
           tab.classList.add('active-tab');
           tab.setAttribute('aria-current', 'page');
           const targetId = tab.dataset.tab;
-          document.querySelectorAll('#tab-home, #tab-chat, #tab-support').forEach(el => el.classList.remove('active-tab-content'));
+          document.querySelectorAll('#tab-home, #tab-chat, #tab-support, #tab-tasks, #tab-todo, #tab-planner, #tab-analytics').forEach(el => el.classList.remove('active-tab-content'));
           const target = document.getElementById(targetId);
           if (target) target.classList.add('active-tab-content');
+          if (targetId === 'tab-home' || targetId === 'tab-tasks') {
+            if (typeof window.fetchTasks === 'function') {
+              window.fetchTasks();
+            }
+          }
+          if (targetId === 'tab-planner') {
+            if (typeof window.loadDailyPlan === 'function') {
+              window.loadDailyPlan();
+            }
+          }
+          if (targetId === 'tab-analytics') {
+            if (typeof window.loadAnalytics === 'function') {
+              window.loadAnalytics();
+            }
+          }
         });
       });
 
@@ -2064,6 +2930,10 @@
           }
         };
       }
+
+      if (typeof window.fetchTasks === 'function') {
+        window.fetchTasks();
+      }
     });
   </script>
 
@@ -2204,6 +3074,87 @@
     </div>
   </div>
 
+  <!-- AI Coach Sliding Drawer Panel -->
+  <div class="coach-drawer" id="coach-drawer">
+    <div class="coach-drawer__header">
+      <h3 class="coach-drawer__title">
+        <i class="fas fa-graduation-cap" style="color: var(--mint);"></i> AI Productivity Coach
+      </h3>
+      <button class="coach-drawer__close" id="coach-drawer-close">&times;</button>
+    </div>
+    
+    <div class="coach-drawer__body">
+      <!-- AI Avatar Card -->
+      <div class="card glass" style="padding: 16px; display: flex; align-items: center; gap: 16px; border-radius: 12px; border-left: 4px solid var(--mint);">
+        <div style="position: relative;">
+          <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(55, 230, 181, 0.1); border: 2px solid var(--mint); display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--mint);">
+            <i class="fas fa-robot"></i>
+          </div>
+          <div style="position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; background: #2ecc71; border: 2px solid #0f1620;"></div>
+        </div>
+        <div style="text-align: left;">
+          <h4 id="coach-greeting" style="margin: 0; font-size: 14px; color: #ffffff;">Hello!</h4>
+          <span style="font-size: 11px; color: rgba(255,255,255,0.5);">Your proactive productivity companion</span>
+        </div>
+      </div>
+
+      <!-- Top Recommendation -->
+      <div class="card glass" style="padding: 18px; border-radius: 12px; background: linear-gradient(135deg, rgba(55,230,181,0.06) 0%, rgba(52,152,219,0.06) 100%); border: 1px solid rgba(55,230,181,0.25); text-align: left;">
+        <span style="font-size: 10px; color: var(--mint); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">
+          <i class="fas fa-star"></i> Top Recommendation
+        </span>
+        <p id="coach-top-recommendation" style="margin: 0; font-size: 13px; color: #ffffff; line-height: 1.45;">Loading recommendation...</p>
+      </div>
+
+      <!-- Current Focus & Next Task Grid -->
+      <div style="display: grid; grid-template-columns: 1fr; gap: 16px;">
+        <!-- Current Focus -->
+        <div class="card glass" style="padding: 16px; border-radius: 12px; text-align: left;">
+          <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600; text-transform: uppercase; display: block; margin-bottom: 4px;">🎯 Current Focus</span>
+          <strong id="coach-current-focus" style="font-size: 14px; color: #ffffff; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Loading focus...</strong>
+        </div>
+        <!-- Next Suggested Task -->
+        <div class="card glass" style="padding: 16px; border-radius: 12px; text-align: left;">
+          <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600; text-transform: uppercase; display: block; margin-bottom: 4px;">⏭️ Next Suggested Task</span>
+          <strong id="coach-next-suggested" style="font-size: 14px; color: #ffffff; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Loading next suggested...</strong>
+        </div>
+      </div>
+
+      <!-- Upcoming Deadline -->
+      <div class="card glass" style="padding: 16px; border-radius: 12px; text-align: left;">
+        <span style="font-size: 10px; color: #ff6b6b; font-weight: 600; text-transform: uppercase; display: block; margin-bottom: 4px;">
+          <i class="far fa-clock"></i> Upcoming Deadline
+        </span>
+        <strong id="coach-upcoming-deadline" style="font-size: 13px; color: #ffffff; display: block;">Loading deadline...</strong>
+      </div>
+
+      <!-- Motivation Card -->
+      <div class="card glass" style="padding: 16px; border-radius: 12px; text-align: left; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: -10px; right: -10px; font-size: 64px; opacity: 0.03; transform: rotate(15deg); pointer-events: none;">💡</div>
+        <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600; text-transform: uppercase; display: block; margin-bottom: 6px;">💡 Today's Motivation</span>
+        <p id="coach-motivation" style="margin: 0; font-size: 12px; color: rgba(255,255,255,0.8); line-height: 1.4;">Loading motivation...</p>
+      </div>
+
+      <!-- Finish ETA Card -->
+      <div class="card glass" style="padding: 16px; border-radius: 12px; text-align: left; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #3498db;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600; text-transform: uppercase;">🏁 Projected Finish Time</span>
+          <strong id="coach-finish-eta" style="font-size: 13px; color: #ffffff;">Loading ETA...</strong>
+        </div>
+        <div style="font-size: 24px; color: #3498db; opacity: 0.8;">
+          <i class="fas fa-flag-checkered"></i>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div style="display: flex; gap: 12px; margin-top: 10px;">
+        <button id="btn-coach-refresh" class="btn btn--ghost btn--full" style="padding: 10px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <i class="fas fa-sync-alt"></i> Refresh Analysis
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Email Modal Logic
     document.addEventListener('DOMContentLoaded', () => {
@@ -2298,6 +3249,204 @@
       }
     });
   </script>
+  
+  <!-- Create/Edit Task Modal -->
+  <div id="task-modal" style="display: none; position: fixed; top: 0; left: 0; width: 142.86vw; height: 142.86vh; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 20000; align-items: center; justify-content: center;">
+    <div class="card glass modal-content" style="width: 100%; max-width: 500px; padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); border-radius: 16px; margin: 20px; text-align: left;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <h3 id="task-modal-title" style="margin: 0; color: #ffffff;">Create Task</h3>
+        <button id="task-modal-close" class="btn btn--ghost" style="border:none; background:transparent; font-size: 18px; color: rgba(255,255,255,0.6); cursor: pointer;"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="task-form" style="display: flex; flex-direction: column; gap: 12px;">
+        <input type="hidden" id="task-form-id">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight:600;">Task Name *</label>
+          <input type="text" id="task-form-title" class="input" required style="width: 100%; color: #ffffff;">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight:600;">Description</label>
+          <textarea id="task-form-description" class="input" style="width: 100%; height: 60px; resize: none; color: #ffffff;"></textarea>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight:600;">Category</label>
+            <select id="task-form-category" class="input" style="color:#fff; background:rgba(0,0,0,0.3)">
+              <option value="Assignment">Assignment</option>
+              <option value="Exam">Exam</option>
+              <option value="Meeting">Meeting</option>
+              <option value="Reminder">Reminder</option>
+              <option value="Goal">Goal</option>
+              <option value="Bill">Bill</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight:600;">Deadline</label>
+            <input type="datetime-local" id="task-form-deadline" class="input" style="color-scheme: dark; color: #ffffff;">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight:600;">Priority</label>
+            <select id="task-form-priority" class="input" style="color:#fff; background:rgba(0,0,0,0.3)">
+              <option value="High">High</option>
+              <option value="Medium" selected>Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight:600;">Risk Level</label>
+            <select id="task-form-risk" class="input" style="color:#fff; background:rgba(0,0,0,0.3)">
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low" selected>Low</option>
+            </select>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight:600;">Estimated Duration</label>
+            <input type="text" id="task-form-duration" class="input" placeholder="e.g. 2 Hours" style="width: 100%; color: #ffffff;">
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight:600;">Status</label>
+            <select id="task-form-status" class="input" style="color:#fff; background:rgba(0,0,0,0.3)">
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Overdue">Overdue</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 12px; justify-content: flex-end;">
+          <button type="button" id="task-form-cancel" class="btn btn--secondary" style="border: 1px solid rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 8px;">Cancel</button>
+          <button type="submit" class="btn btn--mint" style="padding: 8px 16px; border-radius: 8px;">Save Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Persistent Global Floating Action Bubbles -->
+  <button id="coach-toggle-btn" class="coach-toggle-btn" title="AI Productivity Coach" aria-label="AI Productivity Coach">
+    <i class="fas fa-graduation-cap"></i>
+  </button>
+
+  <button id="jamendo-btn" class="music-toggle-btn" title="Music Player" aria-label="Music Player">
+    <!-- Circular SVG progress bar around edges -->
+    <svg class="progress-ring" width="56" height="56" style="position: absolute; top: -2px; left: -2px; transform: rotate(-90deg); pointer-events: none; z-index: 2;">
+      <circle class="progress-ring__circle" stroke="var(--mint)" stroke-width="2.5" fill="transparent" r="26.75" cx="28" cy="28" style="stroke-dasharray: 168.08; stroke-dashoffset: 168.08; transition: stroke-dashoffset 0.1s ease; stroke-linecap: round;"/>
+    </svg>
+    <!-- Thumbnail and rotating center disk -->
+    <div id="music-bubble-thumb" style="width: 48px; height: 48px; border-radius: 50%; overflow: hidden; background: rgba(55, 230, 181, 0.1); display: flex; align-items: center; justify-content: center; color: var(--mint); font-size: 16px; z-index: 1; transition: all 0.3s ease; position: relative;">
+      <i class="fas fa-music" id="music-bubble-icon"></i>
+      <img id="music-bubble-img" style="display: none; width: 100%; height: 100%; object-fit: cover;" />
+    </div>
+  </button>
+
+  <!-- 🚨 Panic Mode Emergency Recovery Modal -->
+  <div id="panic-modal" class="panic-modal">
+    <div class="panic-modal__content">
+      <div class="panic-modal__header">
+        <h3 class="panic-modal__title">
+          🚨 Panic Mode Active
+        </h3>
+        <button id="panic-modal-close" class="btn btn--ghost btn--icon" style="color: rgba(255,255,255,0.6); font-size: 24px;" aria-label="Close Panic Report">&times;</button>
+      </div>
+      
+      <div class="panic-modal__body">
+        <!-- Left Column: Situation Audit & Survival Score -->
+        <div style="display: flex; flex-direction: column; gap: 20px; text-align: center;">
+          
+          <!-- Deadline Survival Score Ring -->
+          <div class="card glass" style="padding: 20px; border-radius: 14px;">
+            <div class="survival-score-container" style="position: relative; width: 140px; height: 140px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+              <svg width="140" height="140" style="transform: rotate(-90deg);">
+                <circle cx="70" cy="70" r="60" stroke="rgba(255, 255, 255, 0.05)" stroke-width="8" fill="transparent" />
+                <circle id="panic-survival-circle" cx="70" cy="70" r="60" stroke="#ff3838" stroke-width="8" fill="transparent" 
+                        style="stroke-dasharray: 376.99; stroke-dashoffset: 376.99; transition: stroke-dashoffset 0.8s cubic-bezier(0.1, 1, 0.1, 1); stroke-linecap: round; filter: drop-shadow(0 0 8px rgba(255,56,56,0.6));" />
+              </svg>
+              <div style="position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <span id="panic-survival-value" style="font-size: 2.2rem; font-weight: 800; color: #ffffff;">0%</span>
+                <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.5px;">Survival Score</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Situation Stats Grid -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="panic-metric-card">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.4); font-weight: 600; text-transform: uppercase;">Remaining Tasks</span>
+              <strong id="panic-stat-remaining" style="font-size: 20px; color: #ffffff;">0</strong>
+            </div>
+            <div class="panic-metric-card critical" id="panic-card-critical">
+              <span style="font-size: 10px; color: #ff6b6b; font-weight: 600; text-transform: uppercase;">Critical Tasks</span>
+              <strong id="panic-stat-critical" style="font-size: 20px; color: #ff6b6b;">0</strong>
+            </div>
+            <div class="panic-metric-card">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.4); font-weight: 600; text-transform: uppercase;">Estimated Work</span>
+              <strong id="panic-stat-work" style="font-size: 16px; color: #ffffff;">0h 0m</strong>
+            </div>
+            <div class="panic-metric-card">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.4); font-weight: 600; text-transform: uppercase;">Time Available</span>
+              <strong id="panic-stat-available" style="font-size: 16px; color: #ffffff;">0h 0m</strong>
+            </div>
+            <div class="panic-metric-card">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.4); font-weight: 600; text-transform: uppercase;">Workload Risk</span>
+              <strong id="panic-stat-risk" style="font-size: 16px; color: #ff3838; text-transform: uppercase;">CRITICAL</strong>
+            </div>
+            <div class="panic-metric-card">
+              <span style="font-size: 10px; color: rgba(255,255,255,0.4); font-weight: 600; text-transform: uppercase;">Success Rate</span>
+              <strong id="panic-stat-prob" style="font-size: 16px; color: #ffffff;">0%</strong>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Right Column: Timeline & Simulator -->
+        <div style="display: flex; flex-direction: column; gap: 20px; border-left: 1px solid rgba(255,255,255,0.06); padding-left: 30px;">
+          
+          <!-- What If Simulator Section -->
+          <div style="text-align: left;">
+            <h4 style="font-size: 11px; color: var(--mint); text-transform: uppercase; margin: 0 0 10px 0; letter-spacing: 0.5px;">🎛️ What-If Workload Simulator</h4>
+            <span style="font-size: 11px; color: rgba(255,255,255,0.5); display: block; margin-bottom: 12px;">Toggle checkboxes to simulate postponing work and check survival impact instantly:</span>
+            <div id="panic-simulator-list" style="max-height: 180px; overflow-y: auto; padding-right: 5px;">
+              <!-- Dynamic simulator checkboxes will be rendered here -->
+            </div>
+          </div>
+
+          <!-- Emergency Recovery Timeline -->
+          <div style="flex: 1; text-align: left;">
+            <h4 style="font-size: 11px; color: var(--mint); text-transform: uppercase; margin: 0 0 12px 0; letter-spacing: 0.5px;">📋 Emergency execution timeline</h4>
+            <div id="panic-timeline-container" style="display: flex; flex-direction: column; gap: 8px;">
+              <!-- Dynamic timeline phases (RIGHT NOW, NEXT, AFTER THAT, OPTIONAL) -->
+            </div>
+          </div>
+
+          <!-- Motivation & Encouragement Card -->
+          <div class="card glass" style="padding: 14px; border-radius: 10px; background: rgba(255,56,56,0.03); border-left: 3px solid #ff3838; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
+            <div style="font-size: 20px; color: #ff3838; padding-top: 2px;">
+              <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div>
+              <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 2px;">AI Recovery Advice</span>
+              <p id="panic-motivation-text" style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.85); line-height: 1.45;">Evaluating your recovery paths...</p>
+            </div>
+          </div>
+
+          <!-- Action Recovery Trigger -->
+          <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 5px;">
+            <button id="btn-panic-recover" class="btn btn--mint" style="background: linear-gradient(135deg, #ff3838 0%, #ff8225 100%); border: none; box-shadow: 0 4px 15px rgba(255, 56, 56, 0.4); padding: 12px 24px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: #ffffff; border-radius: 10px;">
+              <i class="fas fa-bolt"></i> ⚡ Recover My Schedule
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="panic-toggle-btn" class="panic-toggle-btn" title="🚨 Panic Mode" aria-label="🚨 Panic Mode">
+    🚨
+  </button>
 </body>
 
 </html>
