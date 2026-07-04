@@ -2339,6 +2339,9 @@
                 <button type="button" class="premium-action-btn" onclick="refreshModelDiscovery()">
                   <i class="fas fa-sync-alt"></i> Refresh Models
                 </button>
+                <button type="button" class="premium-action-btn" onclick="openRegisterCustomModelModal()" style="background: rgba(55, 230, 181, 0.1); border-color: rgba(55, 230, 181, 0.4); color: var(--mint); margin-left: 8px;">
+                  <i class="fas fa-plus"></i> Register Custom Model
+                </button>
               </div>
             </div>
             <div id="modelDiscoveryStatus" style="margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5;">
@@ -3279,6 +3282,87 @@
       <div class="modal-card-footer">
         <button class="btn btn--ghost btn--sm" onclick="closeModal('createUserModal')" style="border-radius: 8px;">Cancel</button>
         <button class="btn btn--mint btn--sm" id="btnSubmitCreateUser" onclick="submitCreateUser()" style="border-radius: 8px;">Create User</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REGISTER CUSTOM MODEL MODAL -->
+  <div class="modal-overlay" id="registerCustomModelModal">
+    <div class="modal-card" style="width: 450px;">
+      <button class="modal-card-close" onclick="closeModal('registerCustomModelModal')">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="modal-card-header">
+        <div class="modal-card-icon">
+          <i class="fas fa-cog" style="color: var(--mint);"></i>
+        </div>
+        <h3 class="modal-card-title">Register Custom Model</h3>
+      </div>
+      <div class="modal-card-body" style="display: flex; flex-direction: column; gap: 14px; max-height: 70vh; overflow-y: auto; padding-right: 4px;">
+        <p style="font-size: 12px; color: var(--muted); margin: 0;">
+          Add a custom AI model to the system. This model will appear in a separate Custom Models category for selection.
+        </p>
+        
+        <div>
+          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Provider ID</label>
+          <select id="customModelProvider" class="search-box-field" style="padding-left: 16px; background: var(--bg1); color: var(--fg); height: 38px; border: 1px solid var(--border); border-radius: 8px; width: 100%;">
+            <option value="custom">custom (Default)</option>
+            <option value="openai">openai</option>
+            <option value="gemini">gemini</option>
+            <option value="anthropic">anthropic</option>
+            <option value="groq">groq</option>
+            <option value="openrouter">openrouter</option>
+            <option value="mistral">mistral</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Model ID (Unique)</label>
+          <input type="text" id="customModelIdInput" class="search-box-field" placeholder="e.g. openai:my-fine-tuned-model" style="padding-left: 16px;">
+        </div>
+
+        <div>
+          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Display Name</label>
+          <input type="text" id="customModelDisplayNameInput" class="search-box-field" placeholder="e.g. My Custom GPT-4o" style="padding-left: 16px;">
+        </div>
+
+        <div>
+          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Description (Optional)</label>
+          <input type="text" id="customModelDescriptionInput" class="search-box-field" placeholder="e.g. Fine-tuned model on internal docs" style="padding-left: 16px;">
+        </div>
+
+        <div>
+          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Context Window (Tokens)</label>
+          <input type="number" id="customModelContextInput" class="search-box-field" placeholder="e.g. 128000" style="padding-left: 16px;">
+        </div>
+
+        <div>
+          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Model Capabilities</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+              <input type="checkbox" id="customModelCapChat" checked style="accent-color: var(--mint);"> Chat / Conversation
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+              <input type="checkbox" id="customModelCapReasoning" style="accent-color: var(--mint);"> Reasoning
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+              <input type="checkbox" id="customModelCapVision" style="accent-color: var(--mint);"> Vision / Image Input
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+              <input type="checkbox" id="customModelCapAudio" style="accent-color: var(--mint);"> Audio Support
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+              <input type="checkbox" id="customModelCapFunc" style="accent-color: var(--mint);"> Function Calling
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+              <input type="checkbox" id="customModelCapStream" checked style="accent-color: var(--mint);"> Token Streaming
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-card-footer">
+        <button class="btn btn--ghost btn--sm" onclick="closeModal('registerCustomModelModal')" style="border-radius: 8px;">Cancel</button>
+        <button class="btn btn--mint btn--sm" onclick="submitRegisterCustomModel()" style="border-radius: 8px;">Register Model</button>
       </div>
     </div>
   </div>
@@ -4924,6 +5008,75 @@
       }
     }
 
+    function openRegisterCustomModelModal() {
+      console.log("[Admin Dashboard] openRegisterCustomModelModal called");
+      document.getElementById('customModelProvider').value = 'custom';
+      document.getElementById('customModelIdInput').value = '';
+      document.getElementById('customModelDisplayNameInput').value = '';
+      document.getElementById('customModelDescriptionInput').value = '';
+      document.getElementById('customModelContextInput').value = '128000';
+      document.getElementById('customModelCapChat').checked = true;
+      document.getElementById('customModelCapReasoning').checked = false;
+      document.getElementById('customModelCapVision').checked = false;
+      document.getElementById('customModelCapAudio').checked = false;
+      document.getElementById('customModelCapFunc').checked = false;
+      document.getElementById('customModelCapStream').checked = true;
+      openModal('registerCustomModelModal');
+    }
+
+    async function submitRegisterCustomModel() {
+      console.log("[Admin Dashboard] submitRegisterCustomModel called");
+      const provider = document.getElementById('customModelProvider').value;
+      const modelId = document.getElementById('customModelIdInput').value.trim();
+      const displayName = document.getElementById('customModelDisplayNameInput').value.trim();
+      const description = document.getElementById('customModelDescriptionInput').value.trim();
+      const contextWindow = parseInt(document.getElementById('customModelContextInput').value) || 128000;
+      
+      if (!modelId || !displayName) {
+        showToast("Model ID and Display Name are required.", true);
+        return;
+      }
+      
+      const features = {
+        supports_chat: document.getElementById('customModelCapChat').checked ? 1 : 0,
+        supports_reasoning: document.getElementById('customModelCapReasoning').checked ? 1 : 0,
+        supports_vision: document.getElementById('customModelCapVision').checked ? 1 : 0,
+        supports_audio: document.getElementById('customModelCapAudio').checked ? 1 : 0,
+        supports_function_calling: document.getElementById('customModelCapFunc').checked ? 1 : 0,
+        supports_streaming: document.getElementById('customModelCapStream').checked ? 1 : 0,
+      };
+      
+      try {
+        const response = await fetch('/api/admin/models/custom', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            provider: provider,
+            model_id: modelId,
+            display_name: displayName,
+            description: description,
+            context_window: contextWindow,
+            features: features
+          })
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.success) {
+          showToast(`Successfully registered custom model "${displayName}".`);
+          appendTerminalLog(`DATABASE PROVISION: Registered custom model "${modelId}" under provider "${provider}".`);
+          closeModal('registerCustomModelModal');
+          loadModelDiscoveryStatus();
+        } else {
+          showToast(data.error || 'Failed to register custom model.', true);
+        }
+      } catch (err) {
+        console.error("Error registering custom model:", err);
+        showToast("Failed to register custom model: " + err.message, true);
+      }
+    }
+
     // Database Reset controls
     function confirmServerDataReset() {
       const input = document.getElementById('resetConfirmInput');
@@ -5812,6 +5965,8 @@
       // Expose critical helper functions to global window scope to guarantee visibility
       window.openCreateUserModal = openCreateUserModal;
       window.submitCreateUser = submitCreateUser;
+      window.openRegisterCustomModelModal = openRegisterCustomModelModal;
+      window.submitRegisterCustomModel = submitRegisterCustomModel;
       window.openResetPasswordModal = openResetPasswordModal;
       window.submitPasswordReset = submitPasswordReset;
       window.openDeleteModal = openDeleteModal;
