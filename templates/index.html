@@ -3255,6 +3255,30 @@
                                             backdrop-filter: blur(20px);
                                         "
                                     >
+                                        <!-- Search input box -->
+                                        <div style="padding: 8px 8px 4px; border-bottom: 1px solid rgba(55, 230, 181, 0.1);">
+                                            <div style="position: relative; display: flex; align-items: center;">
+                                                <i class="fas fa-search" style="position: absolute; left: 10px; font-size: 11px; color: rgba(255,255,255,0.4);"></i>
+                                                <input
+                                                    type="text"
+                                                    id="model-search-input"
+                                                    placeholder="Search models..."
+                                                    style="
+                                                        width: 100%;
+                                                        padding: 6px 10px 6px 26px;
+                                                        font-size: 11px;
+                                                        background: rgba(255,255,255,0.05);
+                                                        border: 1px solid rgba(55, 230, 181, 0.1);
+                                                        border-radius: 6px;
+                                                        color: #fff;
+                                                        outline: none;
+                                                        transition: border-color .15s;
+                                                    "
+                                                    onfocus="this.style.borderColor='rgba(55, 230, 181, 0.4)'"
+                                                    onblur="this.style.borderColor='rgba(55, 230, 181, 0.1)'"
+                                                />
+                                            </div>
+                                        </div>
                                         <div
                                             id="gemini-model-list"
                                             style="
@@ -3324,11 +3348,11 @@
                                     function getProviderLogoSvg(provider) {
                                         provider = (provider || "").toLowerCase();
                                         if (provider === "openai") {
-                                            return `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px; height:14px; flex-shrink: 0; fill:#10a37f; display:inline-block; vertical-align:middle;">
-                                                <path d="M21.7,11.3c0-0.7-0.3-1.4-0.8-1.9c0.2-0.7,0.1-1.5-0.3-2.1c-0.5-0.7-1.3-1-2.1-1C18.2,5.7,17.7,5.4,17.4,5c-0.5-0.7-1.3-1.1-2.2-1.1c-0.5,0-0.9,0.1-1.3,0.3c-0.5-0.5-1.2-0.8-1.9-0.8c-0.9,0-1.7,0.5-2.1,1.3c-0.3-0.2-0.7-0.3-1.1-0.3C7.9,4.4,7.1,4.8,6.6,5.5C6.3,5.9,5.8,6.2,5.2,6.3c-0.8,0.1-1.5,0.6-1.9,1.3c-0.3,0.5-0.4,1-0.3,1.6c-0.5,0.4-0.8,1-0.9,1.7c-0.1,0.9,0.3,1.7,1,2.2c0,0.5,0.1,1,0.4,1.4c0.5,0.7,1.3,1.1,2.2,1.1c0.3,0,0.6,0.1,0.9,0.2c0.3,0.6,0.9,1,1.5,1.2c0.4,0.1,0.8,0.2,1.2,0.2c0.5,0.5,1.2,0.8,1.9,0.8c0.9,0,1.7-0.5,2.1-1.3c0.3,0.2,0.7,0.3,1.1,0.3c0.9,0,1.7-0.4,2.2-1.1c0.3-0.4,0.8-0.7,1.4-0.8c0.8-0.1,1.5-0.6,1.9-1.3c0.3-0.5,0.4-1,0.3-1.6c0.5-0.4,0.8-1,0.9-1.7C21.8,12.3,21.8,11.8,21.7,11.3z" />
+                                            return `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px; height:14px; min-width:14px; min-height:14px; flex-shrink: 0; fill:#10a37f; display:inline-block; vertical-align:middle;">
+                                                <path d="M21.36 11.12a5.55 5.55 0 0 0-2.45-3.08l.1-.06a5.53 5.53 0 0 0 .97-7.23 5.56 5.56 0 0 0-7.24-.96l-.08-.12a5.54 5.54 0 0 0-9.68 3.23 5.57 5.57 0 0 0 2.45 3.08l-.1.06a5.53 5.53 0 0 0-.97 7.23 5.56 5.56 0 0 0 7.24.96l.08.12a5.54 5.54 0 0 0 9.68-3.23 5.57 5.57 0 0 0-2.45-3.08zm-9.36 5.38a1.22 1.22 0 0 1-.61-.16l-3.34-1.93a1.22 1.22 0 0 1-.61-1.06v-3.86a1.22 1.22 0 0 1 .61-1.06l3.34-1.93a1.22 1.22 0 0 1 1.22 0l3.34 1.93a1.22 1.22 0 0 1 .61 1.06v3.86a1.22 1.22 0 0 1-.61 1.06l-3.34 1.93a1.22 1.22 0 0 1-.61.16z" />
                                             </svg>`;
                                         } else if (provider === "gemini" || provider === "google") {
-                                            return `<svg viewBox="0 0 24 24" fill="none" style="width:14px; height:14px; flex-shrink: 0; display:inline-block; vertical-align:middle;">
+                                            return `<svg viewBox="0 0 24 24" fill="none" style="width:14px; height:14px; min-width:14px; min-height:14px; flex-shrink: 0; display:inline-block; vertical-align:middle;">
                                                 <defs>
                                                     <linearGradient id="geminiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                                                         <stop offset="0%" stop-color="#ffffff" />
@@ -3344,30 +3368,30 @@
                                                 <circle cx="16.5" cy="18.5" r="1.2" fill="#1a73e8" />
                                             </svg>`;
                                         } else if (provider === "anthropic" || provider === "claude") {
-                                            return `<svg viewBox="0 0 100 100" fill="none" stroke="#d97706" stroke-width="7" stroke-linecap="round" style="width:14px; height:14px; flex-shrink: 0; display:inline-block; vertical-align:middle;">
+                                            return `<svg viewBox="0 0 100 100" fill="none" stroke="#d97706" stroke-width="7" stroke-linecap="round" style="width:14px; height:14px; min-width:14px; min-height:14px; flex-shrink: 0; display:inline-block; vertical-align:middle;">
                                                 <path d="M50 15v70M15 50h70M25 25l50 50M25 75l50-50M35 18l30 64M18 35l64 30M18 65l64-30M35 82l30-64" />
                                             </svg>`;
                                         } else if (provider === "groq") {
-                                            return `<svg viewBox="0 0 24 24" fill="none" stroke="#f55035" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; flex-shrink: 0; display:inline-block; vertical-align:middle;">
+                                            return `<svg viewBox="0 0 24 24" fill="none" stroke="#f55035" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; min-width:14px; min-height:14px; flex-shrink: 0; display:inline-block; vertical-align:middle;">
                                                 <path d="M17 9A6 6 0 1 0 17 15" />
                                                 <path d="M12 12h5" />
                                             </svg>`;
                                         } else if (provider === "openrouter") {
-                                            return `<svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; flex-shrink: 0; display:inline-block; vertical-align:middle;">
+                                            return `<svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; min-width:14px; min-height:14px; flex-shrink: 0; display:inline-block; vertical-align:middle;">
                                                 <path d="M3 12c4 0 7-3 10-6" />
                                                 <path d="M3 12c4 0 7 3 10 6" />
                                                 <path d="M10 6h3v3M10 18h3v-3" />
                                             </svg>`;
                                         } else if (provider === "deepseek") {
-                                            return `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px; height:14px; flex-shrink: 0; fill:#1c64f2; display:inline-block; vertical-align:middle;">
+                                            return `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px; height:14px; min-width:14px; min-height:14px; flex-shrink: 0; fill:#1c64f2; display:inline-block; vertical-align:middle;">
                                                 <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm3.8 13.2a4 4 0 0 1-7.6 0c.8-.3 1.7-.5 2.6-.5c.9 0 1.8.2 2.6.5c1-.8 1.9-1.9 2.4-3.2c-1.4 1-3.1 1.7-5 1.7c-1.9 0-3.6-.7-5-1.7c.5 1.3 1.4 2.4 2.4 3.2z" />
                                             </svg>`;
                                         } else if (provider === "mistral") {
-                                            return `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px; height:14px; flex-shrink: 0; fill:#ff5e00; display:inline-block; vertical-align:middle;">
+                                            return `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px; height:14px; min-width:14px; min-height:14px; flex-shrink: 0; fill:#ff5e00; display:inline-block; vertical-align:middle;">
                                                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5-10-3-10 3z" />
                                             </svg>`;
                                         } else {
-                                            return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; flex-shrink: 0; color:var(--mint); display:inline-block; vertical-align:middle;">
+                                            return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; min-width:14px; min-height:14px; flex-shrink: 0; color:var(--mint); display:inline-block; vertical-align:middle;">
                                                 <circle cx="12" cy="12" r="10" />
                                                 <path d="M12 16v-4M12 8h.01" />
                                             </svg>`;
@@ -3578,12 +3602,85 @@
                                         refreshPillModels();
                                     });
 
+                                    // Add search event listener
+                                    const searchInput = document.getElementById("model-search-input");
+                                    if (searchInput) {
+                                        searchInput.addEventListener("input", function() {
+                                            const query = this.value.toLowerCase().trim();
+                                            const children = Array.from(list.children);
+                                            
+                                            let visibleModelsInSectionCount = 0;
+                                            let visibleModelsInSubCount = 0;
+                                            
+                                            // First pass: filter only model buttons
+                                            children.forEach(el => {
+                                                if (el.classList.contains("gm-item")) {
+                                                    const text = el.textContent.toLowerCase();
+                                                    const val = el.dataset.val.toLowerCase();
+                                                    const isMatch = text.includes(query) || val.includes(query);
+                                                    
+                                                    if (isMatch) {
+                                                        el.style.display = "flex";
+                                                    } else {
+                                                        el.style.display = "none";
+                                                    }
+                                                }
+                                            });
+                                            
+                                            // Second pass: filter headers based on whether they contain visible children
+                                            let lastSectionEl = null;
+                                            let lastSubEl = null;
+                                            
+                                            children.forEach(el => {
+                                                if (el.tagName === "DIV" && !el.classList.contains("gm-item")) {
+                                                    const isSectionHeader = el.querySelector("span") && (el.innerText.includes("CONNECTED") || el.innerText.includes("OTHER"));
+                                                    const isSeparator = el.style.borderBottom && el.style.borderBottom.includes("dashed");
+                                                    
+                                                    if (isSectionHeader) {
+                                                        if (lastSectionEl) {
+                                                            lastSectionEl.style.display = visibleModelsInSectionCount > 0 ? "flex" : "none";
+                                                        }
+                                                        lastSectionEl = el;
+                                                        visibleModelsInSectionCount = 0;
+                                                    } else if (isSeparator) {
+                                                        // It's a separator line
+                                                        el.style.display = "block"; // Keep separators simple
+                                                    } else {
+                                                        // It's a provider sub-header
+                                                        if (lastSubEl) {
+                                                            lastSubEl.style.display = visibleModelsInSubCount > 0 ? "flex" : "none";
+                                                        }
+                                                        lastSubEl = el;
+                                                        visibleModelsInSubCount = 0;
+                                                    }
+                                                } else if (el.classList.contains("gm-item") && el.style.display === "flex") {
+                                                    visibleModelsInSectionCount++;
+                                                    visibleModelsInSubCount++;
+                                                }
+                                            });
+                                            
+                                            // Handle trailing ones
+                                            if (lastSectionEl) {
+                                                lastSectionEl.style.display = visibleModelsInSectionCount > 0 ? "flex" : "none";
+                                            }
+                                            if (lastSubEl) {
+                                                lastSubEl.style.display = visibleModelsInSubCount > 0 ? "flex" : "none";
+                                            }
+                                        });
+                                    }
+
                                     function openDropdown() {
                                         dropdown.style.display = "block";
                                         chevron.style.transform =
                                             "rotate(180deg)";
                                         trigger.style.borderColor =
                                             "rgba(55,230,181,0.5)";
+                                        
+                                        if (searchInput) {
+                                            searchInput.value = "";
+                                            searchInput.dispatchEvent(new Event("input"));
+                                            setTimeout(() => searchInput.focus(), 50);
+                                        }
                                     }
                                     function closeDropdown() {
                                         dropdown.style.display = "none";
@@ -3594,7 +3691,7 @@
 
                                     trigger.addEventListener("click", (e) => {
                                         e.stopPropagation();
-                                        dropdown.style.display === "none"
+                                        dropdown.style.display === "none" || dropdown.style.display === ""
                                             ? openDropdown()
                                             : closeDropdown();
                                     });
