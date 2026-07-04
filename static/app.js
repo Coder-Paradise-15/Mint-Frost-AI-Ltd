@@ -3327,8 +3327,8 @@ async function populateAPISettingsDropdowns() {
       const providerModels = grouped[p] || [];
       // Sort providerModels
       providerModels.sort((a, b) => {
-        const scoreA = getModelTierScore(a);
-        const scoreB = getModelTierScore(b);
+        const scoreA = window.getModelTierScore(a);
+        const scoreB = window.getModelTierScore(b);
         if (scoreA !== scoreB) {
           return scoreB - scoreA;
         }
@@ -3338,7 +3338,7 @@ async function populateAPISettingsDropdowns() {
       providerModels.forEach(model => {
         const opt = document.createElement("option");
         opt.value = model.model_id;
-        opt.textContent = getModelLabel(model);
+        opt.textContent = window.getModelLabel(model);
         select.appendChild(opt);
       });
     });
@@ -3911,26 +3911,26 @@ document.addEventListener("DOMContentLoaded", () => {
       modelSearcherClear.style.display = "none";
     });
 
-    function isModelRecommended(model) {
+    window.isModelRecommended = function(model) {
       const modelId = model.model_id.toLowerCase();
       const recommendedIds = [
         "gpt-4o-mini", "gpt-4o", "gemini-3.5-flash", "claude-3-5-sonnet-latest", 
         "llama-3.3-70b-versatile", "mistral-large-latest", "o3-mini"
       ];
       return recommendedIds.some(id => modelId === id || modelId.includes(id));
-    }
+    };
 
-    function getModelTierScore(model) {
-      if (isModelRecommended(model)) return 10;
+    window.getModelTierScore = function(model) {
+      if (window.isModelRecommended(model)) return 10;
       if (model.supports_reasoning || model.model_id.includes("o1") || model.model_id.includes("o3") || model.model_id.includes("r1")) return 9;
       if (model.supports_vision || model.model_id.includes("vision") || model.model_id.includes("pixtral")) return 8;
       if (model.model_id.includes("mini") || model.model_id.includes("flash") || model.model_id.includes("instant") || model.model_id.includes("8b") || model.model_id.includes("haiku")) return 7;
       if (model.model_id.includes("code") || model.model_id.includes("codestral")) return 6;
       if (model.model_id.includes("gpt-3.5") || model.model_id.includes("legacy") || model.model_id.includes("claude-2")) return 4;
       return 5; // Default Chat
-    }
+    };
 
-    function getModelLabel(model) {
+    window.getModelLabel = function(model) {
       const displayName = model.display_name || model.model_id;
       const provider = (model.provider || "").toLowerCase();
       const badges = [];

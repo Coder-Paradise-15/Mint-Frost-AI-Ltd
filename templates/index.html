@@ -3324,64 +3324,12 @@
 
                             <script>
                                 (function () {
-                                    const MODELS = [
+                                    let MODELS = [
                                         {
                                             value: "gemini:gemini-3.5-flash",
                                             label: "✨ Gemini 3.5 Flash",
                                             badge: "Recommended",
-                                        },
-                                        {
-                                            value: "gemini:gemini-3.1-flash-lite",
-                                            label: "✨ Gemini 3.1 Flash Lite",
-                                        },
-                                        {
-                                            value: "gemini:gemini-3.1-flash-lite-preview",
-                                            label: "✨ Gemini 3.1 Flash Lite Preview",
-                                        },
-                                        {
-                                            value: "gemini:gemini-3.1-pro-preview",
-                                            label: "✨ Gemini 3.1 Pro Preview",
-                                        },
-                                        {
-                                            value: "gemini:gemini-3-flash-preview",
-                                            label: "✨ Gemini 3 Flash Preview",
-                                        },
-                                        {
-                                            value: "gemini:gemini-3-pro-preview",
-                                            label: "✨ Gemini 3 Pro Preview",
-                                        },
-                                        {
-                                            value: "gemini:gemini-2.5-flash",
-                                            label: "✨ Gemini 2.5 Flash",
-                                        },
-                                        {
-                                            value: "gemini:gemini-2.5-flash-lite",
-                                            label: "✨ Gemini 2.5 Flash Lite",
-                                        },
-                                        {
-                                            value: "gemini:gemini-2.5-pro",
-                                            label: "✨ Gemini 2.5 Pro",
-                                        },
-                                        {
-                                            value: "gemini:gemini-2.0-flash",
-                                            label: "✨ Gemini 2.0 Flash",
-                                        },
-                                        {
-                                            value: "gemini:gemini-2.0-flash-lite",
-                                            label: "✨ Gemini 2.0 Flash Lite",
-                                        },
-                                        {
-                                            value: "gemini:gemini-omni-flash-preview",
-                                            label: "✨ Gemini Omni Flash Preview",
-                                        },
-                                        {
-                                            value: "gemini:gemma-4-31b-it",
-                                            label: "✨ Gemma 4 31B",
-                                        },
-                                        {
-                                            value: "gemini:gemma-4-26b-a4b-it",
-                                            label: "✨ Gemma 4 26B",
-                                        },
+                                        }
                                     ];
 
                                     const trigger = document.getElementById(
@@ -3416,6 +3364,7 @@
                                             MODELS.find(
                                                 (x) => x.value === val,
                                             ) || MODELS[0];
+                                        if (!m) return;
                                         label.textContent = m.label;
                                         // Sync hidden select (app.js reads this)
                                         hiddenSel.innerHTML = `<option value="${m.value}" selected>${m.value}</option>`;
@@ -3436,7 +3385,7 @@
                                             el.style.background =
                                                 el.dataset.val === m.value
                                                     ? "rgba(55,230,181,0.12)"
-                                                    : "";
+                                                     : "";
                                             el.style.color =
                                                 el.dataset.val === m.value
                                                     ? "var(--mint)"
@@ -3444,45 +3393,76 @@
                                         });
                                     }
 
-                                    // Build list items
-                                    MODELS.forEach((m) => {
-                                        const item =
-                                            document.createElement("button");
-                                        item.type = "button";
-                                        item.className = "gm-item";
-                                        item.dataset.val = m.value;
-                                        item.style.cssText =
-                                            "all:unset; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; width:100%; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13px; color:rgba(255,255,255,0.85); text-align:left; transition:background .15s, color .15s;";
-                                        item.innerHTML = `<span>${m.label}</span>${m.badge ? `<span style="font-size:9px; background:rgba(55,230,181,0.15); color:var(--mint); padding:2px 6px; border-radius:10px; font-weight:700;">${m.badge}</span>` : ""}`;
-                                        item.addEventListener(
-                                            "mouseenter",
-                                            () => {
-                                                if (
-                                                    item.dataset.val !==
-                                                    hiddenSel.value
-                                                )
-                                                    item.style.background =
-                                                        "rgba(255,255,255,0.06)";
-                                            },
-                                        );
-                                        item.addEventListener(
-                                            "mouseleave",
-                                            () => {
-                                                if (
-                                                    item.dataset.val !==
-                                                    hiddenSel.value
-                                                )
+                                    async function refreshPillModels() {
+                                        try {
+                                            const resp = await fetch("/api/settings/models");
+                                            const data = await resp.json();
+                                            if (data.success && Array.isArray(data.models) && data.models.length > 0) {
+                                                const mapped = data.models.map(m => {
+                                                    let labelText = m.display_name || m.model_id;
+                                                    let prov = (m.provider || "").toUpperCase();
+                                                    let rec = typeof window.isModelRecommended === "function" ? window.isModelRecommended(m) : false;
+                                                    let score = typeof window.getModelTierScore === "function" ? window.getModelTierScore(m) : 5;
+                                                    let badgeText = rec ? "Recommended" : "";
+                                                    if (!badgeText) {
+                                                        if (score === 9) badgeText = "Reasoning";
+                                                        else if (score === 8) badgeText = "Vision";
+                                                    }
+                                                    
+                                                    return {
+                                                        value: `${m.provider}:${m.model_id}`,
+                                                        label: `✨ [${prov}] ${labelText}`,
+                                                        badge: badgeText,
+                                                        score: score
+                                                    };
+                                                });
+                                                
+                                                mapped.sort((a, b) => {
+                                                    if (a.score !== b.score) return b.score - a.score;
+                                                    return a.label.localeCompare(b.label);
+                                                });
+                                                MODELS = mapped;
+                                            }
+                                        } catch (err) {
+                                            console.error("Failed to load models for pill selector:", err);
+                                        }
+                                        
+                                        // Rebuild list items
+                                        list.innerHTML = "";
+                                        MODELS.forEach((m) => {
+                                            const item = document.createElement("button");
+                                            item.type = "button";
+                                            item.className = "gm-item";
+                                            item.dataset.val = m.value;
+                                            item.style.cssText =
+                                                "all:unset; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; width:100%; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13px; color:rgba(255,255,255,0.85); text-align:left; transition:background .15s, color .15s;";
+                                            item.innerHTML = `<span>${m.label}</span>${m.badge ? `<span style="font-size:9px; background:rgba(55,230,181,0.15); color:var(--mint); padding:2px 6px; border-radius:10px; font-weight:700;">${m.badge}</span>` : ""}`;
+                                            item.addEventListener("mouseenter", () => {
+                                                if (item.dataset.val !== hiddenSel.value)
+                                                    item.style.background = "rgba(255,255,255,0.06)";
+                                            });
+                                            item.addEventListener("mouseleave", () => {
+                                                if (item.dataset.val !== hiddenSel.value)
                                                     item.style.background = "";
-                                            },
-                                        );
-                                        item.addEventListener("click", () => {
-                                            selectModel(m.value);
-                                            closeDropdown();
+                                            });
+                                            item.addEventListener("click", () => {
+                                                selectModel(m.value);
+                                                closeDropdown();
+                                            });
+                                            list.appendChild(item);
                                         });
-                                        list.appendChild(item);
-                                    });
+                                        
+                                        const currentVal = hiddenSel.value || saved;
+                                        selectModel(currentVal);
+                                    }
 
-                                    selectModel(saved);
+                                    // Initial load
+                                    refreshPillModels();
+                                    
+                                    // Refresh on keys saved
+                                    document.addEventListener("apikeysSaved", () => {
+                                        refreshPillModels();
+                                    });
 
                                     function openDropdown() {
                                         dropdown.style.display = "block";
