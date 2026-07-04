@@ -3271,28 +3271,11 @@
                                         "
                                     >
                                         <div
-                                            style="
-                                                padding: 8px 12px 4px;
-                                                font-size: 10px;
-                                                color: rgba(
-                                                    255,
-                                                    255,
-                                                    255,
-                                                    0.35
-                                                );
-                                                text-transform: uppercase;
-                                                letter-spacing: 0.5px;
-                                                font-weight: 700;
-                                            "
-                                        >
-                                            Google AI Studio
-                                        </div>
-                                        <div
                                             id="gemini-model-list"
                                             style="
-                                                max-height: 260px;
+                                                max-height: 350px;
                                                 overflow-y: auto;
-                                                padding: 4px 6px 8px;
+                                                padding: 6px;
                                             "
                                         >
                                             <!-- items injected by script below -->
@@ -3324,13 +3307,7 @@
 
                             <script>
                                 (function () {
-                                    let MODELS = [
-                                        {
-                                            value: "gemini:gemini-3.5-flash",
-                                            label: "✨ Gemini 3.5 Flash",
-                                            badge: "Recommended",
-                                        }
-                                    ];
+                                    let MODELS = [];
 
                                     const trigger = document.getElementById(
                                         "gemini-pill-trigger",
@@ -3359,13 +3336,55 @@
                                             "mf_gemini_model",
                                         ) || "gemini:gemini-3.5-flash";
 
+                                    function getProviderLogoSvg(provider) {
+                                        provider = (provider || "").toLowerCase();
+                                        if (provider === "openai") {
+                                            return `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px; height:14px; flex-shrink: 0; fill:#10a37f; display:inline-block; vertical-align:middle;">
+                                                <path d="M21.7,11.3c0-0.7-0.3-1.4-0.8-1.9c0.2-0.7,0.1-1.5-0.3-2.1c-0.5-0.7-1.3-1-2.1-1C18.2,5.7,17.7,5.4,17.4,5c-0.5-0.7-1.3-1.1-2.2-1.1c-0.5,0-0.9,0.1-1.3,0.3c-0.5-0.5-1.2-0.8-1.9-0.8c-0.9,0-1.7,0.5-2.1,1.3c-0.3-0.2-0.7-0.3-1.1-0.3C7.9,4.4,7.1,4.8,6.6,5.5C6.3,5.9,5.8,6.2,5.2,6.3c-0.8,0.1-1.5,0.6-1.9,1.3c-0.3,0.5-0.4,1-0.3,1.6c-0.5,0.4-0.8,1-0.9,1.7c-0.1,0.9,0.3,1.7,1,2.2c0,0.5,0.1,1,0.4,1.4c0.5,0.7,1.3,1.1,2.2,1.1c0.3,0,0.6,0.1,0.9,0.2c0.3,0.6,0.9,1,1.5,1.2c0.4,0.1,0.8,0.2,1.2,0.2c0.5,0.5,1.2,0.8,1.9,0.8c0.9,0,1.7-0.5,2.1-1.3c0.3,0.2,0.7,0.3,1.1,0.3c0.9,0,1.7-0.4,2.2-1.1c0.3-0.4,0.8-0.7,1.4-0.8c0.8-0.1,1.5-0.6,1.9-1.3c0.3-0.5,0.4-1,0.3-1.6c0.5-0.4,0.8-1,0.9-1.7C21.8,12.3,21.8,11.8,21.7,11.3z" />
+                                            </svg>`;
+                                        } else if (provider === "gemini" || provider === "google") {
+                                            return `<svg viewBox="0 0 24 24" fill="none" style="width:14px; height:14px; flex-shrink: 0; fill:#38bdf8; display:inline-block; vertical-align:middle;">
+                                                <path d="M12 2C12 2 12.5 7.5 18 8C12.5 8.5 12 14 12 14C12 14 11.5 8.5 6 8C11.5 7.5 12 2 12 2Z" />
+                                                <path d="M17 14C17 14 17.25 16.75 20 17C17.25 17.25 17 20 17 20C17 20 16.75 17.25 14 17C16.75 16.75 17 14 17 14Z" />
+                                            </svg>`;
+                                        } else if (provider === "anthropic" || provider === "claude") {
+                                            return `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px; height:14px; flex-shrink: 0; fill:#cc7b19; display:inline-block; vertical-align:middle;">
+                                                <path d="M12 2L3 22h4.5l2-5h9l2 5H21L12 2zm1.25 11h-4.5L12 5.5l2.25 7.5z" />
+                                            </svg>`;
+                                        } else if (provider === "groq") {
+                                            return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; flex-shrink: 0; color:#f55035; display:inline-block; vertical-align:middle;">
+                                                <rect x="4" y="4" width="16" height="16" rx="2" />
+                                                <path d="M9 9h6v6H9zM9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3" />
+                                            </svg>`;
+                                        } else if (provider === "openrouter") {
+                                            return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; flex-shrink: 0; color:#a855f7; display:inline-block; vertical-align:middle;">
+                                                <circle cx="12" cy="5" r="3" />
+                                                <circle cx="5" cy="19" r="3" />
+                                                <circle cx="19" cy="19" r="3" />
+                                                <path d="M12 8v8M5 16l5-8M19 16l-5-8" />
+                                            </svg>`;
+                                        } else if (provider === "mistral") {
+                                            return `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px; height:14px; flex-shrink: 0; fill:#ff5e00; display:inline-block; vertical-align:middle;">
+                                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5-10-3-10 3z" />
+                                            </svg>`;
+                                        } else {
+                                            return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; flex-shrink: 0; color:var(--mint); display:inline-block; vertical-align:middle;">
+                                                <circle cx="12" cy="12" r="10" />
+                                                <path d="M12 16v-4M12 8h.01" />
+                                            </svg>`;
+                                        }
+                                    }
+
                                     function selectModel(val) {
                                         const m =
                                             MODELS.find(
                                                 (x) => x.value === val,
-                                            ) || MODELS[0];
+                                            );
                                         if (!m) return;
-                                        label.textContent = m.label;
+                                        
+                                        const logoSvg = getProviderLogoSvg(m.provider);
+                                        label.innerHTML = `<span style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${logoSvg} <span style="font-weight:600; font-size:12px; color:rgba(255,255,255,0.5);">[${m.provider.toUpperCase()}]</span> <span style="font-size:12px; color:#e9fbf5;">${m.display_name}</span></span>`;
+                                        
                                         // Sync hidden select (app.js reads this)
                                         hiddenSel.innerHTML = `<option value="${m.value}" selected>${m.value}</option>`;
                                         hiddenSel.value = m.value;
@@ -3393,65 +3412,148 @@
                                         });
                                     }
 
+                                    function isProviderRegistered(provider) {
+                                        provider = (provider || "").toLowerCase();
+                                        const keyMap = {
+                                            openai: "apiOpenAIKey",
+                                            gemini: "apiGeminiKey",
+                                            google: "apiGeminiKey",
+                                            anthropic: "apiAnthropicKey",
+                                            groq: "apiGroqKey",
+                                            openrouter: "apiOpenRouterKey",
+                                            mistral: "apiMistralKey"
+                                        };
+                                        const storageKey = keyMap[provider];
+                                        if (!storageKey) return false;
+                                        return !!(localStorage.getItem(storageKey) || "").trim();
+                                    }
+
                                     async function refreshPillModels() {
                                         try {
                                             const resp = await fetch("/api/settings/models");
                                             const data = await resp.json();
                                             if (data.success && Array.isArray(data.models) && data.models.length > 0) {
-                                                const mapped = data.models.map(m => {
-                                                    let labelText = m.display_name || m.model_id;
-                                                    let prov = (m.provider || "").toUpperCase();
-                                                    let rec = typeof window.isModelRecommended === "function" ? window.isModelRecommended(m) : false;
-                                                    let score = typeof window.getModelTierScore === "function" ? window.getModelTierScore(m) : 5;
-                                                    let badgeText = rec ? "Recommended" : "";
-                                                    if (!badgeText) {
-                                                        if (score === 9) badgeText = "Reasoning";
-                                                        else if (score === 8) badgeText = "Vision";
-                                                    }
-                                                    
-                                                    return {
-                                                        value: `${m.provider}:${m.model_id}`,
-                                                        label: `✨ [${prov}] ${labelText}`,
-                                                        badge: badgeText,
-                                                        score: score
-                                                    };
-                                                });
-                                                
-                                                mapped.sort((a, b) => {
-                                                    if (a.score !== b.score) return b.score - a.score;
-                                                    return a.label.localeCompare(b.label);
-                                                });
-                                                MODELS = mapped;
+                                                MODELS = data.models.map(m => ({
+                                                    value: `${m.provider}:${m.model_id}`,
+                                                    model_id: m.model_id,
+                                                    display_name: m.display_name || m.model_id,
+                                                    provider: m.provider,
+                                                    score: typeof window.getModelTierScore === "function" ? window.getModelTierScore(m) : 5,
+                                                    isRecommended: typeof window.isModelRecommended === "function" ? window.isModelRecommended(m) : false
+                                                }));
                                             }
                                         } catch (err) {
                                             console.error("Failed to load models for pill selector:", err);
                                         }
-                                        
-                                        // Rebuild list items
+
+                                        if (MODELS.length === 0) {
+                                            // Fallback default model so selector has at least one item
+                                            MODELS = [{
+                                                value: "gemini:gemini-3.5-flash",
+                                                model_id: "gemini-3.5-flash",
+                                                display_name: "Gemini 3.5 Flash",
+                                                provider: "gemini",
+                                                score: 10,
+                                                isRecommended: true
+                                            }];
+                                        }
+
+                                        // Clear list container
                                         list.innerHTML = "";
-                                        MODELS.forEach((m) => {
-                                            const item = document.createElement("button");
-                                            item.type = "button";
-                                            item.className = "gm-item";
-                                            item.dataset.val = m.value;
-                                            item.style.cssText =
-                                                "all:unset; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; width:100%; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13px; color:rgba(255,255,255,0.85); text-align:left; transition:background .15s, color .15s;";
-                                            item.innerHTML = `<span>${m.label}</span>${m.badge ? `<span style="font-size:9px; background:rgba(55,230,181,0.15); color:var(--mint); padding:2px 6px; border-radius:10px; font-weight:700;">${m.badge}</span>` : ""}`;
-                                            item.addEventListener("mouseenter", () => {
-                                                if (item.dataset.val !== hiddenSel.value)
-                                                    item.style.background = "rgba(255,255,255,0.06)";
-                                            });
-                                            item.addEventListener("mouseleave", () => {
-                                                if (item.dataset.val !== hiddenSel.value)
-                                                    item.style.background = "";
-                                            });
-                                            item.addEventListener("click", () => {
-                                                selectModel(m.value);
-                                                closeDropdown();
-                                            });
-                                            list.appendChild(item);
+
+                                        // Separate models into Registered and Unregistered
+                                        const registeredModels = [];
+                                        const unregisteredModels = [];
+
+                                        MODELS.forEach(m => {
+                                            if (isProviderRegistered(m.provider)) {
+                                                registeredModels.push(m);
+                                            } else {
+                                                unregisteredModels.push(m);
+                                            }
                                         });
-                                        
+
+                                        // Render helper for a group of models
+                                        function renderGroup(modelsList, titleText, titleColor) {
+                                            if (modelsList.length === 0) return;
+
+                                            // Add Section Title
+                                            const header = document.createElement("div");
+                                            header.style.cssText = `padding: 10px 10px 6px; font-size: 10px; font-weight: 800; color: ${titleColor}; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;`;
+                                            header.innerHTML = `<span>${titleText}</span><span style="font-size: 8px; padding: 1px 4px; border-radius: 4px; background: ${titleColor}15; color: ${titleColor}; font-weight: 700;">${modelsList.length} Models</span>`;
+                                            list.appendChild(header);
+
+                                            // Group by provider inside the section
+                                            const groupedByProvider = {};
+                                            modelsList.forEach(m => {
+                                                const p = m.provider || "custom";
+                                                if (!groupedByProvider[p]) groupedByProvider[p] = [];
+                                                groupedByProvider[p].push(m);
+                                            });
+
+                                            // Sort provider keys
+                                            const providerKeys = Object.keys(groupedByProvider).sort();
+                                            providerKeys.forEach(p => {
+                                                // Sub-header for provider
+                                                const subHeader = document.createElement("div");
+                                                subHeader.style.cssText = "padding: 6px 10px 4px; font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.35); text-transform: uppercase; display: flex; align-items: center; gap: 6px;";
+                                                const logoSvg = getProviderLogoSvg(p);
+                                                subHeader.innerHTML = `${logoSvg} <span>${p === 'google' ? 'Google Gemini' : p}</span>`;
+                                                list.appendChild(subHeader);
+
+                                                // Sort models inside provider group
+                                                const pModels = groupedByProvider[p];
+                                                pModels.sort((a, b) => {
+                                                    if (a.score !== b.score) return b.score - a.score;
+                                                    return a.display_name.localeCompare(b.display_name);
+                                                });
+
+                                                pModels.forEach(m => {
+                                                    const item = document.createElement("button");
+                                                    item.type = "button";
+                                                    item.className = "gm-item";
+                                                    item.dataset.val = m.value;
+                                                    item.style.cssText =
+                                                        "all:unset; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; width:100%; padding:6px 10px 6px 22px; border-radius:6px; cursor:pointer; font-size:12px; color:rgba(255,255,255,0.85); text-align:left; transition:background .15s, color .15s;";
+
+                                                    // Badge text
+                                                    let badgeText = m.isRecommended ? "Recommended" : "";
+                                                    if (!badgeText) {
+                                                        if (m.score === 9) badgeText = "Reasoning";
+                                                        else if (m.score === 8) badgeText = "Vision";
+                                                    }
+                                                    
+                                                    item.innerHTML = `<span>${m.display_name}</span>${badgeText ? `<span style="font-size:8px; background:rgba(55,230,181,0.15); color:var(--mint); padding:1px 5px; border-radius:8px; font-weight:700;">${badgeText}</span>` : ""}`;
+                                                    
+                                                    item.addEventListener("mouseenter", () => {
+                                                        if (item.dataset.val !== hiddenSel.value)
+                                                            item.style.background = "rgba(255,255,255,0.06)";
+                                                    });
+                                                    item.addEventListener("mouseleave", () => {
+                                                        if (item.dataset.val !== hiddenSel.value)
+                                                            item.style.background = "";
+                                                    });
+                                                    item.addEventListener("click", () => {
+                                                        selectModel(m.value);
+                                                        closeDropdown();
+                                                    });
+                                                    list.appendChild(item);
+                                                });
+                                            });
+                                        }
+
+                                        // Render Registered section
+                                        renderGroup(registeredModels, "Connected / Registered Models", "var(--mint)");
+
+                                        // Render Unregistered section
+                                        if (registeredModels.length > 0 && unregisteredModels.length > 0) {
+                                            const sep = document.createElement("div");
+                                            sep.style.cssText = "height: 8px; border-bottom: 1px dashed rgba(255,255,255,0.08); margin-bottom: 8px;";
+                                            list.appendChild(sep);
+                                        }
+                                        renderGroup(unregisteredModels, "Other Available Models", "rgba(255,255,255,0.35)");
+
+                                        // Sync current highlight
                                         const currentVal = hiddenSel.value || saved;
                                         selectModel(currentVal);
                                     }
