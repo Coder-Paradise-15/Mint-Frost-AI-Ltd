@@ -30,4 +30,4 @@ RUN rm -f databases/chat.db databases/chat_database.db
 EXPOSE 8080
 
 # Start the application using Waitress WSGI server (multi-threaded production server)
-CMD ["waitress-serve", "--host=0.0.0.0", "--port=8080", "--threads=50", "main:app"]
+CMD ["waitress-serve", "--host=0.0.0.0", "--port=8080", "--threads=50", "--timeout=120", "main:app"]
