@@ -1,78 +1,71 @@
-# Mint Frost AI Chat - Enhanced Version 4.0
+# Mint Frost AI Chat - Enhanced Version 7.0
 
-A modern, feature-rich AI chat application built with Flask, featuring advanced UI/UX, real-time interactions, and comprehensive chat management.
+A modern, feature-rich AI chat application built with Flask, featuring advanced UI/UX, real-time model discovery, connection-status based model selection, a gamification system, and comprehensive analytics.
 
-## 🚀 New Features & Enhancements
+---
 
-### 🎨 **Advanced UI/UX**
-- **Dark/Light Theme Toggle** - Switch between themes with smooth transitions
-- **Glassmorphism Design** - Enhanced frosted glass effects with better blur
-- **Responsive Layout** - Optimized for all screen sizes, including a new flexible 100% width chat panel
-- **Smooth Animations** - Fade-in messages, typing indicators, and micro-interactions
-- **Custom Scrollbars** - Styled scrollbars for better visual consistency
+## 🚀 New Features & Enhancements (v7.0)
 
-### 🛠️ **Dedicated Support Hub & Tools**
-- **In-App Support Tab** - A new dedicated Support panel without leaving the page
-- **Email Composer Modal** - Fully functional Gmail-style message composer built directly into the UI with toast notifications
-- **Daily Newsletter Subscription** - Easy to use newsletter enrollment card with instant feedback
-- **Bring Your Own Key (BYOK)** - Fixed OpenAI auto-crash to ensure pure BYOK capability on startup
+### 🎨 **Dynamic Models Selection & Search (v7.0)**
+- **Segregated Connection Categories**: Models are grouped dynamically under two primary headers:
+  - **Connected / Registered Models** (Active count, green badge): Providers for which the user has configured an API key in settings.
+  - **Other Available Models** (Active count, gray badge): Remaining providers.
+- **Searchable Model Filter**: Integrated an interactive search input field at the top of the pill dropdown. Auto-filters models, provider group sub-headers, and main categories instantly as you type.
+- **Auto-Focus & Reset**: Opening the pill selector automatically clears any past search query and focuses the input field for instant keyboard navigation.
+- **Premium Brand Logos**: High-fidelity inline SVGs designed for all major AI brands:
+  1. **ChatGPT**: Line-art flower spiral logo (`#10a37f`) with inner path cutouts.
+  2. **Gemini**: Gradient-filled spark logo with orbiting satellite dots.
+  3. **Claude**: Signature hand-drawn asterisk/starburst shape (`#d97706`).
+  4. **OpenRouter**: Two curved diverging paths with arrowheads (`#a855f7`).
+  5. **DeepSeek**: Blue whale badge (`#1c64f2`).
+  6. **Groq**: Modern bold circular letter **G** with a center bar (`#f55035`).
+- **Flexbox Compression Fix**: SVGs are locked with `min-width`/`min-height` to prevent layout engines from compressing brand logos.
 
-### 💬 **Enhanced Chat Features**
-- **Message History** - Persistent chat history with session management
-- **Context Memory** - AI remembers conversation context (last 10 messages)
-- **Typing Indicators** - Visual feedback when AI is processing
-- **Message Reactions** - Like/dislike messages with visual feedback
-- **Copy Messages** - One-click copy functionality for any message
-- **Message Search** - Real-time search through chat history
-- **Export Chat** - Download chat history as JSON file
-- **Clear History** - Reset conversation with confirmation
+### ⚙️ **Dynamic Model Discovery & Registry (v7.0)**
+- **Automated Discovery**: Scan and fetch available models dynamically from OpenAI, Anthropic, Gemini, Groq, OpenRouter, and Mistral based on active API keys.
+- **Custom Model Registration**: A dedicated UI form modal in the Admin Dashboard allows administrators to register custom model IDs with custom Display Names, descriptions, context lengths, and capability flags (Reasoning, Vision, etc.).
+- **Tired Capability Badge Sorting**: Re-organized model selector option list items dynamically by capability tiers (e.g. `Recommended`, `🧠 Reasoning`, `👁 Vision`, `⚡ Fast`).
 
-### 🌤️ **Real-Time Weather System**
-- **Live Weather Data** - Integration with OpenWeatherMap API for accurate meteorological data
-- **Location-Based Weather** - Support for city names, coordinates, and auto-location detection
-- **Comprehensive Weather Info** - Temperature, humidity, wind, pressure, visibility, sunrise/sunset
-- **Weather Context in Chat** - AI provides real-time weather information when asked
-- **Multiple Location Support** - Get weather for any city worldwide
-- **Smart Weather Queries** - Natural language weather requests ("weather in London", "is it raining?")
+### 🎮 **Gamification & Analytics Tab (v6.0 - v7.0)**
+- **Gamification Rewards**: Earn XP, levels, and badges by completing daily plans, tasks, subtasks, or recovery cycles.
+- **Daily Planner integration**: Automatically scans and awards leveling progress when completing daily routines.
+- **Analytics Dashboard**: View level progress bars, streak metrics, XP curves, and badge shelves directly within the Analytics view.
 
-### ⌨️ **Keyboard Shortcuts**
-- `Enter` - Send message
-- `Ctrl+K` - Toggle shortcuts panel
-- `Ctrl+L` - Clear chat history
-- `Ctrl+E` - Export chat
-- `Ctrl+F` - Search messages
-- `Ctrl+W` - Get current location weather
-- `Ctrl+Shift+U` - Set weather API key
-- `Esc` - Close panels/modals
+---
 
-### 🎤 **Voice Input** (Browser Supported)
-- **Speech Recognition** - Voice-to-text input
-- **Visual Feedback** - Recording indicator with stop functionality
-- **Auto-transcription** - Converts speech to text in input field
-
-### 🔒 **Security & Performance**
-- **Rate Limiting** - 10 messages per minute per IP
-- **Input Validation** - Message length limits and sanitization
-- **Session Management** - Secure session handling
-- **Error Handling** - Comprehensive error messages and recovery
-- **Auto-save Drafts** - Saves message drafts automatically
-- **API Key Security** - Secure handling of weather and AI API keys
-
-## 📋 **API Endpoints**
+## 📋 **New API Endpoints (v7.0)**
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/` | Main chat interface |
-| `POST` | `/chat` | Send message to AI |
-| `POST` | `/clear-history` | Clear chat history |
-| `GET` | `/export-chat` | Export chat as JSON |
-| `GET` | `/weather` | Get weather by location |
-| `GET` | `/api/weather/coordinates` | Get weather by coordinates |
-| `GET` | `/api/weather/forecast` | Get weather forecast |
-| `GET` | `/api/weather/search` | Search cities |
-| `POST` | `/api/weather/set-key` | Set weather API key |
-| `GET` | `/api/sessions` | Get chat sessions |
-| `GET` | `/ping` | Health check |
+| `GET` | `/api/settings/models` | Get all discovered and custom registered models |
+| `POST` | `/api/admin/models/custom` | Register a new custom model |
+| `POST` | `/api/admin/models/discover` | Refresh and scan discovered models |
+| `GET` | `/api/gamification/stats` | Get current user leveling, XP, and badge statistics |
+| `POST` | `/api/panic/analyze` | Run AI workload load balancing analysis |
+
+---
+
+## 🛠️ **Ongoing Issues & Workarounds**
+
+### 1. Local Storage Key Syncing
+> [!WARNING]
+> **Issue**: Stored API keys are saved on a per-browser/device basis in local storage, meaning keys do not automatically sync when opening the app on a new device.
+>
+> **Workaround**: Open the User Settings modal on the new browser/device and re-enter your API keys once. They will persist locally on that device.
+
+### 2. SQLite Database Lock Mismatches
+> [!NOTE]
+> **Issue**: In rare high-concurrency production scenarios, SQLite may raise a `database is locked` error.
+>
+> **Workaround**: The database layer is pre-configured with Write-Ahead Logging (WAL) mode (`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;`) and a connection timeout of `10.0` seconds to resolve locks automatically.
+
+### 3. OpenRouter Network Timeouts
+> [!IMPORTANT]
+> **Issue**: Discovered models from OpenRouter may fail to load or timeout if the remote OpenRouter API encounters network delays.
+>
+> **Workaround**: The app automatically uses local cached discovery registries to populate the selector if network calls timeout, ensuring uninterrupted usage.
+
+---
 
 ## 🎯 **Installation & Setup**
 
@@ -82,69 +75,9 @@ A modern, feature-rich AI chat application built with Flask, featuring advanced 
    ```
 
 2. **Set API Keys**
-   - **OpenAI API Key**: Add your API key to `temp.txt` file
-   - **Weather API Key**: Get free key from [OpenWeatherMap](https://openweathermap.org/api) and add to `weather_key.txt`
-   - See `WEATHER_SETUP.md` for detailed weather API setup instructions
+   - Configure OpenAI, Gemini, Claude, Groq, OpenRouter, or Mistral keys directly inside the **User Settings Modal** in the UI.
 
 3. **Run Application**
    ```bash
    python app.py
    ```
-
-4. **Access Application**
-   - Open `http://localhost:5000` in your browser
-   - Weather data will show "Fallback Data" until API key is configured
-
-## 🌟 **Key Improvements Made**
-
-✅ **Backend Enhancements:**
-- Session-based chat history with context memory
-- Rate limiting (10 messages/minute per IP)
-- Advanced error handling with user-friendly messages
-- Input validation and security improvements
-- Real-time weather API integration with OpenWeatherMap
-- Comprehensive weather service with fallback support
-- New API endpoints for chat and weather management
-
-✅ **Frontend Enhancements:**
-- Dark/Light theme toggle with localStorage persistence
-- Advanced message UI with copy/reaction buttons
-- Real-time typing indicators and smooth animations
-- Voice input support with visual feedback
-- Live weather display in navigation bar
-- Location-based weather updates with geolocation support
-- Comprehensive keyboard shortcuts system
-- Message search and export functionality
-- Character counter and message statistics
-- Auto-save draft functionality
-
-✅ **UI/UX Improvements:**
-- Enhanced glassmorphism design
-- Improved accessibility with ARIA labels
-- Responsive design for all devices
-- Custom scrollbars and smooth scrolling
-- Toast notifications for user feedback
-- Loading states and error handling
-- New Support tab with Knowledge Base, Contact Us, and Community links
-- Embedded Email Composer modal for direct support requests
-- New Support tab with Knowledge Base, Contact Us, and Community links
-- Embedded Email Composer modal for direct support requests
-
-✅ **Performance Optimizations:**
-- Efficient DOM manipulation
-- Smooth animations with CSS transitions
-- Memory management for chat history
-- Optimized message rendering
-
-## 🎨 **Visual Enhancements**
-
-The application now features:
-- **Modern Design Language** with improved spacing and typography
-- **Interactive Elements** with hover effects and micro-animations
-- **Status Indicators** for connection, rate limits, and processing states
-- **Visual Feedback** for all user actions
-- **Consistent Iconography** using Font Awesome icons
-
----
-
-**Your Flask AI Chat application is now significantly enhanced with modern features while maintaining the original code structure!**
