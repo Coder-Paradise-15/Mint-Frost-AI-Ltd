@@ -3288,10 +3288,71 @@ function populateAPISettings() {
   updateAPIKeyCards();
 }
 
+async function populateAPISettingsDropdowns() {
+  try {
+    const resp = await fetch("/api/settings/models");
+    const data = await resp.json();
+    if (!data.success || !Array.isArray(data.models) || data.models.length === 0) {
+      return;
+    }
+    const models = data.models;
+    const providerDropdowns = {
+      openai: document.getElementById("api-openai-model"),
+      gemini: document.getElementById("api-gemini-model"),
+      google: document.getElementById("api-gemini-model"),
+      anthropic: document.getElementById("api-anthropic-model"),
+      groq: document.getElementById("api-groq-model"),
+      openrouter: document.getElementById("api-openrouter-model"),
+      mistral: document.getElementById("api-mistral-model")
+    };
+    
+    // Clear dynamic dropdowns first
+    Object.values(providerDropdowns).forEach(select => {
+      if (select) select.innerHTML = "";
+    });
+    
+    // Group & Sort models by provider
+    const grouped = {};
+    models.forEach(model => {
+      let p = (model.provider || "").toLowerCase();
+      if (!grouped[p]) grouped[p] = [];
+      grouped[p].push(model);
+    });
+    
+    // Populate each dropdown
+    Object.keys(providerDropdowns).forEach(p => {
+      const select = providerDropdowns[p];
+      if (!select) return;
+      
+      const providerModels = grouped[p] || [];
+      // Sort providerModels
+      providerModels.sort((a, b) => {
+        const scoreA = getModelTierScore(a);
+        const scoreB = getModelTierScore(b);
+        if (scoreA !== scoreB) {
+          return scoreB - scoreA;
+        }
+        return (a.display_name || a.model_id).localeCompare(b.display_name || b.model_id);
+      });
+      
+      providerModels.forEach(model => {
+        const opt = document.createElement("option");
+        opt.value = model.model_id;
+        opt.textContent = getModelLabel(model);
+        select.appendChild(opt);
+      });
+    });
+  } catch (err) {
+    console.error("Error populating API settings dropdowns:", err);
+  }
+}
+
 function showAPISettings() {
-  populateAPISettings();
-  apiSettingsOverlay.classList.add("show");
-  apiSettingsVisible = true;
+  populateAPISettingsDropdowns().then(() => {
+    populateAPISettings();
+    apiSettingsOverlay.classList.add("show");
+    apiSettingsVisible = true;
+  });
 }
 
 async function initAPISettings() {
@@ -7000,6 +7061,81 @@ window.addEventListener("DOMContentLoaded", () => {
       elProbBar.style.width = state.probWidth;
     }
   }, 1000);
+
+  window.openRegisterCustomModelModal = () => {
+    document.getElementById('customModelProvider').value = 'custom';
+    document.getElementById('customModelIdInput').value = '';
+    document.getElementById('customModelDisplayNameInput').value = '';
+    document.getElementById('customModelDescriptionInput').value = '';
+    document.getElementById('customModelContextInput').value = '128000';
+    document.getElementById('customModelCapChat').checked = true;
+    document.getElementById('customModelCapReasoning').checked = false;
+    document.getElementById('customModelCapVision').checked = false;
+    document.getElementById('customModelCapAudio').checked = false;
+    document.getElementById('customModelCapFunc').checked = false;
+    document.getElementById('customModelCapStream').checked = true;
+    document.getElementById('registerCustomModelModal').classList.add('show');
+  };
+
+  window.closeModalCustom = () => {
+    document.getElementById('registerCustomModelModal').classList.remove('show');
+  };
+
+  window.submitRegisterCustomModel = async () => {
+    const provider = document.getElementById('customModelProvider').value;
+    const modelId = document.getElementById('customModelIdInput').value.trim();
+    const displayName = document.getElementById('customModelDisplayNameInput').value.trim();
+    const description = document.getElementById('customModelDescriptionInput').value.trim();
+    const contextWindow = parseInt(document.getElementById('customModelContextInput').value) || 128000;
+    
+    if (!modelId || !displayName) {
+      showToast("Model ID and Display Name are required.", "error");
+      return;
+    }
+    
+    const features = {
+      supports_chat: document.getElementById('customModelCapChat').checked ? 1 : 0,
+      supports_reasoning: document.getElementById('customModelCapReasoning').checked ? 1 : 0,
+      supports_vision: document.getElementById('customModelCapVision').checked ? 1 : 0,
+      supports_audio: document.getElementById('customModelCapAudio').checked ? 1 : 0,
+      supports_function_calling: document.getElementById('customModelCapFunc').checked ? 1 : 0,
+      supports_streaming: document.getElementById('customModelCapStream').checked ? 1 : 0,
+    };
+    
+    try {
+      const response = await fetch('/api/admin/models/custom', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          provider: provider,
+          model_id: modelId,
+          display_name: displayName,
+          description: description,
+          context_window: contextWindow,
+          features: features
+        })
+      });
+      
+      const data = await response.json();
+      if (response.ok && data.success) {
+        showToast(`Successfully registered custom model "${displayName}".`, "success");
+        window.closeModalCustom();
+        if (typeof loadDynamicModels === "function") {
+          await loadDynamicModels();
+        }
+        if (typeof populateAPISettingsDropdowns === "function") {
+          await populateAPISettingsDropdowns();
+        }
+      } else {
+        showToast(data.error || 'Failed to register custom model.', "error");
+      }
+    } catch (err) {
+      console.error("Error registering custom model:", err);
+      showToast("Failed to register custom model: " + err.message, "error");
+    }
+  };
 
   // Load gamification stats on startup
   if (typeof window.loadGamificationStats === "function") {

@@ -6256,6 +6256,9 @@
                     <button class="btn btn--secondary" id="api-settings-reset">
                         Reset to Server Default
                     </button>
+                    <button class="btn btn--secondary" onclick="openRegisterCustomModelModal()" style="background: rgba(55, 230, 181, 0.1); border-color: rgba(55, 230, 181, 0.4); color: var(--mint); margin-left: 8px;">
+                        <i class="fas fa-plus"></i> Register Custom Model
+                    </button>
                     <div style="display: flex; gap: 10px">
                         <button
                             class="btn btn--secondary"
@@ -9459,6 +9462,86 @@
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- REGISTER CUSTOM MODEL MODAL -->
+        <div class="modal-overlay" id="registerCustomModelModal">
+            <div class="modal" style="max-width: 450px; width: 100%; border: 1px solid rgba(55,230,181,0.2); box-shadow: 0 0 30px rgba(55,230,181,0.15);">
+                <div class="modal-header">
+                    <h3 class="modal-title" style="display:flex; align-items:center; gap:8px;">
+                        <i class="fas fa-cog" style="color: var(--mint);"></i> Register Custom Model
+                    </h3>
+                    <button class="modal-close" onclick="closeModalCustom()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; max-height: 65vh; overflow-y: auto; padding: 20px;">
+                    <p style="font-size: 12px; color: var(--muted); margin: 0;">
+                        Add a custom AI model to the system. This model will appear in a separate Custom Models category for selection.
+                    </p>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Provider ID</label>
+                        <select id="customModelProvider" class="form-input" style="background: var(--bg1); color: var(--fg); height: 38px; border: 1px solid var(--border); border-radius: 8px; width: 100%;">
+                            <option value="custom">custom (Default)</option>
+                            <option value="openai">openai</option>
+                            <option value="gemini">gemini</option>
+                            <option value="anthropic">anthropic</option>
+                            <option value="groq">groq</option>
+                            <option value="openrouter">openrouter</option>
+                            <option value="mistral">mistral</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Model ID (Unique)</label>
+                        <input type="text" id="customModelIdInput" class="form-input" placeholder="e.g. openai:my-fine-tuned-model">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" id="customModelDisplayNameInput" class="form-input" placeholder="e.g. My Custom GPT-4o">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Description (Optional)</label>
+                        <input type="text" id="customModelDescriptionInput" class="form-input" placeholder="e.g. Fine-tuned model on internal docs">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Context Window (Tokens)</label>
+                        <input type="number" id="customModelContextInput" class="form-input" placeholder="e.g. 128000">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Model Capabilities</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+                            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+                                <input type="checkbox" id="customModelCapChat" checked style="accent-color: var(--mint);"> Chat
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+                                <input type="checkbox" id="customModelCapReasoning" style="accent-color: var(--mint);"> Reasoning
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+                                <input type="checkbox" id="customModelCapVision" style="accent-color: var(--mint);"> Vision
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+                                <input type="checkbox" id="customModelCapAudio" style="accent-color: var(--mint);"> Audio
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+                                <input type="checkbox" id="customModelCapFunc" style="accent-color: var(--mint);"> Functions
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 13px; cursor: pointer;">
+                                <input type="checkbox" id="customModelCapStream" checked style="accent-color: var(--mint);"> Streaming
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="padding: 16px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border);">
+                    <button class="btn btn--secondary btn--sm" onclick="closeModalCustom()" style="border-radius: 8px;">Cancel</button>
+                    <button class="btn btn--mint btn--sm" onclick="submitRegisterCustomModel()" style="border-radius: 8px;">Register Model</button>
                 </div>
             </div>
         </div>
