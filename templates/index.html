@@ -3167,22 +3167,7 @@
                                         flex-shrink: 0;
                                     "
                                 >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 24 24"
-                                        width="16"
-                                        height="16"
-                                        style="flex-shrink: 0"
-                                    >
-                                        <path
-                                            fill="#4285F4"
-                                            d="M12 2C12 2 12 7.5 6.5 7.5C12 7.5 12 13 12 13C12 13 12 7.5 17.5 7.5C12 7.5 12 2 12 2Z"
-                                        />
-                                        <path
-                                            fill="#ea4335"
-                                            d="M19 13C19 13 19 15.5 16.5 15.5C19 15.5 19 18 19 18C19 18 19 15.5 21.5 15.5C19 15.5 19 13 19 13Z"
-                                        />
-                                    </svg>
+                                    <i class="fas fa-robot" style="font-size: 13px; color: rgba(255, 255, 255, 0.4); flex-shrink: 0;"></i>
                                     <span
                                         style="
                                             font-size: 11px;
@@ -3191,7 +3176,7 @@
                                             text-transform: uppercase;
                                             letter-spacing: 0.5px;
                                         "
-                                        >Gemini</span
+                                        >Models</span
                                     >
                                 </div>
 
@@ -3498,7 +3483,19 @@
                                                 const subHeader = document.createElement("div");
                                                 subHeader.style.cssText = "padding: 6px 10px 4px; font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.35); text-transform: uppercase; display: flex; align-items: center; gap: 6px;";
                                                 const logoSvg = getProviderLogoSvg(p);
-                                                subHeader.innerHTML = `${logoSvg} <span>${p === 'google' ? 'Google Gemini' : p}</span>`;
+                                                const displayNameMap = {
+                                                    openai: "OpenAI",
+                                                    google: "Google Gemini",
+                                                    gemini: "Google Gemini",
+                                                    anthropic: "Anthropic Claude",
+                                                    claude: "Anthropic Claude",
+                                                    groq: "Groq",
+                                                    openrouter: "OpenRouter",
+                                                    mistral: "Mistral AI",
+                                                    custom: "Custom Registered Models"
+                                                };
+                                                const providerDisplayName = displayNameMap[p.toLowerCase()] || p.toUpperCase();
+                                                subHeader.innerHTML = `${logoSvg} <span>${providerDisplayName}</span>`;
                                                 list.appendChild(subHeader);
 
                                                 // Sort models inside provider group
@@ -3523,7 +3520,8 @@
                                                         else if (m.score === 8) badgeText = "Vision";
                                                     }
                                                     
-                                                    item.innerHTML = `<span>${m.display_name}</span>${badgeText ? `<span style="font-size:8px; background:rgba(55,230,181,0.15); color:var(--mint); padding:1px 5px; border-radius:8px; font-weight:700;">${badgeText}</span>` : ""}`;
+                                                    const mLogo = getProviderLogoSvg(m.provider);
+                                                    item.innerHTML = `<span style="display:flex; align-items:center; gap:6px;">${mLogo} <span>${m.display_name}</span></span>${badgeText ? `<span style="font-size:8px; background:rgba(55,230,181,0.15); color:var(--mint); padding:1px 5px; border-radius:8px; font-weight:700;">${badgeText}</span>` : ""}`;
                                                     
                                                     item.addEventListener("mouseenter", () => {
                                                         if (item.dataset.val !== hiddenSel.value)
