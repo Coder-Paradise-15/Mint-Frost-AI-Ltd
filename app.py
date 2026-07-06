@@ -217,6 +217,7 @@ class _DynamicCompletionsRouter:
         self._chain = chain
 
     def create(self, *args, **kwargs):
+        disable_fallback = kwargs.pop("disable_fallback", False)
         last_error = None
         for completions_obj, model_name in self._chain:
             try:
@@ -242,9 +243,13 @@ class _DynamicCompletionsRouter:
                     f"{repr(content)[:50]}), falling back in chain..."
                 )
                 last_error = RuntimeError(f"Model {model_name} returned empty content")
+                if disable_fallback:
+                    raise last_error
                 continue
             except Exception as e:
                 last_error = e
+                if disable_fallback:
+                    raise
                 err_str = str(e).lower()
                 # Only fallback on transient/server-side errors
                 if any(
@@ -8038,6 +8043,7 @@ Example:
                 max_tokens=500,
                 temperature=0.3,
                 timeout=6.0,
+                disable_fallback=True,
             )
             raw_text = (completion.choices[0].message.content or "").strip()
             if raw_text.startswith("```"):
@@ -8236,6 +8242,7 @@ Format the output as a JSON object matching this schema exactly (do not include 
                 max_tokens=1200,
                 temperature=0.5,
                 timeout=6.0,
+                disable_fallback=True,
             )
             raw_msg = completion.choices[0].message
             if raw_msg is None:
@@ -8434,6 +8441,7 @@ JSON Schema:
                 max_tokens=2000,
                 temperature=0.3,
                 timeout=6.0,
+                disable_fallback=True,
             )
             raw_text_raw = completion.choices[0].message
             if raw_text_raw is None:
