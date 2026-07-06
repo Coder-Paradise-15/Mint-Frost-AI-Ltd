@@ -8037,6 +8037,7 @@ Example:
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=500,
                 temperature=0.3,
+                timeout=6.0,
             )
             raw_text = (completion.choices[0].message.content or "").strip()
             if raw_text.startswith("```"):
@@ -8234,6 +8235,7 @@ Format the output as a JSON object matching this schema exactly (do not include 
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1200,
                 temperature=0.5,
+                timeout=6.0,
             )
             raw_msg = completion.choices[0].message
             if raw_msg is None:
@@ -8431,6 +8433,7 @@ JSON Schema:
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=2000,
                 temperature=0.3,
+                timeout=6.0,
             )
             raw_text_raw = completion.choices[0].message
             if raw_text_raw is None:
