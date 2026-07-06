@@ -3333,6 +3333,25 @@ window.getModelLabel = function(model) {
   return `${emoji} ${displayName}${badgeText}`;
 };
 
+window.fetchWithRetry = async function(url, options, retries = 3) {
+  try {
+    const response = await fetch(url, options);
+    if ((response.status === 504 || response.status === 521) && retries > 0) {
+      console.warn(`Server status ${response.status} on ${url}. Retrying... (${retries} left)`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return window.fetchWithRetry(url, options, retries - 1);
+    }
+    return response;
+  } catch (error) {
+    if (retries > 0) {
+      console.warn(`Network failure on ${url}. Retrying... (${retries} left)`, error);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return window.fetchWithRetry(url, options, retries - 1);
+    }
+    throw error;
+  }
+};
+
 async function populateAPISettingsDropdowns() {
   try {
     const resp = await fetch("/api/settings/models");
@@ -6470,7 +6489,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const eta = document.getElementById("coach-finish-eta");
 
     try {
-      const res = await fetch("/api/coach/analyze");
+      const res = await window.fetchWithRetry("/api/coach/analyze");
       if (!res.ok) throw new Error("Coach fetch failed");
       const data = await res.json();
 
@@ -6622,14 +6641,14 @@ window.addEventListener("DOMContentLoaded", () => {
       "Evaluating emergency recovery plans...";
 
     try {
-      const response = await fetch("/api/panic/analyze");
+      const response = await window.fetchWithRetry("/api/panic/analyze");
       const data = await response.json();
-
+      
       if (data.success && data.panic) {
         originalPanicData = data.panic;
-
+        
         // Grab task structures to simulate
-        const taskResp = await fetch("/api/tasks");
+        const taskResp = await window.fetchWithRetry("/api/tasks");
         const tasksData = await taskResp.json();
         const allTasks = tasksData.tasks || [];
         activePanicTasks = allTasks.filter(
