@@ -1382,7 +1382,7 @@ async function sendMessage() {
       requestBody.model = byok.model;
     }
 
-    const res = await fetch("/chat", {
+    const res = await window.fetchWithRetry("/chat", {
       method: "POST",
       headers: headers,
       body: JSON.stringify(requestBody),
@@ -1397,10 +1397,19 @@ async function sendMessage() {
         );
         return;
       }
-      const errorData = await res
-        .json()
-        .catch(() => ({ error: "Unknown error" }));
-      throw new Error(errorData.error || `Server error ${res.status}`);
+      if (res.status === 504 || res.status === 524) {
+        throw new Error("Gateway timeout - the AI took too long to respond. Please try again.");
+      }
+      if (res.status === 503 || res.status === 521) {
+        throw new Error("Server temporarily unavailable. Please try again in a moment.");
+      }
+      const errorText = await res.text().catch(() => "");
+      let errorMsg = `Server error ${res.status}`;
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMsg = errorData.error || errorMsg;
+      } catch (e) {}
+      throw new Error(errorMsg);
     }
 
     const data = await res.json();
