@@ -8085,6 +8085,7 @@ def parse_duration_to_minutes(duration_str):
 def api_coach_analyze():
     try:
         user_id = session.get("user_id")
+        app.logger.info(f"[Coach AI] Analyzing coach insights for user_id: {user_id}")
         tasks = database.get_user_tasks_filtered(user_id) or []
 
         # Filter tasks
@@ -8203,8 +8204,10 @@ def api_coach_analyze():
         # Try AI Generation
         ai_success = False
         try:
+            app.logger.info(f"[Coach AI] Instantiating LLM client with args: {request.args.to_dict()}")
             active_client, active_model = get_llm_client(request.args.to_dict())
-
+            app.logger.info(f"[Coach AI] Using provider/client: {active_client.__class__.__name__}, model: {active_model}")
+            
             # Format context for AI
             tasks_ctx = ""
             for t in active_tasks[:10]:
@@ -8236,6 +8239,7 @@ Format the output as a JSON object matching this schema exactly (do not include 
   "estimated_finish_time": "[Estimated time they will finish work, e.g. 4:30 PM (2.5 hours of work left)]"
 }}
 """
+            app.logger.info(f"[Coach AI] Sending completion request to model: {active_model} (timeout: 6.0s)")
             completion = active_client.chat.completions.create(
                 model=active_model,
                 messages=[{"role": "user", "content": prompt}],
@@ -8248,6 +8252,7 @@ Format the output as a JSON object matching this schema exactly (do not include 
             if raw_msg is None:
                 raise ValueError("LLM returned None message, falling back...")
             raw_text = (raw_msg.content or "").strip()
+            app.logger.info(f"[Coach AI] Successfully received response from {active_model}. Length: {len(raw_text)}")
             if not raw_text:
                 raise ValueError("LLM returned empty response, falling back...")
             if raw_text.startswith("```"):
@@ -8302,6 +8307,7 @@ Format the output as a JSON object matching this schema exactly (do not include 
                 if key in parsed and parsed[key]:
                     coach_data[key] = parsed[key]
             ai_success = True
+            app.logger.info(f"[Coach AI] Successfully parsed LLM coach insights JSON. Current Focus: {coach_data.get('current_focus')}")
         except Exception as e:
             app.logger.warning(
                 f"Coach AI generation failed: {e}. Falling back to rule-based logic."
@@ -8332,6 +8338,7 @@ def api_panic_analyze():
         user_id = session.get("user_id")
         data = request.get_json() or {} if request.method == "POST" else {}
         simulated_skips = data.get("simulated_skips", [])
+        app.logger.info(f"[Panic AI] Compiling Emergency Deck for user_id: {user_id}. Simulated skips: {simulated_skips}")
 
         # Fetch tasks
         tasks = database.get_user_tasks_filtered(user_id) or []
@@ -8395,7 +8402,9 @@ def api_panic_analyze():
         ai_success = False
         result = {}
         try:
+            app.logger.info(f"[Panic AI] Instantiating LLM client for emergency scheduler")
             active_client, active_model = get_llm_client(data)
+            app.logger.info(f"[Panic AI] Using provider/client: {active_client.__class__.__name__}, model: {active_model}")
 
             tasks_context = ""
             for t in active_tasks:
@@ -8435,6 +8444,7 @@ JSON Schema:
   "motivation": "Skipping low-priority work increases your success chance by 24%. focus on Physics first."
 }}
 """
+            app.logger.info(f"[Panic AI] Sending completions request to model: {active_model} (timeout: 6.0s)")
             completion = active_client.chat.completions.create(
                 model=active_model,
                 messages=[{"role": "user", "content": prompt}],
@@ -8447,6 +8457,7 @@ JSON Schema:
             if raw_text_raw is None:
                 raise ValueError("LLM returned None message, falling back in chain...")
             raw_text = (raw_text_raw.content or "").strip()
+            app.logger.info(f"[Panic AI] Successfully received response from {active_model}. Length: {len(raw_text)}")
             if not raw_text:
                 raise ValueError(
                     "LLM returned empty response, falling back in chain..."
@@ -8496,6 +8507,7 @@ JSON Schema:
             if "timeline" in res_json and "motivation" in res_json:
                 result = res_json
                 ai_success = True
+                app.logger.info(f"[Panic AI] Successfully parsed LLM emergency plan JSON. Timeline stages count: {len(result.get('timeline', []))}")
         except Exception as e:
             app.logger.warning(
                 f"Panic Mode AI analysis failed: {e}. Falling back to rule-based logic."
