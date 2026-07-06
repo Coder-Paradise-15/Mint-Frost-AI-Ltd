@@ -3288,6 +3288,51 @@ function populateAPISettings() {
   updateAPIKeyCards();
 }
 
+window.isModelRecommended = function(model) {
+  const modelId = model.model_id.toLowerCase();
+  const recommendedIds = [
+    "gpt-4o-mini", "gpt-4o", "gemini-3.5-flash", "claude-3-5-sonnet-latest", 
+    "llama-3.3-70b-versatile", "mistral-large-latest", "o3-mini"
+  ];
+  return recommendedIds.some(id => modelId === id || modelId.includes(id));
+};
+
+window.getModelTierScore = function(model) {
+  if (window.isModelRecommended(model)) return 10;
+  if (model.supports_reasoning || model.model_id.includes("o1") || model.model_id.includes("o3") || model.model_id.includes("r1")) return 9;
+  if (model.supports_vision || model.model_id.includes("vision") || model.model_id.includes("pixtral")) return 8;
+  if (model.model_id.includes("mini") || model.model_id.includes("flash") || model.model_id.includes("instant") || model.model_id.includes("8b") || model.model_id.includes("haiku")) return 7;
+  if (model.model_id.includes("code") || model.model_id.includes("codestral")) return 6;
+  if (model.model_id.includes("gpt-3.5") || model.model_id.includes("legacy") || model.model_id.includes("claude-2")) return 4;
+  return 5; // Default Chat
+};
+
+window.getModelLabel = function(model) {
+  const displayName = model.display_name || model.model_id;
+  const provider = (model.provider || "").toLowerCase();
+  const badges = [];
+  const score = window.getModelTierScore(model);
+  
+  if (score === 10) badges.push("Recommended");
+  if (model.supports_reasoning || score === 9) badges.push("🧠 Reasoning");
+  else if (model.supports_vision || score === 8) badges.push("👁 Vision");
+  else if (score === 7) badges.push("⚡ Fast");
+  else if (score === 6) badges.push("💻 Coding");
+  
+  if (score === 4) badges.push("⏳ Legacy");
+  
+  let emoji = "🤖";
+  if (provider === "gemini" || provider === "google") emoji = "✨";
+  if (provider === "anthropic") emoji = "🎭";
+  if (provider === "groq") emoji = "⚡";
+  if (provider === "openrouter") emoji = "🌐";
+  if (provider === "mistral") emoji = "🌀";
+  if (model.api_owner === "admin") emoji = "⚙️";
+  
+  const badgeText = badges.length > 0 ? ` (${badges.join(" - ")})` : "";
+  return `${emoji} ${displayName}${badgeText}`;
+};
+
 async function populateAPISettingsDropdowns() {
   try {
     const resp = await fetch("/api/settings/models");
@@ -3911,50 +3956,7 @@ document.addEventListener("DOMContentLoaded", () => {
       modelSearcherClear.style.display = "none";
     });
 
-    window.isModelRecommended = function(model) {
-      const modelId = model.model_id.toLowerCase();
-      const recommendedIds = [
-        "gpt-4o-mini", "gpt-4o", "gemini-3.5-flash", "claude-3-5-sonnet-latest", 
-        "llama-3.3-70b-versatile", "mistral-large-latest", "o3-mini"
-      ];
-      return recommendedIds.some(id => modelId === id || modelId.includes(id));
-    };
-
-    window.getModelTierScore = function(model) {
-      if (window.isModelRecommended(model)) return 10;
-      if (model.supports_reasoning || model.model_id.includes("o1") || model.model_id.includes("o3") || model.model_id.includes("r1")) return 9;
-      if (model.supports_vision || model.model_id.includes("vision") || model.model_id.includes("pixtral")) return 8;
-      if (model.model_id.includes("mini") || model.model_id.includes("flash") || model.model_id.includes("instant") || model.model_id.includes("8b") || model.model_id.includes("haiku")) return 7;
-      if (model.model_id.includes("code") || model.model_id.includes("codestral")) return 6;
-      if (model.model_id.includes("gpt-3.5") || model.model_id.includes("legacy") || model.model_id.includes("claude-2")) return 4;
-      return 5; // Default Chat
-    };
-
-    window.getModelLabel = function(model) {
-      const displayName = model.display_name || model.model_id;
-      const provider = (model.provider || "").toLowerCase();
-      const badges = [];
-      const score = getModelTierScore(model);
-      
-      if (score === 10) badges.push("Recommended");
-      if (model.supports_reasoning || score === 9) badges.push("🧠 Reasoning");
-      else if (model.supports_vision || score === 8) badges.push("👁 Vision");
-      else if (score === 7) badges.push("⚡ Fast");
-      else if (score === 6) badges.push("💻 Coding");
-      
-      if (score === 4) badges.push("⏳ Legacy");
-      
-      let emoji = "🤖";
-      if (provider === "gemini" || provider === "google") emoji = "✨";
-      if (provider === "anthropic") emoji = "🎭";
-      if (provider === "groq") emoji = "⚡";
-      if (provider === "openrouter") emoji = "🌐";
-      if (provider === "mistral") emoji = "🌀";
-      if (model.api_owner === "admin") emoji = "⚙️";
-      
-      const badgeText = badges.length > 0 ? ` (${badges.join(" - ")})` : "";
-      return `${emoji} ${displayName}${badgeText}`;
-    }
+    // Model recommendation, tier, and label helpers are defined globally above
 
     loadDynamicModels = async function() {
       try {
