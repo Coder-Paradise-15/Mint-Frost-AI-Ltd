@@ -1398,6 +1398,7 @@ def generate_fallback_subtasks(category, task_title):
 def chat(is_regenerate=False):
     detected_tasks = []
     client_ip = request.remote_addr
+    app.logger.info(f"[Chat API] Received request from client IP: {client_ip}")
 
     if not check_rate_limit(client_ip):
         return jsonify(
@@ -1684,10 +1685,19 @@ def chat(is_regenerate=False):
         ]
 
     try:
+        app.logger.info(f"[Chat AI] Instantiating LLM client for user message")
         active_client, active_model = get_llm_client(data)
+        app.logger.info(f"[Chat AI] Using provider/client: {active_client.__class__.__name__}, model: {active_model}")
+        app.logger.info(f"[Chat AI] Sending chat completion request to model: {active_model} (timeout: 6.0s)")
         completion = active_client.chat.completions.create(
-            model=active_model, messages=messages, max_tokens=1000, temperature=0.7
+            model=active_model,
+            messages=messages,
+            max_tokens=1000,
+            temperature=0.7,
+            timeout=6.0,
+            disable_fallback=True,
         )
+        app.logger.info(f"[Chat AI] Successfully received response from {active_model}.")
 
         if completion.choices and completion.choices[0].message.content:
             ai_reply = completion.choices[0].message.content
@@ -1761,12 +1771,16 @@ You MUST output ONLY a valid JSON object matching this structure (do not wrap in
   ]
 }}
 """
+                app.logger.info(f"[Chat AI] Sending task extraction request to model: {active_model} (timeout: 6.0s)")
                 extraction_completion = active_client.chat.completions.create(
                     model=active_model,
                     messages=[{"role": "user", "content": extraction_prompt}],
                     max_tokens=800,
                     temperature=0.0,
+                    timeout=6.0,
+                    disable_fallback=True,
                 )
+                app.logger.info(f"[Chat AI] Successfully received extraction response from {active_model}.")
                 extracted_text = (
                     extraction_completion.choices[0].message.content or ""
                 ).strip()
