@@ -1709,48 +1709,40 @@ def chat(is_regenerate=False):
         else:
             ai_reply = "⚠️ No reply from AI."
 
-        # Only run task extraction if message looks like it contains a task/deadline
+        # Only run task extraction if the conversation context indicates a task/deadline/project is being discussed or planned
         _msg_plain = html.unescape(user_message).lower()
-        _has_task_signal = is_breakdown_request(_msg_plain) or any(
-            w in _msg_plain
-            for w in [
-                "deadline",
-                "due",
-                "submit",
-                "exam",
-                "meeting",
-                "remind",
-                "tomorrow",
-                "today",
-                "next week",
-                "monday",
-                "tuesday",
-                "wednesday",
-                "thursday",
-                "friday",
-                "saturday",
-                "sunday",
-                "assignment",
-                "project",
-                "bill",
-                "pay",
-                "goal",
-                "by ",
-                "at ",
-                "pm",
-                "am",
-            ]
+        _reply_plain = html.unescape(ai_reply).lower()
+
+        # Check if user message has specific time indicators or task nouns as whole words
+        has_task_keywords = bool(re.search(
+            r'\b(deadline|due|submit|exam|meeting|remind|tomorrow|today|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|assignment|project|bill|pay|goal|by|at|pm|am)\b',
+            _msg_plain
+        ))
+
+        # Check if AI reply contains numbered steps or lists of instructions
+        has_recipe_or_steps = (
+            "step 1" in _reply_plain or
+            "steps:" in _reply_plain or
+            bool(re.search(r'\b(recipe|directions|instructions|ingredients)\b', _msg_plain)) or
+            bool(re.search(r'\b(step\s*\d+|\d+\.\s+[A-Z]|\d+\s+[A-Z][a-z]+:)', ai_reply))
         )
+
+        _has_task_signal = is_breakdown_request(_msg_plain) or has_task_keywords or has_recipe_or_steps
+
         try:
-            is_breakdown = is_breakdown_request(_msg_plain)
             if not _has_task_signal:
                 pass  # skip extraction entirely — no task signals
-            elif is_breakdown:
-                extraction_prompt = f"""You are a precise task planning assistant.
-Analyze the following user request to create a task: "{html.unescape(user_message)}"
+            else:
+                # Use both user request and AI reply to extract high-fidelity customized subtasks
+                extraction_prompt = f"""You are an expert task breakdown assistant.
+Analyze the user's request and the assistant's reply to extract a task and its concrete subtasks.
+
+User Request: "{html.unescape(user_message)}"
+AI Response: "{html.unescape(ai_reply)}"
+
 Today's date is: {datetime.now().strftime("%Y-%m-%d")} ({datetime.now().strftime("%A")}).
 
-Create a concise, professional, custom title for the overall task. Break down the task into AT LEAST 4 to 6 detailed, logical, specific subtasks (checklist steps) chronological from start to finish. Do not output generic placeholders.
+Based on the conversation above, extract the concrete steps/subtasks mentioned in the AI response (or generate them if none are explicitly listed but the topic is clear, like baking/studying). Break down the task into AT LEAST 4 to 6 detailed, logical, specific, chronological subtasks from start to finish. Do not output generic placeholders.
 
 You MUST output ONLY a valid JSON object matching this structure (do not wrap in markdown block, do not include other text):
 {{
@@ -1861,14 +1853,11 @@ You MUST output ONLY a valid JSON object matching this structure (do not wrap in
                         "subtasks": subtasks_db,
                     }
                 ]
-            else:
-                # Use fast rule-based parser instead of a second LLM call
-                detected_tasks = parse_deadline_fallback(html.unescape(user_message))
         except Exception as ex:
             app.logger.warning(
                 f"AI deadline/subtask extraction failed: {ex}. Falling back to rule-based parser."
             )
-            if is_breakdown_request(_msg_plain):
+            if _has_task_signal:
                 fallback_tasks = parse_deadline_fallback(html.unescape(user_message))
                 if fallback_tasks:
                     task_name = fallback_tasks[0]["task_name"]
