@@ -1066,6 +1066,15 @@ body {
   background: rgba(255, 255, 255, 0.015);
 }
 
+.bubble__content td strong,
+.bubble__content th strong {
+  background: none !important;
+  padding: 0 !important;
+  border: none !important;
+  text-shadow: none !important;
+  color: var(--mint) !important;
+}
+
 /* Custom Task List Checklist items inside chat messages */
 .bubble__content ul.task-list-active,
 .bubble__content .task-list-item {

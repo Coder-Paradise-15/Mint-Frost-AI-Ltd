@@ -990,13 +990,9 @@ function createMessageElement(
   const content = document.createElement("div");
   content.className = "bubble__content";
 
-  const p = document.createElement("p");
-  // If text already contains HTML formatting from backend, use it directly
-  if (text.includes("<") && text.includes(">")) {
-    p.innerHTML = text;
-  } else {
-    p.innerHTML = formatMessage(text);
-  }
+  const p = document.createElement("div");
+  p.className = "bubble__content-body";
+  p.innerHTML = formatMessage(text);
   content.appendChild(p);
 
   // Store raw text for copying
