@@ -1783,19 +1783,19 @@ You MUST output ONLY a valid JSON object matching this structure (do not wrap in
             "rate_limit_exceeded" in error_msg.lower()
             or "rate limit" in error_msg.lower()
         ):
-            ai_reply = "⚠️ Rate limit reached! The server's default AI quota is exhausted. Please <strong>add your own API key</strong>: click ☰ → API Settings, choose a provider (Groq is free!), paste your key, then select that model in the chat bar above."
+            ai_reply = "⚠️ Rate limit reached! The server's default AI quota is exhausted. Please **add your own API key**: click ☰ → API Settings, choose a provider (Groq is free!), paste your key, then select that model in the chat bar above."
         elif (
             "invalid_api_key" in error_msg.lower()
             or "invalid api key" in error_msg.lower()
             or "incorrect api key" in error_msg.lower()
         ):
-            ai_reply = "⚠️ Invalid API key! The server's built-in key is not configured. Please <strong>add your own key</strong> via ☰ → API Settings. <a href='https://console.groq.com' target='_blank' style='color:var(--mint)'>Get a free Groq key →</a>"
+            ai_reply = "⚠️ Invalid API key! The server's built-in key is not configured. Please **add your own key** via ☰ → API Settings. [Get a free Groq key →](https://console.groq.com)"
         elif "authentication" in error_msg.lower() or "401" in error_msg:
-            ai_reply = "⚠️ Authentication failed. Please add your own API key via ☰ → API Settings. Groq offers a free tier at <a href='https://console.groq.com' target='_blank' style='color:var(--mint)'>console.groq.com</a>"
+            ai_reply = "⚠️ Authentication failed. Please add your own API key via ☰ → API Settings. Groq offers a free tier at [console.groq.com](https://console.groq.com)"
         elif "connection" in error_msg.lower() or "timeout" in error_msg.lower():
             ai_reply = "⚠️ Connection error. Please check your internet connection and try again."
         else:
-            ai_reply = f"⚠️ Sorry, the server's default AI key is not configured. Please click <strong>☰ → API Settings</strong> to add your own API key (Groq is free!). Error: {error_msg[:120]}"
+            ai_reply = f"⚠️ Sorry, the server's default AI key is not configured. Please click **☰ → API Settings** to add your own API key (Groq is free!). Error: {error_msg[:120]}"
 
     if "current_session_id" not in session:
         session["current_session_id"] = str(uuid.uuid4())

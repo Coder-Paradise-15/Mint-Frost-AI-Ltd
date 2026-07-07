@@ -1075,6 +1075,17 @@ body {
   color: var(--mint) !important;
 }
 
+.bubble__content a {
+  color: var(--mint) !important;
+  text-decoration: underline;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+
+.bubble__content a:hover {
+  opacity: 0.8;
+}
+
 /* Custom Task List Checklist items inside chat messages */
 .bubble__content ul.task-list-active,
 .bubble__content .task-list-item {
