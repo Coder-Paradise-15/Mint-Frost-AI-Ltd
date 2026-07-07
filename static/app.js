@@ -1102,93 +1102,42 @@ function sanitizeHTML(str) {
   return div.innerHTML;
 }
 
-// Format message text (enhanced markdown support with XSS protection)
 function formatMessage(text) {
-  // Sanitize input first
   if (typeof text !== "string") {
     text = String(text || "");
   }
 
-  // Check if text contains image HTML (from backend image generation) - validate it's safe
+  // 1. Handle image HTML from backend image generation
+  let safeImages = [];
+  let textWithoutImages = text;
   if (text.includes('<img src="data:image/')) {
-    // Only allow data URLs for images, sanitize the rest
     const imgRegex = /<img src="data:image\/[^"]*"[^>]*>/g;
-    const safeImages = text.match(imgRegex) || [];
-    const textWithoutImages = text.replace(imgRegex, "__IMAGE_PLACEHOLDER__");
-    let sanitizedText = sanitizeHTML(textWithoutImages);
-    safeImages.forEach((img) => {
-      sanitizedText = sanitizedText.replace("__IMAGE_PLACEHOLDER__", img);
-    });
-    return sanitizedText;
+    safeImages = text.match(imgRegex) || [];
+    textWithoutImages = text.replace(imgRegex, "__IMAGE_PLACEHOLDER__");
   }
 
-  // For any HTML content, sanitize first then apply safe formatting
-  text = sanitizeHTML(text);
+  // 2. Sanitize user input to prevent XSS (standard tags)
+  let sanitizedText = sanitizeHTML(textWithoutImages);
 
-  // Apply markdown formatting to plain text
-  let formatted = text;
+  // 3. Render Markdown using marked.js with GFM enabled
+  let formatted = "";
+  if (typeof marked !== "undefined" && typeof marked.parse === "function") {
+    marked.setOptions({
+      gfm: true,
+      breaks: true,
+      headerIds: false,
+      mangle: false
+    });
+    formatted = marked.parse(sanitizedText);
+  } else {
+    // Fallback if marked library is not available
+    formatted = sanitizedText.replace(/\n/g, "<br>");
+  }
 
-  // Headers (must come before other formatting) - Compact spacing
-  formatted = formatted.replace(
-    /^#### (.*$)/gm,
-    '<h4 style="color: var(--mint); margin: 8px 0 4px 0; font-size: 1.1em;">$1</h4>',
-  );
-  formatted = formatted.replace(
-    /^### (.*$)/gm,
-    '<h3 style="color: var(--mint); margin: 10px 0 5px 0; font-size: 1.2em;">$1</h3>',
-  );
-  formatted = formatted.replace(
-    /^## (.*$)/gm,
-    '<h2 style="color: var(--mint); margin: 12px 0 6px 0; font-size: 1.3em;">$1</h2>',
-  );
-  formatted = formatted.replace(
-    /^# (.*$)/gm,
-    '<h1 style="color: var(--mint); margin: 15px 0 8px 0; font-size: 1.4em;">$1</h1>',
-  );
-
-  // Code blocks - Compact spacing
-  formatted = formatted.replace(
-    /```([\s\S]*?)```/g,
-    '<pre style="background: rgba(255,255,255,0.1); padding: 8px; border-radius: 4px; margin: 6px 0; overflow-x: auto; font-size: 0.9em;"><code>$1</code></pre>',
-  );
-
-  // Inline code
-  formatted = formatted.replace(
-    /`([^`]+)`/g,
-    '<code style="background: rgba(255,255,255,0.1); padding: 1px 3px; border-radius: 2px; font-family: monospace; font-size: 0.9em;">$1</code>',
-  );
-
-  // Bold text
-  formatted = formatted.replace(
-    /\*\*([^*]+)\*\*/g,
-    '<strong style="color: var(--mint); font-weight: 600;">$1</strong>',
-  );
-
-  // Italic text
-  formatted = formatted.replace(
-    /\*([^*]+)\*/g,
-    '<em style="font-style: italic; color: rgba(255,255,255,0.9);">$1</em>',
-  );
-
-  // Lists - Enhanced number formatting with compact spacing
-  formatted = formatted.replace(
-    /^(\d+)\. (.+)$/gm,
-    '<li style="margin: 2px 0; color: rgba(255,255,255,0.9); display: flex; align-items: flex-start;"><span style="color: var(--mint); font-weight: 600; min-width: 24px; background: rgba(255,255,255,0.1); border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.8em; margin-right: 8px; flex-shrink: 0;">$1</span><span style="flex: 1;">$2</span></li>',
-  );
-  formatted = formatted.replace(
-    /^[*-] (.+)$/gm,
-    '<li style="margin: 2px 0; color: rgba(255,255,255,0.9); display: flex; align-items: flex-start;"><span style="color: var(--mint); margin-right: 8px; font-weight: bold;">•</span><span style="flex: 1;">$2</span></li>',
-  );
-
-  // Wrap consecutive list items in ul - Compact spacing
-  formatted = formatted.replace(
-    /((<li[^>]*>.*<\/li>\s*)+)/g,
-    '<ul style="margin: 6px 0; padding-left: 0; list-style: none;">$1</ul>',
-  );
-
-  // Line breaks - More compact
-  formatted = formatted.replace(/\n\n/g, "<br>");
-  formatted = formatted.replace(/\n/g, "<br>");
+  // 4. Re-insert safe image tags
+  safeImages.forEach((img) => {
+    formatted = formatted.replace("__IMAGE_PLACEHOLDER__", img);
+  });
 
   return formatted;
 }

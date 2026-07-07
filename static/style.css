@@ -1027,6 +1027,66 @@ body {
   top: 0;
 }
 
+/* Custom Table Styling inside chat messages */
+.bubble__content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+  font-size: 0.9em;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.bubble__content th {
+  background: rgba(0, 242, 195, 0.15);
+  color: var(--mint);
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 2px solid rgba(0, 242, 195, 0.25);
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.5px;
+}
+
+.bubble__content td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.bubble__content tr:last-child td {
+  border-bottom: none;
+}
+
+.bubble__content tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* Custom Task List Checklist items inside chat messages */
+.bubble__content ul.task-list-active,
+.bubble__content .task-list-item {
+  list-style-type: none !important;
+  padding-left: 4px !important;
+}
+
+.bubble__content .task-list-item::before {
+  display: none !important; /* Hide list bullets/triangles for checkboxes */
+}
+
+.bubble__content input[type="checkbox"] {
+  margin-right: 8px;
+  accent-color: var(--mint);
+  width: 15px;
+  height: 15px;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+
 .bubble__content blockquote {
   border-left: 4px solid var(--mint);
   padding: 12px 16px;
