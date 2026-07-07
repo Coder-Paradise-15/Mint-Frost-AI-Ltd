@@ -1109,7 +1109,7 @@ function formatMessage(text) {
   if (text.includes('<img src="data:image/')) {
     const imgRegex = /<img src="data:image\/[^"]*"[^>]*>/g;
     safeImages = text.match(imgRegex) || [];
-    textWithoutImages = text.replace(imgRegex, "__IMAGE_PLACEHOLDER__");
+    textWithoutImages = text.replace(imgRegex, "###IMAGE_PLACEHOLDER###");
   }
 
   // 2. Sanitize user input to prevent XSS (standard tags)
@@ -1132,7 +1132,7 @@ function formatMessage(text) {
 
   // 4. Re-insert safe image tags
   safeImages.forEach((img) => {
-    formatted = formatted.replace("__IMAGE_PLACEHOLDER__", img);
+    formatted = formatted.replace("###IMAGE_PLACEHOLDER###", img);
   });
 
   return formatted;

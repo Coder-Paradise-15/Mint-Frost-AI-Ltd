@@ -1254,11 +1254,6 @@ body {
 .bubble--ai .bubble__content strong {
   color: var(--mint);
   font-weight: 700;
-  text-shadow: 0 0 8px rgba(55, 230, 181, 0.4);
-  background: rgba(55, 230, 181, 0.1);
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(55, 230, 181, 0.2);
 }
 
 /* Enhanced AI Response Formatting */

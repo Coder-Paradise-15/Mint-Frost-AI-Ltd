@@ -1306,12 +1306,32 @@ def chat(is_regenerate=False):
 
         context_info = f"\\n\\nCurrent Information:\\n📅 {time_info['date']}\\n🕐 {time_info['current_time']} ({time_info['timezone']})\\n🌡️ {weather_info['temperature']}°C, {weather_info['description']} in {weather_info['location']}\\n💧 Humidity: {weather_info['humidity']}%\\n💨 Wind: {weather_info['wind_speed']} m/s"
 
-    image_instructions = "\\n\\nCRITICAL IMAGE RULES:\\n- When users ask for images, pictures, visuals, drawings, or say 'show me', 'generate', 'create', 'draw' - you MUST respond with EXACTLY this format:\\n- First provide helpful text response, then add the image request\\n- Format: [Normal response text] + [IMAGE_REQUEST: detailed description]\\n- MANDATORY EXAMPLES:\\n  User: 'show me a mountain' → Response: 'Here's a beautiful mountain scene for you! 🎨\\n\\n[IMAGE_REQUEST: Majestic snow-capped mountain with forest below]'\\n  User: 'create a sunset' → Response: 'I'll create a stunning sunset image! Here's what I envision:\\n\\n[IMAGE_REQUEST: Beautiful orange and pink sunset over calm ocean]'\\n- ALWAYS provide both text explanation AND the [IMAGE_REQUEST: ] format"
+    image_instructions = (
+        "\\n\\nCRITICAL IMAGE RULES:\\n"
+        "- ONLY output the [IMAGE_REQUEST: detailed description] format if the user EXPLICITLY requested or agreed to see an image, picture, visual, or drawing in their immediate message. NEVER proactively suggest or pre-emptively include [IMAGE_REQUEST: ...] in your response if you are only offering or suggesting to generate an image.\\n"
+        "- When users explicitly ask for images, pictures, visuals, drawings, or say 'show me', 'generate', 'create', 'draw' - you MUST respond with EXACTLY this format:\\n"
+        "- First provide helpful text response, then add the image request\\n"
+        "- Format: [Normal response text] + [IMAGE_REQUEST: detailed description]\\n"
+        "- MANDATORY EXAMPLES:\\n"
+        "  User: 'show me a mountain' → Response: 'Here's a beautiful mountain scene for you! 🎨\\n\\n[IMAGE_REQUEST: Majestic snow-capped mountain with forest below]'\\n"
+        "  User: 'create a sunset' → Response: 'I'll create a stunning sunset image! Here's what I envision:\\n\\n[IMAGE_REQUEST: Beautiful orange and pink sunset over calm ocean]'\\n"
+        "- ALWAYS provide both text explanation AND the [IMAGE_REQUEST: ] format"
+    )
+
+    user_id = session.get("user_id")
+    tasks_context = ""
+    if user_id:
+        try:
+            tasks_context = get_tasks_context_for_ai(user_id)
+        except Exception as e:
+            app.logger.error(f"Error loading tasks context for system prompt: {e}")
+
+    task_context_injection = f"\\n\\nUser's Current Tasks List (from database):\\n{tasks_context}" if tasks_context else ""
 
     if context_info:
-        system_prompt = f"You are a helpful AI assistant. Be concise and friendly. IMPORTANT: When asked about time or weather, you MUST use this real-time data and present it in a nice format: {context_info}. Do not say you cannot provide real-time information - use the data provided above.{image_instructions}"
+        system_prompt = f"You are a helpful AI assistant. Be concise and friendly. IMPORTANT: When asked about time or weather, you MUST use this real-time data and present it in a nice format: {context_info}. Do not say you cannot provide real-time information - use the data provided above.{task_context_injection}{image_instructions}"
     else:
-        system_prompt = f"You are a helpful AI assistant. Be concise and friendly.{image_instructions}"
+        system_prompt = f"You are a helpful AI assistant. Be concise and friendly.{task_context_injection}{image_instructions}"
 
     messages = [{"role": "system", "content": system_prompt}]
 
