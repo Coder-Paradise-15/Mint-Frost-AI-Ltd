@@ -21,6 +21,7 @@ from flask import Flask, Response, g, jsonify, redirect, render_template, reques
 from openai import OpenAI
 from static.weather_service import WeatherService
 from werkzeug.security import check_password_hash, generate_password_hash
+from frost_engine.frost_directive import build_frost_v1_directive
 
 # Create Flask app with simple logging (working setup)
 app = Flask(__name__)
@@ -1376,10 +1377,14 @@ def chat(is_regenerate=False):
 
     task_context_injection = f"\\n\\nUser's Current Tasks List (from database):\\n{tasks_context}" if tasks_context else ""
 
+    is_admin_user = bool(session.get("is_admin") or session.get("role") == "admin" or session.get("user_id") == 1)
+    user_display = session.get("display_name") or session.get("username") or "User"
+    frost_directive = build_frost_v1_directive(user_id=user_id, user_display_name=user_display, is_admin=is_admin_user)
+
     if context_info:
-        system_prompt = f"You are a helpful AI assistant. Be concise and friendly. IMPORTANT: When asked about time or weather, you MUST use this real-time data and present it in a nice format: {context_info}. Do not say you cannot provide real-time information - use the data provided above.{task_context_injection}{image_instructions}"
+        system_prompt = f"{frost_directive}\n\nIMPORTANT: When asked about time or weather, you MUST use this real-time data and present it in a nice format: {context_info}. Do not say you cannot provide real-time information - use the data provided above.{task_context_injection}{image_instructions}"
     else:
-        system_prompt = f"You are a helpful AI assistant. Be concise and friendly.{task_context_injection}{image_instructions}"
+        system_prompt = f"{frost_directive}{task_context_injection}{image_instructions}"
 
     messages = [{"role": "system", "content": system_prompt}]
 
@@ -1868,9 +1873,17 @@ You MUST output ONLY a valid JSON object matching this structure (do not wrap in
     if "current_session_id" not in session:
         session["current_session_id"] = str(uuid.uuid4())
 
+    thought_match = re.search(
+        r"<(?:frost_thought|think)>([\s\S]*?)</(?:frost_thought|think)>",
+        ai_reply,
+        re.IGNORECASE,
+    )
+    extracted_thought = thought_match.group(1).strip() if thought_match else ""
+
     return jsonify(
         {
             "reply": ai_reply,
+            "thought": extracted_thought,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "message_count": len(session.get("chat_history", [])),
             "session_id": session["current_session_id"],

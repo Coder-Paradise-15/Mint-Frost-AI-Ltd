@@ -990,9 +990,51 @@ function createMessageElement(
   const content = document.createElement("div");
   content.className = "bubble__content";
 
+  let thoughtContent = "";
+  let cleanText = text;
+
+  if (who === "ai" && typeof text === "string") {
+    const thoughtMatch = text.match(/<(?:frost_thought|think)>([\s\S]*?)<\/(?:frost_thought|think)>/i);
+    if (thoughtMatch) {
+      thoughtContent = thoughtMatch[1].trim();
+      cleanText = text.replace(/<(?:frost_thought|think)>[\s\S]*?<\/(?:frost_thought|think)>/gi, "").trim();
+    }
+  }
+
+  if (thoughtContent) {
+    const thoughtBox = document.createElement("div");
+    thoughtBox.className = "frost-thought-container";
+
+    const userName = window.currentUserDisplayName || window.currentUser || "user";
+    let formattedThought = sanitizeHTML(thoughtContent);
+    formattedThought = formattedThought.replace(/\[([a-zA-Z\s_-]+)\]/g, '<span class="frost-thought-tag">[$1]</span>');
+
+    thoughtBox.innerHTML = `
+      <div class="frost-thought-header" title="Click to view Frost-V1 reasoning trace">
+        <div class="frost-thought-title">
+          <span class="frost-snowflake-icon">❄️</span>
+          <span>Frost-V1 Reasoning Trace</span>
+          <span class="frost-thought-badge">Analyzed for ${sanitizeHTML(userName)}</span>
+        </div>
+        <div class="frost-thought-chevron"><i class="fas fa-chevron-down"></i></div>
+      </div>
+      <div class="frost-thought-body">${formattedThought}</div>
+    `;
+
+    const header = thoughtBox.querySelector(".frost-thought-header");
+    if (header) {
+      header.addEventListener("click", (e) => {
+        e.stopPropagation();
+        thoughtBox.classList.toggle("expanded");
+      });
+    }
+
+    content.appendChild(thoughtBox);
+  }
+
   const p = document.createElement("div");
   p.className = "bubble__content-body";
-  p.innerHTML = formatMessage(text);
+  p.innerHTML = formatMessage(cleanText);
   content.appendChild(p);
 
   // Store raw text for copying
@@ -1102,6 +1144,9 @@ function formatMessage(text) {
   if (typeof text !== "string") {
     text = String(text || "");
   }
+
+  // Strip raw thought tags as fallback so they never render as raw XML
+  text = text.replace(/<(?:frost_thought|think)>[\s\S]*?<\/(?:frost_thought|think)>/gi, "").trim();
 
   // 1. Handle image HTML from backend image generation
   let safeImages = [];
@@ -1227,10 +1272,54 @@ function setStatus(state, message = null) {
   statusDot.style.animation = config.pulse ? "pulse 1.5s infinite" : "none";
 }
 
-// Show/hide typing indicator
+let frostThinkingInterval = null;
+let frostThinkingStartTime = null;
+
+// Show/hide typing indicator with animated Frost-V1 reasoning phases
 function showTyping(show = true) {
+  if (!typingIndicator) return;
   typingIndicator.style.display = show ? "block" : "none";
-  if (show) smoothScrollToBottom();
+
+  const phaseEl = document.getElementById("frost-thinking-phase-text");
+  const timerEl = document.getElementById("frost-thinking-timer");
+
+  if (frostThinkingInterval) {
+    clearInterval(frostThinkingInterval);
+    frostThinkingInterval = null;
+  }
+
+  if (show) {
+    frostThinkingStartTime = Date.now();
+    const userName = window.currentUserDisplayName || window.currentUser || "user";
+    const phases = [
+      `Analyzing ${userName}'s intention...`,
+      `Profiling emotional resonance for ${userName}...`,
+      `Verifying system telemetry & metrics...`,
+      `Synthesizing cognitive response...`,
+      `Streaming optimized Frost tokens...`
+    ];
+
+    let phaseIndex = 0;
+    if (phaseEl) phaseEl.textContent = phases[0];
+    if (timerEl) timerEl.textContent = "Frost-V1 • reasoning (0.0s)...";
+
+    frostThinkingInterval = setInterval(() => {
+      if (!frostThinkingStartTime) return;
+      const elapsed = ((Date.now() - frostThinkingStartTime) / 1000).toFixed(1);
+      if (timerEl) timerEl.textContent = `Frost-V1 • reasoning (${elapsed}s)...`;
+
+      const newIndex = Math.min(
+        Math.floor((Date.now() - frostThinkingStartTime) / 2000),
+        phases.length - 1
+      );
+      if (newIndex !== phaseIndex && phaseEl) {
+        phaseIndex = newIndex;
+        phaseEl.textContent = phases[phaseIndex];
+      }
+    }, 200);
+
+    smoothScrollToBottom();
+  }
 }
 
 // Update character count
