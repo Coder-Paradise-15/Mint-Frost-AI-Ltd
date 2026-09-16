@@ -224,6 +224,8 @@ class _DynamicCompletionsRouter:
             try:
                 kwargs["model"] = model_name
                 result = completions_obj.create(*args, **kwargs)
+                if kwargs.get("stream"):
+                    return result
                 # Validate response has non-empty content
                 if (
                     result
@@ -1906,6 +1908,81 @@ You MUST output ONLY a valid JSON object matching this structure (do not wrap in
             "message_count": len(session.get("chat_history", [])),
             "session_id": session["current_session_id"],
             "detected_tasks": detected_tasks,
+        }
+    )
+
+
+@app.route("/chat/stream", methods=["POST"])
+@login_required
+def chat_stream():
+    data = request.get_json() or {}
+    user_message = data.get("message", "").strip()
+    if not user_message:
+        return jsonify({"error": "Message cannot be empty"}), 400
+
+    client_ip = request.remote_addr
+    if not check_rate_limit(client_ip):
+        return jsonify({"error": "Rate limit exceeded. Please wait."}), 429
+
+    user_id = session.get("user_id")
+    is_admin_user = bool(session.get("is_admin") or session.get("role") == "admin" or user_id == 1)
+    user_display = session.get("display_name") or session.get("username") or "User"
+    frost_directive = build_frost_v1_directive(user_id=user_id, user_display_name=user_display, is_admin=is_admin_user)
+
+    messages = [
+        {"role": "system", "content": frost_directive},
+        {"role": "user", "content": user_message}
+    ]
+
+    try:
+        active_client, active_model = get_llm_client(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+    def generate_events():
+        accumulated_text = ""
+        try:
+            stream_resp = active_client.chat.completions.create(
+                model=active_model,
+                messages=messages,
+                stream=True,
+                max_tokens=1024,
+                temperature=0.7,
+                timeout=60.0
+            )
+            for chunk in stream_resp:
+                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    token = chunk.choices[0].delta.content
+                    accumulated_text += token
+                    yield f"data: {json.dumps({'token': token})}\n\n"
+
+            session_id = session.get("current_session_id")
+            if not session_id:
+                session_id = str(uuid.uuid4())
+                session["current_session_id"] = session_id
+                try:
+                    database.create_session(session_id, user_message[:50], user_id=user_id)
+                except Exception:
+                    pass
+
+            try:
+                database.add_message(session_id, user_message, "user")
+                database.add_message(session_id, accumulated_text, "ai")
+            except Exception:
+                pass
+
+            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as ex:
+            yield f"data: {json.dumps({'error': str(ex)})}\n\n"
+
+    return Response(
+        generate_events(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive"
         }
     )
 

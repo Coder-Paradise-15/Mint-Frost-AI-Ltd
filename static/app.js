@@ -1416,6 +1416,90 @@ async function sendMessage() {
       requestBody.model = byok.model;
     }
 
+    // Check if streaming is available (preferred for Frost-V1 and compatible providers)
+    const isStreamingCandidate = byok?.provider === "frost" || byok?.provider === "frost-v1" || !byok?.provider;
+    if (isStreamingCandidate && window.ReadableStream) {
+      try {
+        const streamRes = await fetch("/chat/stream", {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(requestBody),
+        });
+
+        if (streamRes.ok && streamRes.headers.get("content-type")?.includes("text/event-stream")) {
+          showTyping(false);
+
+          let accumulatedText = "";
+          let bubbleElement = pushMessage("", "ai");
+          const bodyElement = bubbleElement.querySelector(".bubble__content-body");
+
+          const reader = streamRes.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let streamBuffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            streamBuffer += decoder.decode(value, { stream: true });
+
+            const lines = streamBuffer.split("\n");
+            streamBuffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || !trimmed.startsWith("data:")) continue;
+              const jsonStr = trimmed.replace(/^data:\s*/, "");
+              if (jsonStr === "[DONE]") continue;
+
+              try {
+                const eventData = JSON.parse(jsonStr);
+                if (eventData.token) {
+                  accumulatedText += eventData.token;
+
+                  const hasThought = accumulatedText.includes("<frost_thought>");
+                  const isThoughtClosed = accumulatedText.includes("</frost_thought>");
+
+                  if (hasThought && !isThoughtClosed) {
+                    const thoughtPart = accumulatedText.split("<frost_thought>")[1] || "";
+                    const phaseEl = document.getElementById("frost-thinking-phase-text");
+                    if (phaseEl && thoughtPart) {
+                      const lastLine = thoughtPart.trim().split("\n").pop() || "";
+                      if (lastLine) phaseEl.textContent = lastLine.replace(/[\[\]]/g, "");
+                    }
+                  } else {
+                    let displayText = accumulatedText;
+                    if (isThoughtClosed) {
+                      displayText = accumulatedText.replace(/<frost_thought>[\s\S]*?<\/frost_thought>/gi, "").trim();
+                    }
+                    if (bodyElement) {
+                      bodyElement.innerHTML = formatMessage(displayText);
+                    }
+                  }
+                  smoothScrollToBottom();
+                } else if (eventData.done) {
+                  if (eventData.session_id && eventData.session_id !== currentSessionId) {
+                    currentSessionId = eventData.session_id;
+                    updateRecentChats();
+                  }
+                }
+              } catch (e) {}
+            }
+          }
+
+          // Final rendering with formatted accordion and copyable raw text
+          if (accumulatedText) {
+            bubbleElement.remove();
+            pushMessage(accumulatedText, "ai");
+          }
+
+          setStatus("idle");
+          return;
+        }
+      } catch (streamErr) {
+        console.warn("SSE stream failed, falling back to standard /chat:", streamErr);
+      }
+    }
+
     const res = await window.fetchWithRetry("/chat", {
       method: "POST",
       headers: headers,
