@@ -336,12 +336,30 @@ def get_llm_client(data):
                 api_key = settings["api_key"].strip()
                 model = settings.get("api_model", "").strip()
 
-    if not provider or provider == "default" or not api_key:
+    if not provider or provider == "default" or (not api_key and provider not in ["frost", "frost-v1", "codespace"]):
         raise ValueError(
             "No API key configured. Click ☰ → API Settings, "
             "choose a provider (Groq is free!), paste your key, "
             "then pick that model in the chat bar."
         )
+
+    if provider in ["frost", "frost-v1", "codespace"]:
+        try:
+            codespace_url = os.environ.get(
+                "FROST_ENDPOINT",
+                "https://indoor-neighbors-seen-giving.trycloudflare.com/v1"
+            )
+            frost_key = api_key if api_key else "frost-token"
+            frost_client = OpenAI(
+                api_key=frost_key,
+                base_url=codespace_url,
+                timeout=120.0
+            )
+            primary_model = model if model else "frost-v1"
+            return DynamicModelRouter([(frost_client, primary_model)]), primary_model
+        except Exception as e:
+            app.logger.warning(f"Failed to instantiate Frost Codespace client: {e}")
+            raise
 
     if (provider == "gemini" or provider == "google") and api_key:
         try:
@@ -4205,6 +4223,19 @@ def fetch_models():
 def api_get_models():
     try:
         models = database.get_available_models()
+        # Ensure native Frost-V1 is registered at top
+        has_frost = any(m.get("model_id") == "frost-v1" for m in models)
+        if not has_frost:
+            frost_entry = {
+                "provider": "frost",
+                "model_id": "frost-v1",
+                "display_name": "Frost-V1 (Codespaces 16GB Engine)",
+                "description": "Proprietary cognitive reasoning model with affective emotion analysis and live telemetry",
+                "is_custom": True,
+                "is_active": True,
+                "capabilities": ["reasoning", "telemetry", "emotion", "fast"]
+            }
+            models.insert(0, frost_entry)
         return jsonify({"success": True, "models": models})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
