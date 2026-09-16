@@ -17,7 +17,7 @@ from urllib.parse import urlencode
 
 import requests
 from databases import database
-from flask import Flask, g, jsonify, redirect, render_template, request, session
+from flask import Flask, Response, g, jsonify, redirect, render_template, request, session
 from openai import OpenAI
 from static.weather_service import WeatherService
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -637,6 +637,54 @@ def logout():
     session.clear()
     session.modified = True
     return redirect("/login")
+
+
+@app.route("/robots.txt")
+def serve_robots_txt():
+    content = """User-agent: *
+Allow: /
+Allow: /login
+Disallow: /admin/
+Disallow: /api/
+Disallow: /logout
+
+Sitemap: https://mint-frost-ai.vercel.app/sitemap.xml
+"""
+    return Response(content, mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def serve_sitemap_xml():
+    content = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://mint-frost-ai.vercel.app/</loc>
+    <lastmod>2026-09-17</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://mint-frost-ai.vercel.app/login</loc>
+    <lastmod>2026-09-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>"""
+    return Response(content, mimetype="application/xml")
+
+
+@app.route("/llms.txt")
+def serve_llms_txt():
+    content = """# Mint Frost AI
+
+> Mint Frost AI is an advanced AI chat platform featuring dynamic multi-provider model selection (OpenAI, Claude, Gemini, Groq, OpenRouter, DeepSeek), productivity workflows, and real-time assistants.
+
+## Main Pages
+- [Home](https://mint-frost-ai.vercel.app/): Main AI chat workspace and daily planner.
+- [Login](https://mint-frost-ai.vercel.app/login): User sign-in and authentication.
+"""
+    return Response(content, mimetype="text/plain")
+
 
 
 @app.route("/api/login", methods=["POST"])
