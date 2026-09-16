@@ -347,7 +347,7 @@ def get_llm_client(data):
         try:
             codespace_url = os.environ.get(
                 "FROST_ENDPOINT",
-                "https://limited-rebel-various-processors.trycloudflare.com/v1"
+                "https://thumbnails-march-major-cuisine.trycloudflare.com/v1"
             )
             frost_key = api_key if api_key else "frost-token"
             frost_client = OpenAI(
