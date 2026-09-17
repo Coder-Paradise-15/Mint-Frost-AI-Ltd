@@ -20,6 +20,7 @@
   "portsAttributes": {
     "11434": {
       "label": "Frost Engine",
+      "visibility": "public",
       "onAutoForward": "silent"
     }
   }

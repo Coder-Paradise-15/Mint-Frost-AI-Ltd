@@ -71,7 +71,16 @@ for i in {1..20}; do
     sleep 1
 done
 
-if [ -n "$TUNNEL_URL" ]; then
+if [ -n "$CODESPACE_NAME" ]; then
+    CODESPACE_URL="https://${CODESPACE_NAME}-11434.app.github.dev"
+    echo "===================================================================="
+    echo "✨ CODESPACE NATIVE PERMANENT URL (NO CREDIT CARDS NEEDED):"
+    echo "   $CODESPACE_URL"
+    echo "   (Make sure Port 11434 Visibility is set to 'Public' in the PORTS tab)"
+    echo "===================================================================="
+    echo "$CODESPACE_URL" > /tmp/frost_tunnel_url.txt
+    echo "$CODESPACE_URL" > "$WORKSPACE_DIR/.frost_tunnel_url"
+elif [ -n "$TUNNEL_URL" ]; then
     echo "===================================================================="
     echo "🎉 AGENT FROSTY ENGINE IS LIVE!"
     echo "🔗 Active Cloudflare Tunnel URL:"
