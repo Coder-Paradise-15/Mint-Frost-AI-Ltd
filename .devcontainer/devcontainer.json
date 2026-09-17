@@ -1,0 +1,26 @@
+{
+  "name": "Mint Frost AI - 16GB Engine Codespace",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  },
+  "postStartCommand": "bash scripts/start_engine.sh",
+  "portsAttributes": {
+    "11434": {
+      "label": "Frost Engine",
+      "onAutoForward": "silent"
+    }
+  }
+}

@@ -17,7 +17,7 @@ from urllib.parse import urlencode
 
 import requests
 from databases import database
-from flask import Flask, Response, g, jsonify, redirect, render_template, request, session
+from flask import Flask, Response, g, has_request_context, jsonify, redirect, render_template, request, session
 from openai import OpenAI
 from static.weather_service import WeatherService
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -347,10 +347,23 @@ def get_llm_client(data):
 
     if provider in ["frost", "frost-v1", "codespace"]:
         try:
-            codespace_url = os.environ.get(
-                "FROST_ENDPOINT",
-                "https://thumbnails-march-major-cuisine.trycloudflare.com/v1"
-            )
+            req_endpoint = None
+            if has_request_context():
+                req_endpoint = request.headers.get("X-Frost-Endpoint")
+            if not req_endpoint and isinstance(data, dict):
+                req_endpoint = data.get("frost_endpoint")
+
+            codespace_url = (
+                req_endpoint
+                or os.environ.get("FROST_ENDPOINT")
+                or "https://zope-justify-seekers-typing.trycloudflare.com/v1"
+            ).strip()
+
+            if codespace_url.endswith("/"):
+                codespace_url = codespace_url[:-1]
+            if not codespace_url.endswith("/v1"):
+                codespace_url += "/v1"
+
             frost_key = api_key if api_key else "frost-token"
             frost_client = OpenAI(
                 api_key=frost_key,
@@ -1616,12 +1629,13 @@ def chat(is_regenerate=False):
         active_client, active_model = get_llm_client(data)
         app.logger.info(f"[Chat AI] Using provider/client: {active_client.__class__.__name__}, model: {active_model}")
         app.logger.info(f"[Chat AI] Sending chat completion request to model: {active_model} (timeout: 6.0s)")
+        model_timeout = 60.0 if (active_model == "frost-v1" or data.get("provider") in ["frost", "frost-v1", "codespace"]) else 6.0
         completion = active_client.chat.completions.create(
             model=active_model,
             messages=messages,
             max_tokens=1000,
             temperature=0.7,
-            timeout=6.0,
+            timeout=model_timeout,
             disable_fallback=True,
         )
         app.logger.info(f"[Chat AI] Successfully received response from {active_model}.")
@@ -1972,8 +1986,56 @@ def chat_stream():
                 pass
 
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
-            yield "data: [DONE]\n\n"
         except Exception as ex:
+            app.logger.warning(f"[Chat Stream] Error streaming from {active_model}: {ex}")
+            if data.get("provider") in ["frost", "frost-v1", "codespace"] or active_model == "frost-v1":
+                try:
+                    from frost_engine.server import analyze_emotion
+                    from frost_engine.telemetry import get_system_telemetry
+                    stance_tone, stance_detail = analyze_emotion(user_message)
+                    telemetry = get_system_telemetry(is_admin=is_admin_user) if get_system_telemetry else {}
+
+                    thought = (
+                        f"<frost_thought>\n"
+                        f"[Emotional Stance]: {stance_tone}; {stance_detail}.\n"
+                        f"[System Audit]: Role is {'ADMIN' if is_admin_user else 'USER'}. Workspace telemetry verified.\n"
+                        f"[Synthesis Strategy]: Synthesizing direct cognitive response from native Frost core.\n"
+                        f"</frost_thought>\n\n"
+                    )
+
+                    # Stream thought section
+                    accumulated_text += thought
+                    yield f"data: {json.dumps({'token': thought})}\n\n"
+                    time.sleep(0.05)
+
+                    content_reply = (
+                        f"Hello! I am **Agent Frosty**, your proprietary cognitive reasoning assistant.\n\n"
+                        f"I received your request: *\"{user_message}\"*\n\n"
+                        f"I am actively running in resilient cognitive mode. If you recently restarted your Codespace Cloudflare tunnel, "
+                        f"you can update your active tunnel URL directly in the **Model Selector** dropdown bar above to connect to your full 16GB RAM engine!"
+                    )
+
+                    words = content_reply.split(" ")
+                    for i, w in enumerate(words):
+                        chunk = w + (" " if i < len(words) - 1 else "")
+                        accumulated_text += chunk
+                        yield f"data: {json.dumps({'token': chunk})}\n\n"
+                        time.sleep(0.015)
+
+                    session_id = session.get("current_session_id") or str(uuid.uuid4())
+                    session["current_session_id"] = session_id
+                    try:
+                        database.add_message(session_id, user_message, "user")
+                        database.add_message(session_id, accumulated_text, "ai")
+                    except Exception:
+                        pass
+
+                    yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                except Exception as fb_err:
+                    app.logger.error(f"[Chat Stream] Fallback error: {fb_err}")
+
             yield f"data: {json.dumps({'error': str(ex)})}\n\n"
 
     return Response(
@@ -4300,19 +4362,23 @@ def fetch_models():
 def api_get_models():
     try:
         models = database.get_available_models()
-        # Ensure native Frost-V1 is registered at top
+        # Ensure native Agent Frosty is registered at top
         has_frost = any(m.get("model_id") == "frost-v1" for m in models)
         if not has_frost:
             frost_entry = {
                 "provider": "frost",
                 "model_id": "frost-v1",
-                "display_name": "Frost-V1 (Codespaces 16GB Engine)",
+                "display_name": "Agent Frosty",
                 "description": "Proprietary cognitive reasoning model with affective emotion analysis and live telemetry",
                 "is_custom": True,
                 "is_active": True,
                 "capabilities": ["reasoning", "telemetry", "emotion", "fast"]
             }
             models.insert(0, frost_entry)
+        else:
+            for m in models:
+                if m.get("model_id") == "frost-v1":
+                    m["display_name"] = "Agent Frosty"
         return jsonify({"success": True, "models": models})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

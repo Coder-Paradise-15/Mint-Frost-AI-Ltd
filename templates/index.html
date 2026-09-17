@@ -3247,27 +3247,65 @@
                                             position: absolute;
                                             bottom: calc(100% + 8px);
                                             left: 0;
-                                            right: 0;
-                                            min-width: 260px;
-                                            background: rgba(13, 19, 28, 0.97);
-                                            border: 1px solid
-                                                rgba(55, 230, 181, 0.2);
-                                            border-radius: 12px;
-                                            box-shadow: 0 8px 32px
-                                                rgba(0, 0, 0, 0.5);
+                                            min-width: 350px;
+                                            max-width: calc(100vw - 32px);
+                                            background: rgba(10, 15, 24, 0.98);
+                                            border: 1px solid rgba(56, 189, 248, 0.3);
+                                            border-radius: 14px;
+                                            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(56, 189, 248, 0.12);
                                             z-index: 9999;
                                             overflow: hidden;
-                                            backdrop-filter: blur(20px);
+                                            backdrop-filter: blur(24px);
                                         "
                                     >
+                                        <!-- Header bar with Hub title and quick tunnel toggle -->
+                                        <div style="padding: 10px 12px 8px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: rgba(56, 189, 248, 0.05);">
+                                            <div style="display: flex; align-items: center; gap: 7px;">
+                                                <i class="fas fa-snowflake" style="color: #38bdf8; font-size: 13px; filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.7));"></i>
+                                                <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: #e9fbf5;">Model & Agent Hub</span>
+                                            </div>
+                                            <div style="display: flex; align-items: center; gap: 6px;">
+                                                <span style="font-size: 9px; padding: 2px 7px; border-radius: 10px; background: rgba(55, 230, 181, 0.15); color: #37e6b5; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                                                    <span style="width: 5px; height: 5px; border-radius: 50%; background: #37e6b5; display: inline-block; box-shadow: 0 0 5px #37e6b5;"></span>
+                                                    Agent Frosty Ready
+                                                </span>
+                                                <button type="button" id="toggle-tunnel-bar-btn" title="Codespace Tunnel Settings" style="all: unset; cursor: pointer; padding: 3px 6px; border-radius: 4px; font-size: 10px; color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.06); transition: all 0.15s;">
+                                                    <i class="fas fa-sliders-h"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Collapsible Tunnel Endpoint Config -->
+                                        <div id="tunnel-config-panel" style="display: none; padding: 8px 12px; background: rgba(0, 0, 0, 0.45); border-bottom: 1px solid rgba(56, 189, 248, 0.15);">
+                                            <div style="font-size: 10px; color: rgba(255, 255, 255, 0.65); margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                                                <span>Codespace Cloudflare URL:</span>
+                                                <span id="tunnel-saved-hint" style="color: #37e6b5; font-size: 9px; font-weight: 600; display: none;">✓ Saved!</span>
+                                            </div>
+                                            <div style="display: flex; gap: 6px;">
+                                                <input
+                                                    type="text"
+                                                    id="tunnel-url-input"
+                                                    placeholder="https://....trycloudflare.com"
+                                                    style="flex: 1; padding: 5px 8px; font-size: 11px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; color: #fff; outline: none;"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    id="save-tunnel-url-btn"
+                                                    style="all: unset; cursor: pointer; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; padding: 4px 10px; font-size: 10px; font-weight: 700;"
+                                                >
+                                                    Save
+                                                </button>
+                                            </div>
+                                        </div>
+
                                         <!-- Search input box -->
-                                        <div style="padding: 8px 8px 4px; border-bottom: 1px solid rgba(55, 230, 181, 0.1);">
+                                        <div style="padding: 8px 10px 6px; border-bottom: 1px solid rgba(55, 230, 181, 0.1);">
                                             <div style="position: relative; display: flex; align-items: center;">
                                                 <i class="fas fa-search" style="position: absolute; left: 10px; font-size: 11px; color: rgba(255,255,255,0.4);"></i>
                                                 <input
                                                     type="text"
                                                     id="model-search-input"
-                                                    placeholder="Search models..."
+                                                    placeholder="Search models & agents..."
                                                     style="
                                                         width: 100%;
                                                         padding: 6px 10px 6px 26px;
@@ -3300,8 +3338,8 @@
                                 <!-- Status badge -->
                                 <span
                                     id="model-key-badge"
-                                    class="model-key-badge model-key-badge--warn"
-                                    title="Add your Gemini API key in API Settings"
+                                    class="model-key-badge model-key-badge--ok"
+                                    title="✓ Agent Frosty connected"
                                     style="flex-shrink: 0"
                                 ></span>
 
@@ -3311,10 +3349,10 @@
                                     style="display: none"
                                 >
                                     <option
-                                        value="gemini:gemini-3.5-flash"
+                                        value="frost:frost-v1"
                                         selected
                                     >
-                                        gemini-3.5-flash
+                                        Agent Frosty
                                     </option>
                                 </select>
                             </div>
@@ -3348,7 +3386,7 @@
                                     const saved =
                                         localStorage.getItem(
                                             "mf_gemini_model",
-                                        ) || "gemini:gemini-3.5-flash";
+                                        ) || "frost:frost-v1";
 
                                     function getProviderLogoSvg(provider) {
                                         provider = (provider || "").toLowerCase();
@@ -3419,7 +3457,8 @@
                                         if (!m) return;
                                         
                                         const logoSvg = getProviderLogoSvg(m.provider);
-                                        label.innerHTML = `<span style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${logoSvg} <span style="font-weight:600; font-size:12px; color:rgba(255,255,255,0.5);">[${m.provider.toUpperCase()}]</span> <span style="font-size:12px; color:#e9fbf5;">${m.display_name}</span></span>`;
+                                        const pDisplay = (m.provider === 'frost' || m.provider === 'frost-v1') ? 'Frost Agents' : m.provider.toUpperCase();
+                                        label.innerHTML = `<span style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${logoSvg} <span style="font-weight:700; font-size:11px; color:#38bdf8; letter-spacing:0.3px;">[${pDisplay}]</span> <span style="font-size:12px; color:#e9fbf5; font-weight:600;">${m.display_name}</span></span>`;
                                         
                                         // Sync hidden select (app.js reads this)
                                         hiddenSel.innerHTML = `<option value="${m.value}" selected>${m.value}</option>`;
@@ -3486,10 +3525,10 @@
                                         if (MODELS.length === 0) {
                                             // Fallback default model so selector has at least one item
                                             MODELS = [{
-                                                value: "gemini:gemini-3.5-flash",
-                                                model_id: "gemini-3.5-flash",
-                                                display_name: "Gemini 3.5 Flash",
-                                                provider: "gemini",
+                                                value: "frost:frost-v1",
+                                                model_id: "frost-v1",
+                                                display_name: "Agent Frosty",
+                                                provider: "frost",
                                                 score: 10,
                                                 isRecommended: true
                                             }];
@@ -3528,8 +3567,12 @@
                                                 groupedByProvider[p].push(m);
                                             });
 
-                                            // Sort provider keys
-                                            const providerKeys = Object.keys(groupedByProvider).sort();
+                                            // Sort provider keys (place Frost Agents at the top)
+                                            const providerKeys = Object.keys(groupedByProvider).sort((a, b) => {
+                                                if (a === "frost" || a === "frost-v1") return -1;
+                                                if (b === "frost" || b === "frost-v1") return 1;
+                                                return a.localeCompare(b);
+                                            });
                                             providerKeys.forEach(p => {
                                                 // Sub-header for provider
                                                 const subHeader = document.createElement("div");
@@ -3544,7 +3587,9 @@
                                                     groq: "Groq",
                                                     openrouter: "OpenRouter",
                                                     mistral: "Mistral AI",
-                                                    custom: "Custom Registered Models"
+                                                    frost: "Frost Agents",
+                                                    "frost-v1": "Frost Agents",
+                                                    custom: "Frost Agents"
                                                 };
                                                 const providerDisplayName = displayNameMap[p.toLowerCase()] || p.toUpperCase();
                                                 subHeader.innerHTML = `${logoSvg} <span>${providerDisplayName}</span>`;
@@ -3572,8 +3617,15 @@
                                                         else if (m.score === 8) badgeText = "Vision";
                                                     }
                                                     
+                                                    let badgeHtml = "";
+                                                    if (m.provider === "frost" || m.provider === "frost-v1") {
+                                                        badgeHtml = `<span style="font-size:8.5px; background:linear-gradient(135deg, rgba(56,189,248,0.25), rgba(55,230,181,0.25)); color:#38bdf8; border:1px solid rgba(56,189,248,0.4); padding:2px 7px; border-radius:10px; font-weight:700; display:inline-flex; align-items:center; gap:3px;"><i class="fas fa-snowflake" style="font-size:7.5px;"></i> Native Agent</span>`;
+                                                    } else if (badgeText) {
+                                                        badgeHtml = `<span style="font-size:8px; background:rgba(55,230,181,0.15); color:var(--mint); padding:1px 5px; border-radius:8px; font-weight:700;">${badgeText}</span>`;
+                                                    }
+                                                    
                                                     const mLogo = getProviderLogoSvg(m.provider);
-                                                    item.innerHTML = `<span style="display:flex; align-items:center; gap:6px;">${mLogo} <span>${m.display_name}</span></span>${badgeText ? `<span style="font-size:8px; background:rgba(55,230,181,0.15); color:var(--mint); padding:1px 5px; border-radius:8px; font-weight:700;">${badgeText}</span>` : ""}`;
+                                                    item.innerHTML = `<span style="display:flex; align-items:center; gap:6px;">${mLogo} <span>${m.display_name}</span></span>${badgeHtml}`;
                                                     
                                                     item.addEventListener("mouseenter", () => {
                                                         if (item.dataset.val !== hiddenSel.value)
@@ -3709,6 +3761,37 @@
                                             ? openDropdown()
                                             : closeDropdown();
                                     });
+                                    // Tunnel URL configuration management
+                                    const toggleTunnelBtn = document.getElementById("toggle-tunnel-bar-btn");
+                                    const tunnelPanel = document.getElementById("tunnel-config-panel");
+                                    const tunnelInput = document.getElementById("tunnel-url-input");
+                                    const saveTunnelBtn = document.getElementById("save-tunnel-url-btn");
+                                    const tunnelSavedHint = document.getElementById("tunnel-saved-hint");
+
+                                    const activeTunnel = localStorage.getItem("frost_tunnel_url") || "https://zope-justify-seekers-typing.trycloudflare.com";
+                                    if (tunnelInput) tunnelInput.value = activeTunnel;
+
+                                    if (toggleTunnelBtn && tunnelPanel) {
+                                        toggleTunnelBtn.addEventListener("click", (e) => {
+                                            e.stopPropagation();
+                                            const isHidden = tunnelPanel.style.display === "none" || tunnelPanel.style.display === "";
+                                            tunnelPanel.style.display = isHidden ? "block" : "none";
+                                        });
+                                    }
+
+                                    if (saveTunnelBtn && tunnelInput) {
+                                        saveTunnelBtn.addEventListener("click", (e) => {
+                                            e.stopPropagation();
+                                            const newUrl = tunnelInput.value.trim();
+                                            if (newUrl) {
+                                                localStorage.setItem("frost_tunnel_url", newUrl);
+                                                if (tunnelSavedHint) {
+                                                    tunnelSavedHint.style.display = "inline";
+                                                    setTimeout(() => { tunnelSavedHint.style.display = "none"; }, 2500);
+                                                }
+                                            }
+                                        });
+                                    }
                                     document.addEventListener("click", (e) => {
                                         if (
                                             !document

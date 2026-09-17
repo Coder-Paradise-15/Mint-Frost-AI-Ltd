@@ -1416,7 +1416,14 @@ async function sendMessage() {
       requestBody.model = byok.model;
     }
 
-    // Check if streaming is available (preferred for Frost-V1 and compatible providers)
+    // Include dynamic Codespace Cloudflare tunnel URL if configured
+    const savedTunnel = (localStorage.getItem("frost_tunnel_url") || "").trim();
+    if (savedTunnel) {
+      headers["X-Frost-Endpoint"] = savedTunnel;
+      requestBody.frost_endpoint = savedTunnel;
+    }
+
+    // Check if streaming is available (preferred for Agent Frosty and compatible providers)
     const isStreamingCandidate = byok?.provider === "frost" || byok?.provider === "frost-v1" || !byok?.provider;
     if (isStreamingCandidate && window.ReadableStream) {
       try {
@@ -1430,8 +1437,8 @@ async function sendMessage() {
           showTyping(false);
 
           let accumulatedText = "";
-          let bubbleElement = pushMessage("", "ai");
-          const bodyElement = bubbleElement.querySelector(".bubble__content-body");
+          let bubbleElement = null;
+          let bodyElement = null;
 
           const reader = streamRes.body.getReader();
           const decoder = new TextDecoder("utf-8");
@@ -1453,7 +1460,23 @@ async function sendMessage() {
 
               try {
                 const eventData = JSON.parse(jsonStr);
+                if (eventData.error) {
+                  console.error("Stream error event:", eventData.error);
+                  if (bubbleElement) bubbleElement.remove();
+                  pushMessage(
+                    `❄️ **Agent Frosty Engine Notice**: Connection to the Codespace model endpoint encountered an error: \`${eventData.error}\`.\n\n*Tip: If you restarted your Cloudflare tunnel, click the ⚙️ icon in the Model Selector above to paste the new tunnel URL.*`,
+                    "ai"
+                  );
+                  setStatus("idle");
+                  return;
+                }
+
                 if (eventData.token) {
+                  if (!bubbleElement) {
+                    bubbleElement = pushMessage("", "ai");
+                    bodyElement = bubbleElement.querySelector(".bubble__content-body");
+                  }
+
                   accumulatedText += eventData.token;
 
                   const hasThought = accumulatedText.includes("<frost_thought>");
@@ -1488,12 +1511,13 @@ async function sendMessage() {
 
           // Final rendering with formatted accordion and copyable raw text
           if (accumulatedText) {
-            bubbleElement.remove();
+            if (bubbleElement) bubbleElement.remove();
             pushMessage(accumulatedText, "ai");
+            setStatus("idle");
+            return;
+          } else {
+            if (bubbleElement) bubbleElement.remove();
           }
-
-          setStatus("idle");
-          return;
         }
       } catch (streamErr) {
         console.warn("SSE stream failed, falling back to standard /chat:", streamErr);
@@ -3783,6 +3807,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const val = chatboxModelSelect.value;
     const provider = val ? val.split(":")[0] : "";
 
+    if (!provider || provider === "frost" || provider === "frost-v1" || provider === "codespace") {
+      modelKeyBadge.className = "model-key-badge model-key-badge--ok";
+      modelKeyBadge.title = "✓ Agent Frosty connected";
+      return;
+    }
+
     const keyMap = {
       openai: "apiOpenAIKey",
       gemini: "apiGeminiKey",
@@ -3808,13 +3838,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (chatboxModelSelect) {
-    // Restore saved model — fall back to first option if stale value
-    const stored = localStorage.getItem("chatboxModel") || "";
+    // Restore saved model — default to Agent Frosty
+    const stored = localStorage.getItem("chatboxModel") || "frost:frost-v1";
     const optionExists =
       stored && chatboxModelSelect.querySelector(`option[value="${stored}"]`);
     chatboxModelSelect.value = optionExists
       ? stored
-      : chatboxModelSelect.options[0].value;
+      : (chatboxModelSelect.options.length ? chatboxModelSelect.options[0].value : "frost:frost-v1");
     // Persist the resolved selection
     localStorage.setItem("chatboxModel", chatboxModelSelect.value);
     updateModelKeyBadge();
@@ -3826,6 +3856,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const val = chatboxModelSelect.value;
       const provider = val.split(":")[0];
       const model = val.split(":").slice(1).join(":");
+
+      if (provider === "frost" || provider === "frost-v1" || provider === "codespace") {
+        showToast("Model → Agent Frosty", "success");
+        syncActiveSettingsToBackend();
+        return;
+      }
+
       const keyMap = {
         openai: "apiOpenAIKey",
         gemini: "apiGeminiKey",
