@@ -1,0 +1,7 @@
+# Mint Frost AI
+
+> Mint Frost AI is an advanced AI chat platform featuring dynamic multi-provider model selection (OpenAI, Claude, Gemini, Groq, OpenRouter, DeepSeek), productivity workflows, and real-time assistants.
+
+## Main Pages
+- [Home](https://mint-frost-ai.vercel.app/): Main AI chat workspace and daily planner.
+- [Login](https://mint-frost-ai.vercel.app/login): User sign-in and authentication.
