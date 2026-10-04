@@ -26,8 +26,9 @@ COPY . .
 # Ensure stale database files are not bundled if they exist in databases/
 RUN rm -f databases/chat.db databases/chat_database.db
 
-# Expose the container port
+# Expose the container ports
 EXPOSE 8080
+EXPOSE 8000
 
-# Start the application using Waitress WSGI server (multi-threaded production server)
-CMD ["waitress-serve", "--host=0.0.0.0", "--port=8080", "--threads=50", "--timeout=120", "main:app"]
+# Start the application using Waitress WSGI server (multi-threaded production server, dynamic port)
+CMD ["sh", "-c", "exec waitress-serve --host=0.0.0.0 --port=${PORT:-8080} --threads=50 --timeout=120 main:app"]
