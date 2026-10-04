@@ -3120,7 +3120,7 @@
       <div class="modal-card-body">
         You are about to execute a <strong style="color: var(--error);">Server Data Override Deletion</strong>.<br><br>
         This will drop all database tables, wipe all user accounts, active sessions, settings, custom themes, and logs, and recreate them from scratch.<br><br>
-        After the wipe, the default administrator user will be re-seeded (<code style="background: rgba(255, 255, 255, 0.05); padding: 2px 4px; border-radius: 4px; color: var(--warning);">admin</code> with password <code style="background: rgba(255, 255, 255, 0.05); padding: 2px 4px; border-radius: 4px; color: var(--warning);">admin123</code>). You will be logged out automatically.<br><br>
+        After the wipe, the administrator user will be re-seeded based on <code style="background: rgba(255, 255, 255, 0.05); padding: 2px 4px; border-radius: 4px; color: var(--warning);">ADMIN_INITIAL_PASSWORD</code> (or a secure password output to server logs). You will be logged out automatically.<br><br>
         Type <strong style="color: var(--error);">OVERRIDE</strong> below to confirm this action:
         <input type="text" id="resetConfirmInput" placeholder="Type OVERRIDE here" style="width: 100%; margin-top: 12px; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; font-family: inherit; font-size: 14px;">
       </div>

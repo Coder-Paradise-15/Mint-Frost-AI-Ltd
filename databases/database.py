@@ -450,9 +450,19 @@ def init_db():
             # Seed default administrator account if not exists
             cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = 2")
             if cursor.fetchone()[0] == 0:
+                import secrets
                 from werkzeug.security import generate_password_hash
-                admin_username = 'admin'
-                admin_pass_hash = generate_password_hash('admin123')
+                admin_username = os.environ.get('ADMIN_INITIAL_USERNAME', 'admin')
+                admin_password = os.environ.get('ADMIN_INITIAL_PASSWORD')
+                if not admin_password:
+                    admin_password = secrets.token_urlsafe(12)
+                    print("=" * 60)
+                    print("[SECURITY NOTICE] Initial Superadmin Created:")
+                    print(f"Username: {admin_username}")
+                    print(f"Password: {admin_password}")
+                    print("Set ADMIN_INITIAL_PASSWORD in your environment to customize.")
+                    print("=" * 60)
+                admin_pass_hash = generate_password_hash(admin_password)
                 admin_display = 'Administrator'
                 cursor.execute('''
                     INSERT OR IGNORE INTO users (id, password_hash, display_name, is_admin, status, last_login_ip, last_login_location, home_address)

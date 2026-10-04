@@ -60,6 +60,11 @@ def register_login_session(user_id):
 
 @app.before_request
 def check_session_validity():
+    if request.path.startswith("/static/") and request.path.lower().endswith(
+        (".py", ".pyc", ".db", ".sqlite", ".log", ".env", ".sh")
+    ):
+        return jsonify({"error": "Forbidden"}), 403
+
     user_id = session.get("user_id")
     if user_id:
         if request.path.startswith("/static/") or request.path.endswith(
@@ -1943,10 +1948,31 @@ def chat_stream():
     user_display = session.get("display_name") or session.get("username") or "User"
     frost_directive = build_frost_v1_directive(user_id=user_id, user_display_name=user_display, is_admin=is_admin_user)
 
+    active_session_id = data.get("session_id") or session.get("current_session_id")
     messages = [
-        {"role": "system", "content": frost_directive},
-        {"role": "user", "content": user_message}
+        {"role": "system", "content": frost_directive}
     ]
+
+    recent_history = []
+    if active_session_id:
+        try:
+            db_msgs = database.get_session_messages(active_session_id)
+            user_msg = None
+            for msg in db_msgs:
+                if msg.get("who") == "user":
+                    user_msg = msg.get("text")
+                elif msg.get("who") == "ai" and user_msg:
+                    recent_history.append({"user": user_msg, "ai": msg.get("text")})
+                    user_msg = None
+            recent_history = recent_history[-10:]
+        except Exception as e:
+            app.logger.error(f"Error loading chat context from DB for stream: {e}")
+
+    for msg in recent_history:
+        messages.append({"role": "user", "content": msg["user"]})
+        messages.append({"role": "assistant", "content": msg["ai"]})
+
+    messages.append({"role": "user", "content": user_message})
 
     try:
         active_client, active_model = get_llm_client(data)
@@ -1970,7 +1996,7 @@ def chat_stream():
                     accumulated_text += token
                     yield f"data: {json.dumps({'token': token})}\n\n"
 
-            session_id = session.get("current_session_id")
+            session_id = active_session_id or session.get("current_session_id")
             if not session_id:
                 session_id = str(uuid.uuid4())
                 session["current_session_id"] = session_id
@@ -2022,7 +2048,7 @@ def chat_stream():
                         yield f"data: {json.dumps({'token': chunk})}\n\n"
                         time.sleep(0.015)
 
-                    session_id = session.get("current_session_id") or str(uuid.uuid4())
+                    session_id = active_session_id or session.get("current_session_id") or str(uuid.uuid4())
                     session["current_session_id"] = session_id
                     try:
                         database.add_message(session_id, user_message, "user")
@@ -3424,8 +3450,17 @@ def youtube_proxy():
     if not url:
         return "Missing url", 400
 
-    if not url.startswith("https://") or ".googlevideo.com/" not in url:
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
         return "Invalid url", 400
+
+    if parsed.scheme != "https":
+        return "Invalid url scheme", 400
+
+    hostname = (parsed.hostname or "").lower()
+    if not (hostname == "googlevideo.com" or hostname.endswith(".googlevideo.com")):
+        return "Unauthorized domain", 403
 
     # User-Agent matching the one used in yt_dlp to resolve signatures
     headers = {
