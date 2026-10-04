@@ -23,18 +23,42 @@ from static.weather_service import WeatherService
 from werkzeug.security import check_password_hash, generate_password_hash
 from frost_engine.frost_directive import build_frost_v1_directive
 
+# Automatically load environment variables from .env if present
+def _load_env_file():
+    env_file = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.exists(env_file):
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip("'\"")
+                    if k and k not in os.environ:
+                        os.environ[k] = v
+        except Exception:
+            pass
+
+_load_env_file()
+
 # Create Flask app with simple logging (working setup)
 app = Flask(__name__)
 
 # Persist secret key so sessions survive server restarts
-_key_path = os.path.join(os.path.dirname(__file__), ".flask_secret")
-if os.path.exists(_key_path):
-    with open(_key_path, "rb") as f:
-        app.secret_key = f.read()
+_env_secret = os.environ.get("SECRET_KEY") or os.environ.get("FLASK_SECRET_KEY")
+if _env_secret:
+    app.secret_key = _env_secret.encode() if isinstance(_env_secret, str) else _env_secret
 else:
-    app.secret_key = os.urandom(32)
-    with open(_key_path, "wb") as f:
-        f.write(app.secret_key)
+    _key_path = os.path.join(os.path.dirname(__file__), ".flask_secret")
+    if os.path.exists(_key_path):
+        with open(_key_path, "rb") as f:
+            app.secret_key = f.read()
+    else:
+        app.secret_key = os.urandom(32)
+        with open(_key_path, "wb") as f:
+            f.write(app.secret_key)
 
 
 # Initialize Database

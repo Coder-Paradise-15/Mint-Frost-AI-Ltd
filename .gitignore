@@ -11,3 +11,14 @@ venv/
 .agents/
 search_gamification.py
 test_create_task.py
+# Environment & Secret files
+.env
+.env.*
+!.env.example
+*.env
+*.env.local
+*.env.production
+google_credentials.txt
+github_credentials.txt
+*.key
+*.pem
