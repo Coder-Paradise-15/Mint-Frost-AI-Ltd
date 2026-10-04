@@ -177,6 +177,27 @@ weather_service = WeatherService(api_key=load_weather_key())
 google_client_id, google_client_secret = load_google_credentials()
 
 
+# Load GitHub credentials
+def load_github_credentials():
+    env_id = os.environ.get("GITHUB_CLIENT_ID")
+    env_secret = os.environ.get("GITHUB_CLIENT_SECRET")
+    if env_id and env_secret:
+        return env_id, env_secret
+    try:
+        if os.path.exists("github_credentials.txt"):
+            with open("github_credentials.txt", "r", encoding="utf-8") as f:
+                lines = [l.strip() for l in f.read().strip().split("\n") if l.strip()]
+                if len(lines) >= 2:
+                    return lines[0], lines[1]
+    except Exception:
+        pass
+    return None, None
+
+
+github_client_id, github_client_secret = load_github_credentials()
+
+
+
 class GeminiCompletionsWrapper:
     def __init__(self, completions):
         self.completions = completions
@@ -3898,6 +3919,231 @@ def google_signout():
 
 
 # --- end Google OAuth ---
+
+
+# --- GitHub OAuth ---
+@app.route("/api/github/auth")
+def github_auth():
+    c_id, c_secret = load_github_credentials()
+    if not c_id or not c_secret:
+        err_msg = "GitHub OAuth credentials not configured on server. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET."
+        if "text/html" in request.headers.get("Accept", ""):
+            return render_template("github_callback.html", error=err_msg), 500
+        return jsonify({"error": err_msg}), 500
+
+    forwarded_host = request.headers.get("X-Forwarded-Host", "").split(",")[0].strip()
+    forwarded_proto = request.headers.get("X-Forwarded-Proto")
+    if forwarded_host:
+        proto = forwarded_proto or "http"
+        url_base = f"{proto}://{forwarded_host}/"
+    else:
+        url_base = request.url_root or request.host_url
+        if forwarded_proto == "https" and url_base.startswith("http://"):
+            url_base = "https://" + url_base[7:]
+
+    redirect_uri = url_base.rstrip("/") + "/api/github/callback"
+    import secrets
+    state = secrets.token_urlsafe(16)
+    session["github_oauth_state"] = state
+    session.modified = True
+
+    params = {
+        "client_id": c_id,
+        "redirect_uri": redirect_uri,
+        "scope": "read:user user:email",
+        "state": state,
+    }
+    auth_url = "https://github.com/login/oauth/authorize?" + urlencode(params)
+    return redirect(auth_url)
+
+
+@app.route("/api/github/callback")
+def github_callback():
+    code = request.args.get("code")
+    error = request.args.get("error")
+    error_desc = request.args.get("error_description")
+    if error:
+        err_msg = error_desc or error or "GitHub authentication was canceled."
+        return render_template("github_callback.html", error=err_msg) if "text/html" in request.headers.get("Accept", "") else jsonify({"error": err_msg}), 400
+
+    if not code:
+        return render_template("github_callback.html", error="Missing authorization code.") if "text/html" in request.headers.get("Accept", "") else jsonify({"error": "Missing code parameter"}), 400
+
+    c_id, c_secret = load_github_credentials()
+    if not c_id or not c_secret:
+        err_msg = "GitHub OAuth credentials not configured on server."
+        return render_template("github_callback.html", error=err_msg) if "text/html" in request.headers.get("Accept", "") else jsonify({"error": err_msg}), 500
+
+    token_url = "https://github.com/login/oauth/access_token"
+    forwarded_host = request.headers.get("X-Forwarded-Host", "").split(",")[0].strip()
+    forwarded_proto = request.headers.get("X-Forwarded-Proto")
+    if forwarded_host:
+        proto = forwarded_proto or "http"
+        url_base = f"{proto}://{forwarded_host}/"
+    else:
+        url_base = request.url_root or request.host_url
+        if forwarded_proto == "https" and url_base.startswith("http://"):
+            url_base = "https://" + url_base[7:]
+    redirect_uri = url_base.rstrip("/") + "/api/github/callback"
+
+    data = {
+        "client_id": c_id,
+        "client_secret": c_secret,
+        "code": code,
+        "redirect_uri": redirect_uri,
+    }
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "Mint-Frost-AI",
+    }
+
+    try:
+        try:
+            resp = requests.post(token_url, json=data, headers=headers, timeout=12)
+        except requests.exceptions.SSLError:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            resp = requests.post(token_url, json=data, headers=headers, timeout=12, verify=False)
+
+        tok_data = resp.json()
+        if "error" in tok_data or resp.status_code != 200:
+            err_msg = tok_data.get("error_description") or tok_data.get("error") or f"Token exchange failed ({resp.status_code})"
+            return render_template("github_callback.html", error=err_msg) if "text/html" in request.headers.get("Accept", "") else jsonify({"error": err_msg}), 400
+
+        access_token = tok_data.get("access_token")
+        if not access_token:
+            return render_template("github_callback.html", error="No access token received from GitHub.") if "text/html" in request.headers.get("Accept", "") else jsonify({"error": "No access token"}), 400
+
+        auth_headers = {
+            "Authorization": f"Bearer {access_token}",
+            "User-Agent": "Mint-Frost-AI",
+            "Accept": "application/vnd.github.v3+json",
+        }
+        try:
+            user_resp = requests.get("https://api.github.com/user", headers=auth_headers, timeout=10)
+        except requests.exceptions.SSLError:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            user_resp = requests.get("https://api.github.com/user", headers=auth_headers, timeout=10, verify=False)
+
+        if user_resp.status_code != 200:
+            err_msg = f"Failed to retrieve GitHub profile ({user_resp.status_code})"
+            return render_template("github_callback.html", error=err_msg) if "text/html" in request.headers.get("Accept", "") else jsonify({"error": err_msg}), 400
+
+        profile = user_resp.json()
+        account_id = str(profile.get("id"))
+        if not account_id:
+            return render_template("github_callback.html", error="No user ID in GitHub profile.") if "text/html" in request.headers.get("Accept", "") else jsonify({"error": "No user ID"}), 400
+
+        session["github_access_token"] = access_token
+        session["github_account_id"] = account_id
+        avatar_url = profile.get("avatar_url")
+        if avatar_url:
+            session["profile_pic"] = avatar_url
+        session.modified = True
+
+        try:
+            database.save_oauth_token("github", account_id, access_token, None, None)
+        except Exception:
+            pass
+
+        linked_user_id = database.get_user_by_provider("github", account_id)
+
+        if linked_user_id:
+            user_details = database.get_user_secure(linked_user_id)
+            if user_details and user_details.get("status") == "deactivated":
+                session.clear()
+                session.modified = True
+                return render_template(
+                    "github_callback.html",
+                    error="Your account has been deactivated by an administrator.",
+                ) if "text/html" in request.headers.get("Accept", "") else jsonify(
+                    {"error": "Your account has been deactivated by an administrator."}
+                ), 403
+
+            session["local_user_id"] = linked_user_id
+            session["user_id"] = linked_user_id
+            if user_details:
+                session["display_name"] = user_details.get("display_name") or profile.get("name") or profile.get("login")
+            register_login_session(linked_user_id)
+            log_user_telemetry(linked_user_id)
+        else:
+            active_user_id = session.get("user_id")
+            if active_user_id:
+                session["local_user_id"] = active_user_id
+                database.link_account_to_user(active_user_id, "github", account_id)
+            else:
+                gh_login = profile.get("login") or f"gh_{account_id[:8]}"
+                clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', gh_login)[:15]
+                username = clean_name
+                if len(username) < 3:
+                    username = f"gh_{username}"
+                if database.get_user_secure(username):
+                    username = f"{clean_name[:10]}_{str(uuid.uuid4())[:6]}"
+
+                display_name = profile.get("name") or gh_login
+                import werkzeug.security
+                rand_pass = str(uuid.uuid4())
+                database.create_user_secure(
+                    username,
+                    werkzeug.security.generate_password_hash(rand_pass),
+                    display_name,
+                )
+
+                session["local_user_id"] = username
+                session["user_id"] = username
+                session["display_name"] = display_name
+                register_login_session(username)
+                log_user_telemetry(username)
+                database.link_account_to_user(username, "github", account_id)
+
+        return (
+            render_template("github_callback.html")
+            if "text/html" in request.headers.get("Accept", "")
+            else jsonify({"success": True})
+        )
+    except Exception as e:
+        app.logger.error(f"Failed to handle GitHub callback: {str(e)}")
+        err_msg = f"GitHub authentication failed: {str(e)}"
+        return render_template(
+            "github_callback.html", error=err_msg
+        ) if "text/html" in request.headers.get("Accept", "") else jsonify(
+            {"error": err_msg}
+        ), 500
+
+
+@app.route("/api/github/me")
+def github_me():
+    access_token = session.get("github_access_token")
+    if not access_token:
+        return jsonify({"error": "Not signed in with GitHub"}), 401
+    auth_headers = {
+        "Authorization": f"Bearer {access_token}",
+        "User-Agent": "Mint-Frost-AI",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    try:
+        resp = requests.get("https://api.github.com/user", headers=auth_headers, timeout=10)
+        if resp.status_code == 200:
+            return jsonify(resp.json())
+        return jsonify({"error": "Failed to fetch profile", "details": resp.text}), resp.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/github/signout", methods=["POST"])
+def github_signout():
+    account_id = session.pop("github_account_id", None)
+    session.pop("github_access_token", None)
+    session.modified = True
+    if account_id:
+        try:
+            database.delete_oauth_token("github", account_id)
+        except Exception:
+            pass
+    return jsonify({"success": True})
+# --- end GitHub OAuth ---
+
 
 # --- User linking helpers ---
 
