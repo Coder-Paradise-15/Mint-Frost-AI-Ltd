@@ -4196,10 +4196,15 @@ def get_or_create_local_user():
 
 @app.route("/api/accounts/linked")
 def api_get_linked_accounts():
-    user_id = session.get("local_user_id")
+    user_id = session.get("local_user_id") or session.get("user_id")
     if not user_id:
         return jsonify({"linked": []})
-    linked = database.get_linked_accounts(user_id)
+    linked = database.get_linked_accounts(user_id) or []
+    existing = {l.get("provider") for l in linked}
+    if session.get("google_account_id") and "google" not in existing:
+        linked.append({"provider": "google", "account_id": session.get("google_account_id")})
+    if session.get("github_account_id") and "github" not in existing:
+        linked.append({"provider": "github", "account_id": session.get("github_account_id")})
     return jsonify({"linked": linked})
 
 
@@ -4210,7 +4215,7 @@ def api_unlink_account():
     if not provider:
         return jsonify({"error": "provider required"}), 400
 
-    user_id = session.get("local_user_id")
+    user_id = session.get("local_user_id") or session.get("user_id")
     if not user_id:
         return jsonify({"error": "no local user"}), 400
 
@@ -4230,6 +4235,13 @@ def api_unlink_account():
                 database.delete_oauth_token(provider, acct)
             except Exception:
                 pass
+        if provider == "github":
+            session.pop("github_account_id", None)
+            session.pop("github_access_token", None)
+            session.modified = True
+        elif provider == "google":
+            session.pop("google_account_id", None)
+            session.modified = True
         return jsonify({"success": True, "unlinked": provider})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
