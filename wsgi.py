@@ -1,7 +1,6 @@
 import os
 from app import app
 
-# Re-export app and application for WSGI servers (Gunicorn, Waitress, uWSGI)
 application = app
 
 if __name__ == '__main__':

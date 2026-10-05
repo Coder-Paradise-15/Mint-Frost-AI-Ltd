@@ -4,7 +4,7 @@ FROM python:3.12-slim
 # Prevent Python from writing .pyc files and enable unbuffered logging
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8080
+ENV PORT=5001
 
 # Set the working directory in the container
 WORKDIR /app
@@ -26,11 +26,11 @@ COPY . .
 # Ensure stale database files are not bundled if they exist in databases/
 RUN rm -f databases/chat.db databases/chat_database.db
 
-# Expose the standard container ports (supports whichever port platform routes to)
+# Expose standard container ports
+EXPOSE 5001
 EXPOSE 8080
 EXPOSE 8000
 EXPOSE 3000
-EXPOSE 5000
 
-# Start the application using resilient multi-port server runner
-CMD ["python", "run_server.py"]
+# Start application using Gunicorn (production multi-threaded WSGI server)
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "main:app"]

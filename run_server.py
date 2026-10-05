@@ -9,6 +9,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mintfrost.server")
 
+# Expose app and application for any WSGI server (Gunicorn, Waitress)
+from app import app
+application = app
+
 
 def get_bindable_ports(candidate_ports):
     """Filter candidate ports to those that can be bound without permission errors."""
