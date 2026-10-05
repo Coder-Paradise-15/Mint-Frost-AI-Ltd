@@ -2,7 +2,7 @@
 import os
 
 # Port assigned by the hosting platform (Suga, Render, etc.)
-port = os.environ.get("PORT", "8000")
+port = os.environ.get("PORT", "8080")
 bind = f"0.0.0.0:{port}"
 
 # Number of worker processes (usually 2-4 per CPU core)

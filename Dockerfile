@@ -31,4 +31,4 @@ EXPOSE 8080
 EXPOSE 8000
 
 # Start the application using Waitress WSGI server (multi-threaded production server, dynamic port)
-CMD ["sh", "-c", "exec waitress-serve --host=0.0.0.0 --port=${PORT:-8080} --threads=50 --timeout=120 main:app"]
+CMD ["sh", "-c", "exec waitress-serve --host=0.0.0.0 --port=${PORT:-8080} --threads=50 --channel-timeout=120 main:app"]
