@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "https://s35a64hx0o0j-production-90w8yh9y.europe-west1.suga.run/$1"
+      "destination": "https://yzwm1ikm829v-production-90w8yh9y.europe-west1.suga.run/$1"
     }
   ]
 }

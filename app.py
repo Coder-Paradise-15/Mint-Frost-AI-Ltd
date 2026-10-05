@@ -3946,6 +3946,32 @@ def google_signout():
 
 
 # --- GitHub OAuth ---
+def _get_github_redirect_uri():
+    env_redirect = os.environ.get("GITHUB_REDIRECT_URI")
+    if env_redirect:
+        return env_redirect.strip()
+    oauth_base = os.environ.get("OAUTH_BASE_URL") or os.environ.get("APP_BASE_URL")
+    if oauth_base:
+        return oauth_base.rstrip("/") + "/api/github/callback"
+    forwarded_host = request.headers.get("X-Forwarded-Host", "").split(",")[0].strip()
+    forwarded_proto = request.headers.get("X-Forwarded-Proto")
+    if forwarded_host:
+        host = forwarded_host
+        if forwarded_proto:
+            proto = forwarded_proto
+        elif "localhost" in host or "127.0.0.1" in host:
+            proto = "http"
+        else:
+            proto = "https"
+        url_base = f"{proto}://{host}"
+    else:
+        url_base = (request.url_root or request.host_url).rstrip("/")
+        if not ("localhost" in url_base or "127.0.0.1" in url_base):
+            if url_base.startswith("http://"):
+                url_base = "https://" + url_base[7:]
+    return url_base.rstrip("/") + "/api/github/callback"
+
+
 @app.route("/api/github/auth")
 def github_auth():
     c_id, c_secret = load_github_credentials()
@@ -3955,17 +3981,7 @@ def github_auth():
             return render_template("github_callback.html", error=err_msg), 500
         return jsonify({"error": err_msg}), 500
 
-    forwarded_host = request.headers.get("X-Forwarded-Host", "").split(",")[0].strip()
-    forwarded_proto = request.headers.get("X-Forwarded-Proto")
-    if forwarded_host:
-        proto = forwarded_proto or "http"
-        url_base = f"{proto}://{forwarded_host}/"
-    else:
-        url_base = request.url_root or request.host_url
-        if forwarded_proto == "https" and url_base.startswith("http://"):
-            url_base = "https://" + url_base[7:]
-
-    redirect_uri = url_base.rstrip("/") + "/api/github/callback"
+    redirect_uri = _get_github_redirect_uri()
     import secrets
     state = secrets.token_urlsafe(16)
     session["github_oauth_state"] = state
@@ -3999,16 +4015,7 @@ def github_callback():
         return render_template("github_callback.html", error=err_msg) if "text/html" in request.headers.get("Accept", "") else jsonify({"error": err_msg}), 500
 
     token_url = "https://github.com/login/oauth/access_token"
-    forwarded_host = request.headers.get("X-Forwarded-Host", "").split(",")[0].strip()
-    forwarded_proto = request.headers.get("X-Forwarded-Proto")
-    if forwarded_host:
-        proto = forwarded_proto or "http"
-        url_base = f"{proto}://{forwarded_host}/"
-    else:
-        url_base = request.url_root or request.host_url
-        if forwarded_proto == "https" and url_base.startswith("http://"):
-            url_base = "https://" + url_base[7:]
-    redirect_uri = url_base.rstrip("/") + "/api/github/callback"
+    redirect_uri = _get_github_redirect_uri()
 
     data = {
         "client_id": c_id,
