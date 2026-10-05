@@ -26,9 +26,11 @@ COPY . .
 # Ensure stale database files are not bundled if they exist in databases/
 RUN rm -f databases/chat.db databases/chat_database.db
 
-# Expose the container ports
+# Expose the standard container ports (supports whichever port platform routes to)
 EXPOSE 8080
 EXPOSE 8000
+EXPOSE 3000
+EXPOSE 5000
 
-# Start the application using Waitress WSGI server (multi-threaded production server, dynamic port)
-CMD ["sh", "-c", "exec waitress-serve --host=0.0.0.0 --port=${PORT:-8080} --threads=50 --channel-timeout=120 main:app"]
+# Start the application using resilient multi-port server runner
+CMD ["python", "run_server.py"]
