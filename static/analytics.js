@@ -55,42 +55,11 @@
     </div>`;
   }
 
-  function coachBanner(coach){
-    const el=document.getElementById('an-coach-banner');
-    if(!el||!coach)return;
-    const riskColor={'LOW':C.mint,'MEDIUM':C.orange,'HIGH':C.red,'CRITICAL':'#ff0055'}[coach.overall_risk||'LOW']||C.mint;
-    el.innerHTML=`
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--mint),#00d2ff);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🤖</div>
-        <div>
-          <div style="font-size:14px;font-weight:700;color:#fff;">${coach.greeting||'Hello!'}</div>
-          <div style="font-size:11px;color:rgba(255,255,255,0.45);">AI Productivity Coach • Live Analysis</div>
-        </div>
-        <div style="margin-left:auto;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${riskColor}22;color:${riskColor};border:1px solid ${riskColor}44;">${coach.overall_risk||'ANALYZING'}</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-        <div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-          <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;"><i class="fas fa-crosshairs" style="color:var(--mint);margin-right:4px;"></i>Current Focus</div>
-          <div style="font-size:13px;font-weight:600;color:#fff;">${coach.current_focus||'—'}</div>
-        </div>
-        <div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-          <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;"><i class="fas fa-clock" style="color:#ff8225;margin-right:4px;"></i>Finish ETA</div>
-          <div style="font-size:13px;font-weight:600;color:#fff;">${coach.estimated_finish_time||'—'}</div>
-        </div>
-      </div>
-      <div style="padding:12px 14px;background:rgba(55,230,181,0.05);border:1px solid rgba(55,230,181,0.15);border-radius:10px;font-size:13px;color:rgba(255,255,255,0.85);line-height:1.5;">
-        <i class="fas fa-lightbulb" style="color:var(--mint);margin-right:8px;"></i>${coach.top_recommendation||coach.today_motivation||'Keep going!'}
-      </div>`;
-  }
-
   window.loadAnalytics = async function(){
     // Show loading pulse on stat cards
     document.querySelectorAll('.an-stat-val').forEach(el=>el.style.opacity='0.4');
     try{
-      const [res, coachRes] = await Promise.all([
-        fetch('/api/analytics/data'),
-        fetch('/api/coach/analyze').catch(()=>null)
-      ]);
+      const res = await fetch('/api/analytics/data');
       const d=await res.json();
       if(!d.success) return;
       const s=d.stats;
@@ -137,13 +106,6 @@
       const badge=document.getElementById('an-ai-badge');
       if(badge) badge.style.display=d.ai_generated?'inline-flex':'none';
 
-      // Load coach banner
-      if(coachRes){
-        try{
-          const cd=await coachRes.json();
-          if(cd.success) coachBanner(cd.coach);
-        }catch{}
-      }
 
       if(typeof window.loadGamificationStats==='function') window.loadGamificationStats();
 

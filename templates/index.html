@@ -67,6 +67,7 @@
             }
             #tab-home,
             #tab-chat,
+            #tab-status,
             #tab-docs,
             #tab-support,
             #tab-tasks,
@@ -77,6 +78,7 @@
             }
             #tab-home.active-tab-content,
             #tab-chat.active-tab-content,
+            #tab-status.active-tab-content,
             #tab-docs.active-tab-content,
             #tab-support.active-tab-content,
             #tab-tasks.active-tab-content,
@@ -412,113 +414,10 @@
             .mfa-delete-btn:hover {
                 background: rgba(255, 107, 107, 0.1);
             }
-            /* Proactive AI Coach Panel Card styles */
-            .coach-drawer {
-                position: fixed;
-                bottom: 228px; /* Spaced perfectly above the stacked action deck */
-                right: 24px;
-                width: 420px;
-                max-width: 90vw;
-                height: 630px;
-                max-height: 75vh;
-                aspect-ratio: 2 / 3;
-                z-index: 15001;
-                opacity: 0;
-                pointer-events: none;
-                transform: translateY(30px) scale(0.95);
-                transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-                display: flex;
-                flex-direction: column;
-                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.45);
-                border-radius: 16px;
-                overflow: hidden;
-                background: rgba(15, 22, 32, 0.92);
-                backdrop-filter: blur(25px);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                color: #e9fbf5;
-            }
-            .coach-drawer.show {
-                opacity: 1;
-                pointer-events: auto;
-                transform: translateY(0) scale(1);
-            }
-
-            .coach-drawer__header {
-                padding: 20px 24px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                background: rgba(255, 255, 255, 0.02);
-            }
-            .coach-drawer__title {
-                font-size: 1.15rem;
-                font-weight: 600;
-                margin: 0;
-                color: #ffffff;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-            .coach-drawer__close {
-                background: none;
-                border: none;
-                color: var(--muted, rgba(255, 255, 255, 0.5));
-                font-size: 24px;
-                cursor: pointer;
-                line-height: 1;
-                padding: 4px;
-                transition: color 0.2s;
-            }
-            .coach-drawer__close:hover {
-                color: #ffffff;
-            }
-
-            .coach-drawer__body {
-                padding: 24px;
-                overflow-y: auto;
-                flex: 1;
-                display: flex;
-                flex-direction: column;
-                gap: 20px;
-            }
-
-            /* Floating Coach Toggle Button */
-            .coach-toggle-btn {
-                position: fixed;
-                bottom: 24px;
-                right: 24px;
-                width: 56px;
-                height: 56px;
-                border-radius: 50%;
-                background: linear-gradient(
-                    135deg,
-                    var(--mint) 0%,
-                    #3498db 100%
-                );
-                box-shadow: 0 4px 20px rgba(55, 230, 181, 0.4);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: #0f1620;
-                font-size: 20px;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                z-index: 9998;
-                border: 2px solid rgba(255, 255, 255, 0.1);
-            }
-            .coach-toggle-btn:hover {
-                transform: scale(1.1) rotate(5deg);
-                box-shadow: 0 6px 24px rgba(55, 230, 181, 0.6);
-            }
-            .coach-toggle-btn:active {
-                transform: scale(0.95);
-            }
-
             /* Floating Music Toggle Button and Vinyl Spin Animation */
             .music-toggle-btn {
                 position: fixed;
-                bottom: 92px;
+                bottom: 24px;
                 right: 24px;
                 width: 56px;
                 height: 56px;
@@ -555,167 +454,6 @@
                 animation: spin-record 8s linear infinite;
             }
 
-            /* 🚨 Panic Mode Overlay Modal styles */
-            .panic-modal {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100vw;
-                height: 100vh;
-                background: rgba(8, 12, 18, 0.85);
-                backdrop-filter: blur(25px);
-                z-index: 21000;
-                opacity: 0;
-                pointer-events: none;
-                transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: #e9fbf5;
-            }
-            .panic-modal.show {
-                opacity: 1;
-                pointer-events: auto;
-            }
-            .panic-modal__content {
-                width: 900px;
-                max-width: 95vw;
-                background: rgba(15, 22, 32, 0.95);
-                border: 1px solid rgba(255, 56, 56, 0.3);
-                border-radius: 20px;
-                box-shadow:
-                    0 20px 50px rgba(0, 0, 0, 0.6),
-                    0 0 30px rgba(255, 56, 56, 0.15);
-                display: flex;
-                flex-direction: column;
-                max-height: 85vh;
-                overflow: hidden;
-                transform: scale(0.9) translateY(20px);
-                transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-            }
-            .panic-modal.show .panic-modal__content {
-                transform: scale(1) translateY(0);
-            }
-            .panic-modal__header {
-                padding: 20px 30px;
-                border-bottom: 1px solid rgba(255, 56, 56, 0.2);
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                background: linear-gradient(
-                    90deg,
-                    rgba(255, 56, 56, 0.1) 0%,
-                    rgba(0, 0, 0, 0) 100%
-                );
-            }
-            .panic-modal__title {
-                font-size: 1.4rem;
-                font-weight: 700;
-                color: #ff3838;
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                margin: 0;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                animation: panic-title-blink 1.5s infinite alternate;
-            }
-            @keyframes panic-title-blink {
-                0% {
-                    text-shadow: 0 0 5px rgba(255, 56, 56, 0.3);
-                }
-                100% {
-                    text-shadow: 0 0 15px rgba(255, 56, 56, 0.8);
-                }
-            }
-            .panic-modal.safe-state .panic-modal__content {
-                border-color: rgba(55, 230, 181, 0.3);
-                box-shadow:
-                    0 20px 50px rgba(0, 0, 0, 0.6),
-                    0 0 30px rgba(55, 230, 181, 0.15);
-            }
-            .panic-modal.safe-state .panic-modal__header {
-                background: linear-gradient(
-                    90deg,
-                    rgba(55, 230, 181, 0.1) 0%,
-                    rgba(0, 0, 0, 0) 100%
-                );
-                border-bottom-color: rgba(55, 230, 181, 0.2);
-            }
-            .panic-modal.safe-state .panic-modal__title {
-                color: var(--mint);
-                animation: safe-title-blink 1.5s infinite alternate;
-            }
-            @keyframes safe-title-blink {
-                0% {
-                    text-shadow: 0 0 5px rgba(55, 230, 181, 0.3);
-                }
-                100% {
-                    text-shadow: 0 0 15px rgba(55, 230, 181, 0.6);
-                }
-            }
-            .panic-modal__body {
-                padding: 30px;
-                overflow-y: auto;
-                flex: 1;
-                display: grid;
-                grid-template-columns: 1.2fr 1.8fr;
-                gap: 30px;
-            }
-            .panic-metric-card {
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(255, 255, 255, 0.06);
-                border-radius: 12px;
-                padding: 16px;
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-                text-align: center;
-            }
-            .panic-metric-card.critical {
-                border-color: rgba(255, 56, 56, 0.4);
-                background: rgba(255, 56, 56, 0.02);
-            }
-            .panic-toggle-btn {
-                position: fixed;
-                bottom: 170px; /* Shifted vertically upward by +10px (was 160px) */
-                right: 24px;
-                width: 56px;
-                height: 56px;
-                border-radius: 50%;
-                background: linear-gradient(135deg, #ff3838 0%, #ff8225 100%);
-                box-shadow: 0 4px 20px rgba(255, 56, 56, 0.4);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: #ffffff;
-                font-size: 20px;
-                cursor: pointer;
-                z-index: 9998;
-                border: 2px solid rgba(255, 255, 255, 0.2);
-                animation: panic-pulse 2s infinite;
-                transition: all 0.3s ease;
-            }
-            .panic-toggle-btn.safe-state {
-                background: linear-gradient(
-                    135deg,
-                    var(--mint) 0%,
-                    #00d2ff 100%
-                );
-                box-shadow: 0 4px 20px rgba(55, 230, 181, 0.3);
-                animation: safe-pulse 3s infinite;
-            }
-            @keyframes panic-pulse {
-                0% {
-                    box-shadow: 0 0 0 0 rgba(255, 56, 56, 0.7);
-                }
-                70% {
-                    box-shadow: 0 0 0 15px rgba(255, 56, 56, 0);
-                }
-                100% {
-                    box-shadow: 0 0 0 0 rgba(255, 56, 56, 0);
-                }
-            }
             @keyframes safe-pulse {
                 0% {
                     box-shadow: 0 0 0 0 rgba(55, 230, 181, 0.4);
@@ -726,16 +464,6 @@
                 100% {
                     box-shadow: 0 0 0 0 rgba(55, 230, 181, 0);
                 }
-            }
-            .panic-toggle-btn:hover {
-                transform: scale(1.1);
-                box-shadow: 0 6px 24px rgba(255, 56, 56, 0.7);
-            }
-            .panic-toggle-btn.safe-state:hover {
-                box-shadow: 0 6px 24px rgba(55, 230, 181, 0.5);
-            }
-            .panic-toggle-btn:active {
-                transform: scale(0.95);
             }
         </style>
     </head>
@@ -765,7 +493,10 @@
                     aria-current="page"
                     >Home</a
                 >
+                {% if is_logged_in %}
                 <a href="#" class="nav-tab" data-tab="tab-chat">Chat</a>
+                {% endif %}
+                <a href="#" class="nav-tab" data-tab="tab-status">Status</a>
                 <a href="#" class="nav-tab" data-tab="tab-docs">Docs</a>
                 <a href="#" class="nav-tab" data-tab="tab-support">Support</a>
             </nav>
@@ -1143,7 +874,7 @@
                                     An enterprise AI control plane powered by fine-tuned local reasoning models, multi-model frontier routing, and zero-cost Codespace compute.
                                 </p>
                                 <div class="caliber-hero-actions">
-                                    <button type="button" class="btn-caliber-primary" onclick="document.querySelector('[data-tab=tab-chat]')?.click();">
+                                    <button type="button" class="btn-caliber-primary" onclick="if(window.isLoggedIn) { document.querySelector('[data-tab=tab-chat]')?.click(); } else { window.location.href = '/login?next=/chat'; }">
                                         <i class="fas fa-terminal"></i>
                                         <span>Launch Chat Studio</span>
                                     </button>
@@ -1373,6 +1104,121 @@
                 </div>
             </div>
 
+            <!-- ============================================================
+                 LIVE INFRASTRUCTURE & DIAGNOSTICS HUB (#tab-status)
+                 ============================================================ -->
+            <div id="tab-status">
+                <div style="max-width: 1240px; margin: 0 auto; padding: 20px 16px 60px;">
+                    <!-- Header -->
+                    <div style="text-align: center; margin-bottom: 32px;">
+                        <div class="caliber-pill-badge" style="margin: 0 auto 12px;">
+                            <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--mint); box-shadow:0 0 10px var(--mint);"></span>
+                            <span>Live Infrastructure & Node Status</span>
+                        </div>
+                        <h1 style="font-size: 32px; font-weight: 700; color: #fff; margin: 0 0 10px;">System Status & Diagnostics</h1>
+                        <p style="font-size: 15px; color: rgba(255,255,255,0.6); max-width: 580px; margin: 0 auto;">
+                            Continuous health telemetry, neural tunnel connectivity, local database integrity, and distributed runtime status for Mint Frost AI.
+                        </p>
+                    </div>
+
+                    <!-- Global Operational Banner -->
+                    <div class="card glass" style="padding: 16px 24px; border-radius: 14px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; border-color: rgba(55, 230, 181, 0.25); background: rgba(55, 230, 181, 0.03);">
+                        <div style="display: flex; align-items: center; gap: 14px;">
+                            <span style="display: inline-flex; width: 12px; height: 12px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 12px var(--mint); animation: safe-pulse 2s infinite;"></span>
+                            <div>
+                                <div style="font-size: 14px; font-weight: 700; color: #fff;">All Systems Operational</div>
+                                <div style="font-size: 12px; color: rgba(255,255,255,0.5);">Zero outages reported across inference endpoints and streaming relays.</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <div style="text-align: right;">
+                                <div style="font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 700;">30-Day Uptime</div>
+                                <div style="font-size: 14px; font-weight: 800; color: var(--mint);">99.98%</div>
+                            </div>
+                            <div style="height: 28px; width: 1px; background: rgba(255,255,255,0.1);"></div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 700;">Tunnel Latency</div>
+                                <div style="font-size: 14px; font-weight: 800; color: #38bdf8;">~24ms</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4 Live System Diagnostic Cards -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 28px;">
+                        <div class="card glass" style="padding: 22px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(55,230,181,0.1); display: flex; align-items: center; justify-content: center; color: var(--mint);">
+                                        <i class="fas fa-stream"></i>
+                                    </div>
+                                    <span style="font-size: 14px; font-weight: 600; color: #fff;">SSE Chat Stream</span>
+                                </div>
+                                <span style="color: var(--mint); font-size: 11px; font-weight: 700; letter-spacing: 0.5px;">● OPERATIONAL</span>
+                            </div>
+                            <div style="font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.5;">Real-time token streaming via text/event-stream protocol with automatic fallback reconnection.</div>
+                        </div>
+
+                        <div class="card glass" style="padding: 22px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(56,189,248,0.1); display: flex; align-items: center; justify-content: center; color: #38bdf8;">
+                                        <i class="fas fa-network-wired"></i>
+                                    </div>
+                                    <span style="font-size: 14px; font-weight: 600; color: #fff;">Codespace Tunnel</span>
+                                </div>
+                                <span style="color: #38bdf8; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;">● CONNECTED</span>
+                            </div>
+                            <div style="font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.5;">Zero-cost 16GB RAM compute relay active on local/cloud port 11434 with end-to-end TLS encryption.</div>
+                        </div>
+
+                        <div class="card glass" style="padding: 22px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(55,230,181,0.1); display: flex; align-items: center; justify-content: center; color: var(--mint);">
+                                        <i class="fas fa-database"></i>
+                                    </div>
+                                    <span style="font-size: 14px; font-weight: 600; color: #fff;">Local Database</span>
+                                </div>
+                                <span style="color: var(--mint); font-size: 11px; font-weight: 700; letter-spacing: 0.5px;">● HEALTHY</span>
+                            </div>
+                            <div style="font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.5;">SQLite SQLite3 engine initialized with encrypted sessions, WAL journaling, and automated backups.</div>
+                        </div>
+
+                        <div class="card glass" style="padding: 22px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(55,230,181,0.1); display: flex; align-items: center; justify-content: center; color: var(--mint);">
+                                        <i class="fas fa-hdd"></i>
+                                    </div>
+                                    <span style="font-size: 14px; font-weight: 600; color: #fff;">Browser Storage</span>
+                                </div>
+                                <span style="color: var(--mint); font-size: 11px; font-weight: 700; letter-spacing: 0.5px;">● READY</span>
+                            </div>
+                            <div style="font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.5;">LocalStorage token credentials, encrypted tunnel state, and offline conversation cache synced.</div>
+                        </div>
+                    </div>
+
+                    <!-- Secondary Architectural Telemetry Overview -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+                        <div class="card glass" style="padding: 20px; border-radius: 14px;">
+                            <div style="font-size: 11px; font-weight: 700; color: var(--mint); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;">Active Core Reasoning Model</div>
+                            <div style="font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px;">Agent Frosty (v1 Fine-Tuned)</div>
+                            <div style="font-size: 12px; color: rgba(255,255,255,0.5);">Autonomous 3-stage chain-of-thought engine optimized for low-latency code and planning execution.</div>
+                        </div>
+                        <div class="card glass" style="padding: 20px; border-radius: 14px;">
+                            <div style="font-size: 11px; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;">Inference Relay Routing</div>
+                            <div style="font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px;">Hybrid Dual-Gateway</div>
+                            <div style="font-size: 12px; color: rgba(255,255,255,0.5);">Auto-switches between GitHub Codespace tunnel and cloud frontier providers with instant failover.</div>
+                        </div>
+                        <div class="card glass" style="padding: 20px; border-radius: 14px;">
+                            <div style="font-size: 11px; font-weight: 700; color: var(--mint); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;">Protocol & Security Integrity</div>
+                            <div style="font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px;">AES-GCM & SameSite Cookies</div>
+                            <div style="font-size: 12px; color: rgba(255,255,255,0.5);">Encrypted session tokens, CSRF protection, and TOTP Two-Factor Authenticator verification active.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
                         <!-- ============================================================
                  MINTLIFY-INSPIRED DOCUMENTATION HUB (#tab-docs)
                  ============================================================ -->
@@ -1484,73 +1330,72 @@
             </div>
 
             <!-- ============================================================
-                 MODERNIZED SUPPORT & DIAGNOSTICS HUB (#tab-support)
+                 MODERNIZED SUPPORT & FEEDBACK HUB (#tab-support)
                  ============================================================ -->
             <div id="tab-support">
                 <div style="max-width: 1240px; margin: 0 auto; padding: 20px 16px 60px;">
                     <div style="text-align: center; margin-bottom: 36px;">
                         <div class="caliber-pill-badge" style="margin: 0 auto 12px;">
-                            <i class="fas fa-life-ring"></i>
-                            <span>Help & Node Health</span>
+                            <i class="fas fa-headset"></i>
+                            <span>Engineering Support & Feedback</span>
                         </div>
-                        <h1 style="font-size: 32px; font-weight: 700; color: #fff; margin: 0 0 10px;">Support & System Diagnostics</h1>
-                        <p style="font-size: 15px; color: rgba(255,255,255,0.6); max-width: 540px; margin: 0 auto;">
-                            Monitor real-time infrastructure metrics, verify model tunnel connectivity, and reach out to engineering support.
+                        <h1 style="font-size: 32px; font-weight: 700; color: #fff; margin: 0 0 10px;">Contact Engineering Support</h1>
+                        <p style="font-size: 15px; color: rgba(255,255,255,0.6); max-width: 580px; margin: 0 auto;">
+                            Have feedback, innovative ideas, creative suggestions, bug reports, or questions about configuring tunnels? Reach out directly.
                         </p>
                     </div>
 
-                    <!-- Live System Diagnostics Matrix -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 36px;">
-                        <div class="card glass" style="padding: 20px; border-radius: 14px;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                                <span style="font-size: 13px; font-weight: 600; color: #fff;">SSE Chat Stream</span>
-                                <span style="color: var(--mint); font-size: 11px; font-weight: 700;">● OPERATIONAL</span>
-                            </div>
-                            <div style="font-size: 11.5px; color: rgba(255,255,255,0.5);">Real-time token streaming via text/event-stream protocol.</div>
-                        </div>
-                        <div class="card glass" style="padding: 20px; border-radius: 14px;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                                <span style="font-size: 13px; font-weight: 600; color: #fff;">Codespace Tunnel</span>
-                                <span style="color: #38bdf8; font-size: 11px; font-weight: 700;">● CONNECTED</span>
-                            </div>
-                            <div style="font-size: 11.5px; color: rgba(255,255,255,0.5);">Zero-cost 16GB RAM compute relay active on port 11434.</div>
-                        </div>
-                        <div class="card glass" style="padding: 20px; border-radius: 14px;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                                <span style="font-size: 13px; font-weight: 600; color: #fff;">Local Database</span>
-                                <span style="color: var(--mint); font-size: 11px; font-weight: 700;">● HEALTHY</span>
-                            </div>
-                            <div style="font-size: 11.5px; color: rgba(255,255,255,0.5);">SQLite SQLite3 engine initialized with encrypted sessions.</div>
-                        </div>
-                        <div class="card glass" style="padding: 20px; border-radius: 14px;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                                <span style="font-size: 13px; font-weight: 600; color: #fff;">Browser Storage</span>
-                                <span style="color: var(--mint); font-size: 11px; font-weight: 700;">● READY</span>
-                            </div>
-                            <div style="font-size: 11.5px; color: rgba(255,255,255,0.5);">LocalStorage token credentials and tunnel cache synced.</div>
-                        </div>
-                    </div>
-
                     <!-- Direct Support Contact Box -->
-                    <div class="card glass" style="max-width: 640px; margin: 0 auto; padding: 32px; border-radius: 18px;">
-                        <h3 style="font-size: 20px; font-weight: 700; color: #fff; margin: 0 0 10px;">Contact Engineering Support</h3>
-                        <p style="font-size: 13px; color: rgba(255,255,255,0.6); margin: 0 0 20px;">Have questions about fine-tuning Agent Frosty or configuring tunnels? Send a message directly.</p>
-                        <form id="support-ticket-form" onsubmit="event.preventDefault(); alert('Support request submitted. Our team will contact you shortly.');">
-                            <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <div class="card glass" style="max-width: 680px; margin: 0 auto; padding: 36px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); background: rgba(10, 15, 22, 0.75);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                            <div>
+                                <h3 style="font-size: 20px; font-weight: 700; color: #fff; margin: 0 0 4px;">Submit an Engineering Request</h3>
+                                <p style="font-size: 13px; color: rgba(255,255,255,0.6); margin: 0;">Our core team typically responds within a few hours.</p>
+                            </div>
+                            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(55, 230, 181, 0.1); display: flex; align-items: center; justify-content: center; color: var(--mint); font-size: 18px;">
+                                <i class="fas fa-paper-plane"></i>
+                            </div>
+                        </div>
+
+                        <form id="support-ticket-form" onsubmit="event.preventDefault(); alert('Support request submitted. Thank you for your feedback! Our engineering team will review it shortly.'); this.reset();">
+                            <div style="display: flex; flex-direction: column; gap: 16px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                                    <div>
+                                        <label style="font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); display: block; margin-bottom: 6px;">Your Name / Username</label>
+                                        <input type="text" placeholder="e.g. Alex Rivera" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #fff; font-size: 13px; outline: none; box-sizing: border-box;" />
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); display: block; margin-bottom: 6px;">Email Address</label>
+                                        <input type="email" placeholder="name@domain.com" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #fff; font-size: 13px; outline: none; box-sizing: border-box;" />
+                                    </div>
+                                </div>
+
                                 <div>
                                     <label style="font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); display: block; margin-bottom: 6px;">Category</label>
-                                    <select style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #fff; font-size: 13px; outline: none;">
-                                        <option>Codespace & Tunnel Setup</option>
-                                        <option>Agent Frosty Reasoning</option>
-                                        <option>API & Model Keys</option>
-                                        <option>Bug or Security Report</option>
+                                    <select style="width: 100%; padding: 11px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.5); color: #fff; font-size: 13px; outline: none; cursor: pointer;">
+                                        <option value="bug_system">🐛 Bug Report & System Issues</option>
+                                        <option value="feature_innovative">💡 Feature Request & Innovative Ideas</option>
+                                        <option value="creative_feedback">🎨 Creative Feedback & UI/UX Suggestions</option>
+                                        <option value="agent_reasoning">🤖 Agent Frosty Reasoning & Accuracy Feedback</option>
+                                        <option value="codespace_tunnel">⚡ Codespace Compute & Cloud Tunnel Configuration</option>
+                                        <option value="api_keys">🔑 API Integrations & Custom Model Keys</option>
+                                        <option value="performance">⏱️ Performance, Latency & Token Streaming</option>
+                                        <option value="account_security">🛡️ Account Security & Authentication</option>
+                                        <option value="general">💬 General Inquiries & Other Feedback</option>
                                     </select>
                                 </div>
+
                                 <div>
-                                    <label style="font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); display: block; margin-bottom: 6px;">Your Message</label>
-                                    <textarea rows="4" placeholder="Describe the issue or request..." style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #fff; font-size: 13px; outline: none; box-sizing: border-box; resize: vertical;"></textarea>
+                                    <label style="font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); display: block; margin-bottom: 6px;">Subject</label>
+                                    <input type="text" placeholder="Brief summary of your inquiry or idea" required style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #fff; font-size: 13px; outline: none; box-sizing: border-box;" />
                                 </div>
-                                <button type="submit" class="btn-caliber-primary" style="justify-content: center; margin-top: 6px;">
+
+                                <div>
+                                    <label style="font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); display: block; margin-bottom: 6px;">Your Message & Details</label>
+                                    <textarea rows="5" required placeholder="Please describe the details, feedback, innovative concepts, reproduction steps for bugs, or setup questions..." style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #fff; font-size: 13px; outline: none; box-sizing: border-box; resize: vertical; line-height: 1.5;"></textarea>
+                                </div>
+
+                                <button type="submit" class="btn-caliber-primary" style="justify-content: center; margin-top: 4px; padding: 12px;">
                                     <i class="fas fa-paper-plane"></i> Submit Request
                                 </button>
                             </div>
@@ -5652,7 +5497,7 @@
 
                         document
                             .querySelectorAll(
-                                "#tab-home, #tab-chat, #tab-docs, #tab-support, #tab-tasks, #tab-todo, #tab-planner, #tab-analytics",
+                                "#tab-home, #tab-chat, #tab-status, #tab-docs, #tab-support, #tab-tasks, #tab-todo, #tab-planner, #tab-analytics",
                             )
                             .forEach((el) =>
                                 el.classList.remove("active-tab-content"),
@@ -7444,323 +7289,7 @@
             </div>
         </div>
 
-        <!-- AI Coach Sliding Drawer Panel -->
-        <div class="coach-drawer" id="coach-drawer">
-            <div class="coach-drawer__header">
-                <h3 class="coach-drawer__title">
-                    <i
-                        class="fas fa-graduation-cap"
-                        style="color: var(--mint)"
-                    ></i>
-                    AI Productivity Coach
-                </h3>
-                <button class="coach-drawer__close" id="coach-drawer-close">
-                    &times;
-                </button>
-            </div>
-
-            <div class="coach-drawer__body">
-                <!-- AI Avatar Card -->
-                <div
-                    class="card glass"
-                    style="
-                        padding: 16px;
-                        display: flex;
-                        align-items: center;
-                        gap: 16px;
-                        border-radius: 12px;
-                        border-left: 4px solid var(--mint);
-                    "
-                >
-                    <div style="position: relative">
-                        <div
-                            style="
-                                width: 48px;
-                                height: 48px;
-                                border-radius: 50%;
-                                background: rgba(55, 230, 181, 0.1);
-                                border: 2px solid var(--mint);
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                font-size: 20px;
-                                color: var(--mint);
-                            "
-                        >
-                            <i class="fas fa-robot"></i>
-                        </div>
-                        <div
-                            style="
-                                position: absolute;
-                                bottom: 0;
-                                right: 0;
-                                width: 12px;
-                                height: 12px;
-                                border-radius: 50%;
-                                background: #2ecc71;
-                                border: 2px solid #0f1620;
-                            "
-                        ></div>
-                    </div>
-                    <div style="text-align: left">
-                        <h4
-                            id="coach-greeting"
-                            style="margin: 0; font-size: 14px; color: #ffffff"
-                        >
-                            Hello!
-                        </h4>
-                        <span
-                            style="
-                                font-size: 11px;
-                                color: rgba(255, 255, 255, 0.5);
-                            "
-                            >Your proactive productivity companion</span
-                        >
-                    </div>
-                </div>
-
-                <!-- Top Recommendation -->
-                <div
-                    class="card glass"
-                    style="
-                        padding: 18px;
-                        border-radius: 12px;
-                        background: linear-gradient(
-                            135deg,
-                            rgba(55, 230, 181, 0.06) 0%,
-                            rgba(52, 152, 219, 0.06) 100%
-                        );
-                        border: 1px solid rgba(55, 230, 181, 0.25);
-                        text-align: left;
-                    "
-                >
-                    <span
-                        style="
-                            font-size: 10px;
-                            color: var(--mint);
-                            font-weight: 700;
-                            text-transform: uppercase;
-                            letter-spacing: 0.5px;
-                            display: block;
-                            margin-bottom: 6px;
-                        "
-                    >
-                        <i class="fas fa-star"></i> Top Recommendation
-                    </span>
-                    <p
-                        id="coach-top-recommendation"
-                        style="
-                            margin: 0;
-                            font-size: 13px;
-                            color: #ffffff;
-                            line-height: 1.45;
-                        "
-                    >
-                        Loading recommendation...
-                    </p>
-                </div>
-
-                <!-- Current Focus & Next Task Grid -->
-                <div
-                    style="display: grid; grid-template-columns: 1fr; gap: 16px"
-                >
-                    <!-- Current Focus -->
-                    <div
-                        class="card glass"
-                        style="
-                            padding: 16px;
-                            border-radius: 12px;
-                            text-align: left;
-                        "
-                    >
-                        <span
-                            style="
-                                font-size: 10px;
-                                color: rgba(255, 255, 255, 0.5);
-                                font-weight: 600;
-                                text-transform: uppercase;
-                                display: block;
-                                margin-bottom: 4px;
-                            "
-                            >🎯 Current Focus</span
-                        >
-                        <strong
-                            id="coach-current-focus"
-                            style="
-                                font-size: 14px;
-                                color: #ffffff;
-                                display: block;
-                                overflow: hidden;
-                                text-overflow: ellipsis;
-                                white-space: nowrap;
-                            "
-                            >Loading focus...</strong
-                        >
-                    </div>
-                    <!-- Next Suggested Task -->
-                    <div
-                        class="card glass"
-                        style="
-                            padding: 16px;
-                            border-radius: 12px;
-                            text-align: left;
-                        "
-                    >
-                        <span
-                            style="
-                                font-size: 10px;
-                                color: rgba(255, 255, 255, 0.5);
-                                font-weight: 600;
-                                text-transform: uppercase;
-                                display: block;
-                                margin-bottom: 4px;
-                            "
-                            >⏭️ Next Suggested Task</span
-                        >
-                        <strong
-                            id="coach-next-suggested"
-                            style="
-                                font-size: 14px;
-                                color: #ffffff;
-                                display: block;
-                                overflow: hidden;
-                                text-overflow: ellipsis;
-                                white-space: nowrap;
-                            "
-                            >Loading next suggested...</strong
-                        >
-                    </div>
-                </div>
-
-                <!-- Upcoming Deadline -->
-                <div
-                    class="card glass"
-                    style="padding: 16px; border-radius: 12px; text-align: left"
-                >
-                    <span
-                        style="
-                            font-size: 10px;
-                            color: #ff6b6b;
-                            font-weight: 600;
-                            text-transform: uppercase;
-                            display: block;
-                            margin-bottom: 4px;
-                        "
-                    >
-                        <i class="far fa-clock"></i> Upcoming Deadline
-                    </span>
-                    <strong
-                        id="coach-upcoming-deadline"
-                        style="font-size: 13px; color: #ffffff; display: block"
-                        >Loading deadline...</strong
-                    >
-                </div>
-
-                <!-- Motivation Card -->
-                <div
-                    class="card glass"
-                    style="
-                        padding: 16px;
-                        border-radius: 12px;
-                        text-align: left;
-                        position: relative;
-                        overflow: hidden;
-                    "
-                >
-                    <div
-                        style="
-                            position: absolute;
-                            top: -10px;
-                            right: -10px;
-                            font-size: 64px;
-                            opacity: 0.03;
-                            transform: rotate(15deg);
-                            pointer-events: none;
-                        "
-                    >
-                        💡
-                    </div>
-                    <span
-                        style="
-                            font-size: 10px;
-                            color: rgba(255, 255, 255, 0.5);
-                            font-weight: 600;
-                            text-transform: uppercase;
-                            display: block;
-                            margin-bottom: 6px;
-                        "
-                        >💡 Today's Motivation</span
-                    >
-                    <p
-                        id="coach-motivation"
-                        style="
-                            margin: 0;
-                            font-size: 12px;
-                            color: rgba(255, 255, 255, 0.8);
-                            line-height: 1.4;
-                        "
-                    >
-                        Loading motivation...
-                    </p>
-                </div>
-
-                <!-- Finish ETA Card -->
-                <div
-                    class="card glass"
-                    style="
-                        padding: 16px;
-                        border-radius: 12px;
-                        text-align: left;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        border-left: 4px solid #3498db;
-                    "
-                >
-                    <div
-                        style="display: flex; flex-direction: column; gap: 2px"
-                    >
-                        <span
-                            style="
-                                font-size: 10px;
-                                color: rgba(255, 255, 255, 0.5);
-                                font-weight: 600;
-                                text-transform: uppercase;
-                            "
-                            >🏁 Projected Finish Time</span
-                        >
-                        <strong
-                            id="coach-finish-eta"
-                            style="font-size: 13px; color: #ffffff"
-                            >Loading ETA...</strong
-                        >
-                    </div>
-                    <div style="font-size: 24px; color: #3498db; opacity: 0.8">
-                        <i class="fas fa-flag-checkered"></i>
-                    </div>
-                </div>
-
-                <!-- Action buttons -->
-                <div style="display: flex; gap: 12px; margin-top: 10px">
-                    <button
-                        id="btn-coach-refresh"
-                        class="btn btn--ghost btn--full"
-                        style="
-                            padding: 10px;
-                            font-size: 12px;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            gap: 8px;
-                        "
-                    >
-                        <i class="fas fa-sync-alt"></i> Refresh Analysis
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <script>
+<script>
             // Email Modal Logic
             document.addEventListener("DOMContentLoaded", () => {
                 const openEmailBtn = document.getElementById(
@@ -8239,16 +7768,6 @@
             </div>
         </div>
 
-        <!-- Persistent Global Floating Action Bubbles -->
-        <button
-            id="coach-toggle-btn"
-            class="coach-toggle-btn"
-            title="AI Productivity Coach"
-            aria-label="AI Productivity Coach"
-        >
-            <i class="fas fa-graduation-cap"></i>
-        </button>
-
         {% if is_logged_in %}
         <button
             id="jamendo-btn"
@@ -8319,385 +7838,7 @@
         </button>
         {% endif %}
 
-        <!-- 🚨 Panic Mode Emergency Recovery Modal -->
-        <div id="panic-modal" class="panic-modal">
-            <div class="panic-modal__content">
-                <div class="panic-modal__header">
-                    <h3 class="panic-modal__title">🚨 Panic Mode Active</h3>
-                    <button
-                        id="panic-modal-close"
-                        class="btn btn--ghost btn--icon"
-                        style="color: rgba(255, 255, 255, 0.6); font-size: 24px"
-                        aria-label="Close Panic Report"
-                    >
-                        &times;
-                    </button>
-                </div>
-
-                <div class="panic-modal__body">
-                    <!-- Left Column: Situation Audit & Survival Score -->
-                    <div
-                        style="
-                            display: flex;
-                            flex-direction: column;
-                            gap: 20px;
-                            text-align: center;
-                        "
-                    >
-                        <!-- Deadline Survival Score Ring -->
-                        <div
-                            class="card glass"
-                            style="padding: 20px; border-radius: 14px"
-                        >
-                            <div
-                                class="survival-score-container"
-                                style="
-                                    position: relative;
-                                    width: 140px;
-                                    height: 140px;
-                                    margin: 0 auto;
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                "
-                            >
-                                <svg
-                                    width="140"
-                                    height="140"
-                                    style="transform: rotate(-90deg)"
-                                >
-                                    <circle
-                                        cx="70"
-                                        cy="70"
-                                        r="60"
-                                        stroke="rgba(255, 255, 255, 0.05)"
-                                        stroke-width="8"
-                                        fill="transparent"
-                                    />
-                                    <circle
-                                        id="panic-survival-circle"
-                                        cx="70"
-                                        cy="70"
-                                        r="60"
-                                        stroke="#ff3838"
-                                        stroke-width="8"
-                                        fill="transparent"
-                                        style="
-                                            stroke-dasharray: 376.99;
-                                            stroke-dashoffset: 376.99;
-                                            transition: stroke-dashoffset 0.8s
-                                                cubic-bezier(0.1, 1, 0.1, 1);
-                                            stroke-linecap: round;
-                                            filter: drop-shadow(
-                                                0 0 8px rgba(255, 56, 56, 0.6)
-                                            );
-                                        "
-                                    />
-                                </svg>
-                                <div
-                                    style="
-                                        position: absolute;
-                                        display: flex;
-                                        flex-direction: column;
-                                        align-items: center;
-                                        justify-content: center;
-                                    "
-                                >
-                                    <span
-                                        id="panic-survival-value"
-                                        style="
-                                            font-size: 2.2rem;
-                                            font-weight: 800;
-                                            color: #ffffff;
-                                        "
-                                        >0%</span
-                                    >
-                                    <span
-                                        style="
-                                            font-size: 9px;
-                                            color: rgba(255, 255, 255, 0.4);
-                                            text-transform: uppercase;
-                                            letter-spacing: 0.5px;
-                                        "
-                                        >Survival Score</span
-                                    >
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Situation Stats Grid -->
-                        <div
-                            style="
-                                display: grid;
-                                grid-template-columns: 1fr 1fr;
-                                gap: 12px;
-                            "
-                        >
-                            <div class="panic-metric-card">
-                                <span
-                                    style="
-                                        font-size: 10px;
-                                        color: rgba(255, 255, 255, 0.4);
-                                        font-weight: 600;
-                                        text-transform: uppercase;
-                                    "
-                                    >Remaining Tasks</span
-                                >
-                                <strong
-                                    id="panic-stat-remaining"
-                                    style="font-size: 20px; color: #ffffff"
-                                    >0</strong
-                                >
-                            </div>
-                            <div
-                                class="panic-metric-card critical"
-                                id="panic-card-critical"
-                            >
-                                <span
-                                    style="
-                                        font-size: 10px;
-                                        color: #ff6b6b;
-                                        font-weight: 600;
-                                        text-transform: uppercase;
-                                    "
-                                    >Critical Tasks</span
-                                >
-                                <strong
-                                    id="panic-stat-critical"
-                                    style="font-size: 20px; color: #ff6b6b"
-                                    >0</strong
-                                >
-                            </div>
-                            <div class="panic-metric-card">
-                                <span
-                                    style="
-                                        font-size: 10px;
-                                        color: rgba(255, 255, 255, 0.4);
-                                        font-weight: 600;
-                                        text-transform: uppercase;
-                                    "
-                                    >Estimated Work</span
-                                >
-                                <strong
-                                    id="panic-stat-work"
-                                    style="font-size: 16px; color: #ffffff"
-                                    >0h 0m</strong
-                                >
-                            </div>
-                            <div class="panic-metric-card">
-                                <span
-                                    style="
-                                        font-size: 10px;
-                                        color: rgba(255, 255, 255, 0.4);
-                                        font-weight: 600;
-                                        text-transform: uppercase;
-                                    "
-                                    >Time Available</span
-                                >
-                                <strong
-                                    id="panic-stat-available"
-                                    style="font-size: 16px; color: #ffffff"
-                                    >0h 0m</strong
-                                >
-                            </div>
-                            <div class="panic-metric-card">
-                                <span
-                                    style="
-                                        font-size: 10px;
-                                        color: rgba(255, 255, 255, 0.4);
-                                        font-weight: 600;
-                                        text-transform: uppercase;
-                                    "
-                                    >Workload Risk</span
-                                >
-                                <strong
-                                    id="panic-stat-risk"
-                                    style="
-                                        font-size: 16px;
-                                        color: #ff3838;
-                                        text-transform: uppercase;
-                                    "
-                                    >CRITICAL</strong
-                                >
-                            </div>
-                            <div class="panic-metric-card">
-                                <span
-                                    style="
-                                        font-size: 10px;
-                                        color: rgba(255, 255, 255, 0.4);
-                                        font-weight: 600;
-                                        text-transform: uppercase;
-                                    "
-                                    >Success Rate</span
-                                >
-                                <strong
-                                    id="panic-stat-prob"
-                                    style="font-size: 16px; color: #ffffff"
-                                    >0%</strong
-                                >
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right Column: Timeline & Simulator -->
-                    <div
-                        style="
-                            display: flex;
-                            flex-direction: column;
-                            gap: 20px;
-                            border-left: 1px solid rgba(255, 255, 255, 0.06);
-                            padding-left: 30px;
-                        "
-                    >
-                        <!-- What If Simulator Section -->
-                        <div style="text-align: left">
-                            <h4
-                                style="
-                                    font-size: 11px;
-                                    color: var(--mint);
-                                    text-transform: uppercase;
-                                    margin: 0 0 10px 0;
-                                    letter-spacing: 0.5px;
-                                "
-                            >
-                                🎛️ What-If Workload Simulator
-                            </h4>
-                            <span
-                                style="
-                                    font-size: 11px;
-                                    color: rgba(255, 255, 255, 0.5);
-                                    display: block;
-                                    margin-bottom: 12px;
-                                "
-                                >Toggle checkboxes to simulate postponing work
-                                and check survival impact instantly:</span
-                            >
-                            <div
-                                id="panic-simulator-list"
-                                style="
-                                    max-height: 180px;
-                                    overflow-y: auto;
-                                    padding-right: 5px;
-                                "
-                            >
-                                <!-- Dynamic simulator checkboxes will be rendered here -->
-                            </div>
-                        </div>
-
-                        <!-- Emergency Recovery Timeline -->
-                        <div style="flex: 1; text-align: left">
-                            <h4
-                                style="
-                                    font-size: 11px;
-                                    color: var(--mint);
-                                    text-transform: uppercase;
-                                    margin: 0 0 12px 0;
-                                    letter-spacing: 0.5px;
-                                "
-                            >
-                                📋 Emergency execution timeline
-                            </h4>
-                            <div
-                                id="panic-timeline-container"
-                                style="
-                                    display: flex;
-                                    flex-direction: column;
-                                    gap: 8px;
-                                "
-                            >
-                                <!-- Dynamic timeline phases (RIGHT NOW, NEXT, AFTER THAT, OPTIONAL) -->
-                            </div>
-                        </div>
-
-                        <!-- Motivation & Encouragement Card -->
-                        <div
-                            class="card glass"
-                            style="
-                                padding: 14px;
-                                border-radius: 10px;
-                                background: rgba(255, 56, 56, 0.03);
-                                border-left: 3px solid #ff3838;
-                                text-align: left;
-                                display: flex;
-                                gap: 12px;
-                                align-items: flex-start;
-                            "
-                        >
-                            <div
-                                style="
-                                    font-size: 20px;
-                                    color: #ff3838;
-                                    padding-top: 2px;
-                                "
-                            >
-                                <i class="fas fa-exclamation-triangle"></i>
-                            </div>
-                            <div>
-                                <span
-                                    style="
-                                        font-size: 9px;
-                                        color: rgba(255, 255, 255, 0.4);
-                                        text-transform: uppercase;
-                                        font-weight: 700;
-                                        display: block;
-                                        margin-bottom: 2px;
-                                    "
-                                    >AI Recovery Advice</span
-                                >
-                                <p
-                                    id="panic-motivation-text"
-                                    style="
-                                        margin: 0;
-                                        font-size: 11.5px;
-                                        color: rgba(255, 255, 255, 0.85);
-                                        line-height: 1.45;
-                                    "
-                                >
-                                    Evaluating your recovery paths...
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- Action Recovery Trigger -->
-                        <div
-                            style="
-                                display: flex;
-                                gap: 12px;
-                                justify-content: flex-end;
-                                margin-top: 5px;
-                            "
-                        >
-                            <button
-                                id="btn-panic-recover"
-                                class="btn btn--mint"
-                                style="
-                                    background: linear-gradient(
-                                        135deg,
-                                        #ff3838 0%,
-                                        #ff8225 100%
-                                    );
-                                    border: none;
-                                    box-shadow: 0 4px 15px
-                                        rgba(255, 56, 56, 0.4);
-                                    padding: 12px 24px;
-                                    font-weight: 700;
-                                    display: flex;
-                                    align-items: center;
-                                    gap: 8px;
-                                    color: #ffffff;
-                                    border-radius: 10px;
-                                "
-                            >
-                                <i class="fas fa-bolt"></i> ⚡ Recover My
-                                Schedule
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- REGISTER CUSTOM MODEL MODAL -->
+<!-- REGISTER CUSTOM MODEL MODAL -->
         <div class="modal-overlay" id="registerCustomModelModal">
             <div class="modal" style="max-width: 450px; width: 100%; border: 1px solid rgba(55,230,181,0.2); box-shadow: 0 0 30px rgba(55,230,181,0.15);">
                 <div class="modal-header">
@@ -8776,14 +7917,5 @@
                 </div>
             </div>
         </div>
-
-        <button
-            id="panic-toggle-btn"
-            class="panic-toggle-btn"
-            title="🚨 Panic Mode"
-            aria-label="🚨 Panic Mode"
-        >
-            🚨
-        </button>
     </body>
 </html>

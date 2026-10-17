@@ -6249,12 +6249,12 @@ body,
 }
 
 /* Subtle minimization of bottom right FAB buttons */
-.coach-toggle-btn, .music-toggle-btn, .panic-toggle-btn {
+.music-toggle-btn {
   opacity: 0.35;
   transform: scale(0.8);
   transition: all 0.3s ease;
 }
-.coach-toggle-btn:hover, .music-toggle-btn:hover, .panic-toggle-btn:hover {
+.music-toggle-btn:hover {
   opacity: 1;
   transform: scale(1);
 }
