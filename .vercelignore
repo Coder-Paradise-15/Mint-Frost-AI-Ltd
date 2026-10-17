@@ -1,0 +1,12 @@
+# Prevent Vercel from detecting Python and trying to build backend functions
+requirements.txt
+Dockerfile
+docker-compose.yml
+*.py
+databases/
+frost_engine/
+templates/
+public/
+.env*
+*.db
+*.log
