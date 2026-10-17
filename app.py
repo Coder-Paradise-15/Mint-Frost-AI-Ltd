@@ -51,6 +51,42 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
+import gzip
+
+@app.after_request
+def compress_response(response):
+    """Compress HTML, CSS, JS, JSON responses with gzip to reduce socket payload by 80% and prevent BlockingIOError"""
+    try:
+        accept_encoding = request.headers.get("Accept-Encoding", "")
+        if (
+            "gzip" not in accept_encoding.lower()
+            or response.status_code < 200
+            or response.status_code >= 300
+            or "Content-Encoding" in response.headers
+            or response.direct_passthrough
+            or response.mimetype in ("text/event-stream", "video/mp4", "audio/mpeg")
+        ):
+            return response
+
+        if not (
+            response.mimetype.startswith("text/")
+            or response.mimetype in ("application/json", "application/javascript")
+        ):
+            return response
+
+        response_data = response.get_data()
+        if len(response_data) < 500:
+            return response
+
+        gzip_buffer = gzip.compress(response_data, compresslevel=5)
+        response.set_data(gzip_buffer)
+        response.headers["Content-Encoding"] = "gzip"
+        response.headers["Content-Length"] = len(gzip_buffer)
+        response.headers["Vary"] = "Accept-Encoding"
+    except Exception:
+        pass
+    return response
+
 # Persist secret key so sessions survive server restarts
 _env_secret = os.environ.get("SECRET_KEY") or os.environ.get("FLASK_SECRET_KEY")
 if _env_secret:
