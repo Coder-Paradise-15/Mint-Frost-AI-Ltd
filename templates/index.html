@@ -6008,6 +6008,34 @@
                                     gBtn.onclick = () => connectGoogle();
                                 }
 
+                                // GitHub
+                                const ghStatus =
+                                    document.getElementById(
+                                        "int-github-status",
+                                    );
+                                const ghBtn =
+                                    document.getElementById("int-github-btn");
+                                if (ghStatus && ghBtn) {
+                                    if (ints.github && ints.github.connected) {
+                                        ghStatus.textContent = "Connected";
+                                        ghStatus.style.color = "var(--mint)";
+                                        ghBtn.textContent = "Disconnect";
+                                        ghBtn.className =
+                                            "btn btn--ghost btn--xs btn--danger";
+                                        ghBtn.onclick = () =>
+                                            toggleIntegration(
+                                                "github",
+                                                "disconnect",
+                                            );
+                                    } else {
+                                        ghStatus.textContent = "Disconnected";
+                                        ghStatus.style.color = "var(--muted)";
+                                        ghBtn.textContent = "Connect";
+                                        ghBtn.className = "btn btn--ghost btn--xs";
+                                        ghBtn.onclick = () => connectGithub();
+                                    }
+                                }
+
                                 // Drive
                                 const dStatus =
                                     document.getElementById("int-drive-status");
@@ -6173,6 +6201,42 @@
                             }
                         };
                         window.addEventListener("message", handleAuthMessage);
+                    }
+
+                    function connectGithub() {
+                        const width = 520;
+                        const height = 680;
+                        const left = window.screen.width / 2 - width / 2;
+                        const top = window.screen.height / 2 - height / 2;
+
+                        const popup = window.open(
+                            "/api/github/auth?mode=link",
+                            "GitHubAuthPopup",
+                            `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`,
+                        );
+
+                        if (!popup || popup.closed || typeof popup.closed === "undefined") {
+                            window.location.href = "/api/github/auth?mode=link&next=" + encodeURIComponent(window.location.pathname);
+                            return;
+                        }
+
+                        const handleGhMessage = (event) => {
+                            if (
+                                event.data &&
+                                event.data.type === "github_auth_success"
+                            ) {
+                                window.removeEventListener(
+                                    "message",
+                                    handleGhMessage,
+                                );
+                                if (typeof showToast === "function")
+                                    showToast(
+                                        "Linked GitHub account successfully!",
+                                    );
+                                refreshIntegrations();
+                            }
+                        };
+                        window.addEventListener("message", handleGhMessage);
                     }
 
                     function enableLocation() {
@@ -6800,6 +6864,17 @@
                             <span id="int-google-status" style="font-size: 12px; color: var(--muted);">Disconnected</span>
                         </div>
                         <button id="int-google-btn" class="btn btn--ghost btn--xs">Connect</button>
+                    </div>
+
+                    <!-- GitHub SSO -->
+                    <div class="mfa-list-item">
+                        <div class="mfa-item-info">
+                            <span style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                <i class="fab fa-github" style="color: #f0f6fc;"></i> GitHub Account
+                            </span>
+                            <span id="int-github-status" style="font-size: 12px; color: var(--muted);">Disconnected</span>
+                        </div>
+                        <button id="int-github-btn" class="btn btn--ghost btn--xs">Connect</button>
                     </div>
 
                     <!-- Google Drive -->

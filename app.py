@@ -4041,20 +4041,37 @@ def github_auth():
     if not c_id or not c_secret:
         err_msg = "GitHub OAuth credentials not configured on server. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET."
         if "text/html" in request.headers.get("Accept", ""):
-            return render_template("github_callback.html", error=err_msg), 500
+            return render_template("github_callback.html", error=err_msg, next_url="/login"), 500
         return jsonify({"error": err_msg}), 500
 
+    next_url = request.args.get("next") or "/chat"
+    mode = request.args.get("mode") or "login"
     redirect_uri = _get_github_redirect_uri()
+
     import secrets
-    state = secrets.token_urlsafe(16)
-    session["github_oauth_state"] = state
+    import json
+    import base64
+
+    nonce = secrets.token_urlsafe(12)
+    state_payload = {
+        "nonce": nonce,
+        "next": next_url,
+        "mode": mode,
+        "user_id": session.get("user_id") or session.get("local_user_id") or "",
+    }
+    encoded_state = base64.urlsafe_b64encode(json.dumps(state_payload).encode("utf-8")).decode("utf-8")
+
+    session["github_oauth_nonce"] = nonce
+    session["github_oauth_next"] = next_url
+    session["github_oauth_mode"] = mode
     session.modified = True
 
     params = {
         "client_id": c_id,
         "redirect_uri": redirect_uri,
         "scope": "read:user user:email",
-        "state": state,
+        "state": encoded_state,
+        "allow_signup": "true",
     }
     auth_url = "https://github.com/login/oauth/authorize?" + urlencode(params)
     return redirect(auth_url)
@@ -4065,17 +4082,40 @@ def github_callback():
     code = request.args.get("code")
     error = request.args.get("error")
     error_desc = request.args.get("error_description")
+    raw_state = request.args.get("state")
+
+    next_url = session.get("github_oauth_next") or "/chat"
+    mode = session.get("github_oauth_mode") or "login"
+    state_user_id = ""
+
+    if raw_state:
+        try:
+            import base64
+            import json
+            padded = raw_state + "=" * (-len(raw_state) % 4)
+            state_data = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
+            if isinstance(state_data, dict):
+                next_url = state_data.get("next") or next_url
+                mode = state_data.get("mode") or mode
+                state_user_id = state_data.get("user_id") or ""
+        except Exception:
+            pass
+
+    if not next_url or not next_url.startswith("/"):
+        next_url = "/chat"
+
+    is_link_mode = (mode == "link")
+
     if error:
         err_msg = error_desc or error or "GitHub authentication was canceled."
-        return render_template("github_callback.html", error=err_msg) if "text/html" in request.headers.get("Accept", "") else jsonify({"error": err_msg}), 400
+        return render_template("github_callback.html", error=err_msg, next_url=next_url, is_link=is_link_mode)
 
     if not code:
-        return render_template("github_callback.html", error="Missing authorization code.") if "text/html" in request.headers.get("Accept", "") else jsonify({"error": "Missing code parameter"}), 400
+        return render_template("github_callback.html", error="Missing authorization code from GitHub.", next_url=next_url, is_link=is_link_mode)
 
     c_id, c_secret = load_github_credentials()
     if not c_id or not c_secret:
-        err_msg = "GitHub OAuth credentials not configured on server."
-        return render_template("github_callback.html", error=err_msg) if "text/html" in request.headers.get("Accept", "") else jsonify({"error": err_msg}), 500
+        return render_template("github_callback.html", error="GitHub OAuth credentials not configured on server.", next_url=next_url, is_link=is_link_mode)
 
     token_url = "https://github.com/login/oauth/access_token"
     redirect_uri = _get_github_redirect_uri()
@@ -4102,11 +4142,11 @@ def github_callback():
         tok_data = resp.json()
         if "error" in tok_data or resp.status_code != 200:
             err_msg = tok_data.get("error_description") or tok_data.get("error") or f"Token exchange failed ({resp.status_code})"
-            return render_template("github_callback.html", error=err_msg) if "text/html" in request.headers.get("Accept", "") else jsonify({"error": err_msg}), 400
+            return render_template("github_callback.html", error=err_msg, next_url=next_url, is_link=is_link_mode)
 
         access_token = tok_data.get("access_token")
         if not access_token:
-            return render_template("github_callback.html", error="No access token received from GitHub.") if "text/html" in request.headers.get("Accept", "") else jsonify({"error": "No access token"}), 400
+            return render_template("github_callback.html", error="No access token received from GitHub.", next_url=next_url, is_link=is_link_mode)
 
         auth_headers = {
             "Authorization": f"Bearer {access_token}",
@@ -4122,12 +4162,28 @@ def github_callback():
 
         if user_resp.status_code != 200:
             err_msg = f"Failed to retrieve GitHub profile ({user_resp.status_code})"
-            return render_template("github_callback.html", error=err_msg) if "text/html" in request.headers.get("Accept", "") else jsonify({"error": err_msg}), 400
+            return render_template("github_callback.html", error=err_msg, next_url=next_url, is_link=is_link_mode)
 
         profile = user_resp.json()
         account_id = str(profile.get("id"))
         if not account_id:
-            return render_template("github_callback.html", error="No user ID in GitHub profile.") if "text/html" in request.headers.get("Accept", "") else jsonify({"error": "No user ID"}), 400
+            return render_template("github_callback.html", error="No user ID in GitHub profile.", next_url=next_url, is_link=is_link_mode)
+
+        # Retrieve user primary email if not public in profile
+        primary_email = profile.get("email")
+        if not primary_email:
+            try:
+                emails_resp = requests.get("https://api.github.com/user/emails", headers=auth_headers, timeout=8)
+                if emails_resp.status_code == 200:
+                    emails = emails_resp.json()
+                    for em in emails:
+                        if em.get("primary"):
+                            primary_email = em.get("email")
+                            break
+                    if not primary_email and emails:
+                        primary_email = emails[0].get("email")
+            except Exception:
+                pass
 
         session["github_access_token"] = access_token
         session["github_account_id"] = account_id
@@ -4141,6 +4197,17 @@ def github_callback():
         except Exception:
             pass
 
+        active_user_id = session.get("user_id") or session.get("local_user_id") or state_user_id
+
+        # If in link mode or user already authenticated, link GitHub to current account
+        if is_link_mode and active_user_id:
+            database.link_account_to_user(active_user_id, "github", account_id)
+            session["local_user_id"] = active_user_id
+            session["user_id"] = active_user_id
+            session["github_account_id"] = account_id
+            session.modified = True
+            return render_template("github_callback.html", next_url=next_url, is_link=True, user_id=active_user_id)
+
         linked_user_id = database.get_user_by_provider("github", account_id)
 
         if linked_user_id:
@@ -4151,9 +4218,9 @@ def github_callback():
                 return render_template(
                     "github_callback.html",
                     error="Your account has been deactivated by an administrator.",
-                ) if "text/html" in request.headers.get("Accept", "") else jsonify(
-                    {"error": "Your account has been deactivated by an administrator."}
-                ), 403
+                    next_url="/login?error=deactivated",
+                    is_link=False,
+                )
 
             session["local_user_id"] = linked_user_id
             session["user_id"] = linked_user_id
@@ -4162,9 +4229,9 @@ def github_callback():
             register_login_session(linked_user_id)
             log_user_telemetry(linked_user_id)
         else:
-            active_user_id = session.get("user_id")
             if active_user_id:
                 session["local_user_id"] = active_user_id
+                session["user_id"] = active_user_id
                 database.link_account_to_user(active_user_id, "github", account_id)
             else:
                 gh_login = profile.get("login") or f"gh_{account_id[:8]}"
@@ -4191,19 +4258,14 @@ def github_callback():
                 log_user_telemetry(username)
                 database.link_account_to_user(username, "github", account_id)
 
-        return (
-            render_template("github_callback.html")
-            if "text/html" in request.headers.get("Accept", "")
-            else jsonify({"success": True})
-        )
+        session.modified = True
+        return render_template("github_callback.html", next_url=next_url, is_link=False)
     except Exception as e:
         app.logger.error(f"Failed to handle GitHub callback: {str(e)}")
         err_msg = f"GitHub authentication failed: {str(e)}"
         return render_template(
-            "github_callback.html", error=err_msg
-        ) if "text/html" in request.headers.get("Accept", "") else jsonify(
-            {"error": err_msg}
-        ), 500
+            "github_callback.html", error=err_msg, next_url=next_url, is_link=is_link_mode
+        )
 
 
 @app.route("/api/github/me")
@@ -4308,6 +4370,123 @@ def api_unlink_account():
         return jsonify({"success": True, "unlinked": provider})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/user/integrations", methods=["GET"])
+def api_get_user_integrations():
+    user_id = session.get("local_user_id") or session.get("user_id")
+    if not user_id:
+        return jsonify({
+            "success": True,
+            "integrations": {
+                "github": {"connected": False},
+                "google": {"connected": False},
+                "google_drive": {"connected": False},
+                "google_calendar": {"connected": False},
+                "location": {"connected": False}
+            }
+        })
+
+    linked = database.get_linked_accounts(user_id) or []
+    linked_providers = {l.get("provider"): l.get("account_id") for l in linked}
+
+    gh_connected = "github" in linked_providers or bool(session.get("github_account_id"))
+    g_connected = "google" in linked_providers or bool(session.get("google_account_id"))
+    drive_connected = bool(session.get("google_drive_enabled", False)) or (g_connected and bool(session.get("google_drive_connected", False)))
+    calendar_connected = bool(session.get("google_calendar_enabled", False)) or (g_connected and bool(session.get("google_calendar_connected", False)))
+    location_connected = bool(session.get("location_enabled", False))
+
+    return jsonify({
+        "success": True,
+        "integrations": {
+            "github": {
+                "connected": gh_connected,
+                "id": linked_providers.get("github") or session.get("github_account_id") or ""
+            },
+            "google": {
+                "connected": g_connected,
+                "id": linked_providers.get("google") or session.get("google_account_id") or ""
+            },
+            "google_drive": {
+                "connected": drive_connected
+            },
+            "google_calendar": {
+                "connected": calendar_connected
+            },
+            "location": {
+                "connected": location_connected,
+                "value": session.get("location_coords", "")
+            }
+        }
+    })
+
+
+@app.route("/api/user/integrations/toggle", methods=["POST"])
+def api_toggle_user_integration():
+    user_id = session.get("local_user_id") or session.get("user_id")
+    if not user_id:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+
+    data = request.get_json() or {}
+    provider = data.get("provider", "").lower().strip()
+    action = data.get("action", "disconnect")
+    value = data.get("value")
+
+    if not provider:
+        return jsonify({"success": False, "error": "Provider required"}), 400
+
+    try:
+        if provider == "github":
+            if action == "disconnect":
+                database.unlink_account(user_id, "github")
+                acct = session.pop("github_account_id", None)
+                session.pop("github_access_token", None)
+                if acct:
+                    try:
+                        database.delete_oauth_token("github", acct)
+                    except Exception:
+                        pass
+                session.modified = True
+                return jsonify({"success": True, "provider": "github", "connected": False})
+
+        elif provider == "google":
+            if action == "disconnect":
+                database.unlink_account(user_id, "google")
+                acct = session.pop("google_account_id", None)
+                session.pop("google_access_token", None)
+                session.pop("google_drive_enabled", None)
+                session.pop("google_calendar_enabled", None)
+                if acct:
+                    try:
+                        database.delete_oauth_token("google", acct)
+                    except Exception:
+                        pass
+                session.modified = True
+                return jsonify({"success": True, "provider": "google", "connected": False})
+
+        elif provider in ("google_drive", "drive"):
+            session["google_drive_enabled"] = (action == "connect")
+            session.modified = True
+            return jsonify({"success": True, "provider": "google_drive", "connected": (action == "connect")})
+
+        elif provider in ("google_calendar", "calendar"):
+            session["google_calendar_enabled"] = (action == "connect")
+            session.modified = True
+            return jsonify({"success": True, "provider": "google_calendar", "connected": (action == "connect")})
+
+        elif provider == "location":
+            is_enabled = (action == "connect")
+            session["location_enabled"] = is_enabled
+            if is_enabled and value:
+                session["location_coords"] = str(value)
+            elif not is_enabled:
+                session.pop("location_coords", None)
+            session.modified = True
+            return jsonify({"success": True, "provider": "location", "connected": is_enabled})
+
+        return jsonify({"success": True, "provider": provider, "action": action})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/api/accounts/profile", methods=["POST"])

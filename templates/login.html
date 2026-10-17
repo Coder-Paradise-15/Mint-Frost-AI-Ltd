@@ -885,10 +885,26 @@
       
       alertBox.className = 'auth-alert';
       alertBox.style.display = 'none';
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const nextUrl = urlParams.get('next') || '/chat';
+      const authEndpoint = '/api/github/auth?next=' + encodeURIComponent(nextUrl);
+
+      // Check if mobile user agent
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = authEndpoint;
+        return;
+      }
       
       // Open popup window
-      const popup = window.open('/api/github/auth', 'GitHubAuthPopup', `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`);
+      const popup = window.open(authEndpoint, 'GitHubAuthPopup', `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`);
       
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        window.location.href = authEndpoint;
+        return;
+      }
+
       // Listen for message from callback popup window
       const handleGithubAuthMessage = (event) => {
         if (event.data && event.data.type === 'github_auth_success') {
@@ -900,10 +916,8 @@
           alertBox.style.display = 'flex';
           
           setTimeout(() => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const nextUrl = urlParams.get('next') || '/chat';
-            window.location.href = nextUrl;
-          }, 800);
+            window.location.href = event.data.next || nextUrl;
+          }, 600);
         } else if (event.data && event.data.type === 'github_auth_error') {
           window.removeEventListener('message', handleGithubAuthMessage);
           
