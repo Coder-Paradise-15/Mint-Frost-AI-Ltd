@@ -2669,12 +2669,14 @@ const timeFormatter = new Intl.DateTimeFormat([], {
 });
 
 function updateTime() {
+  if (!timeDisplay) return;
   const now = new Date();
   timeDisplay.textContent = timeFormatter.format(now);
 }
 
 // Get weather data
 async function updateWeather(location = "London") {
+  if (!weatherTemp || !weatherDisplay) return;
   try {
     const response = await fetch(
       `/weather?city=${encodeURIComponent(location)}`,
@@ -2682,8 +2684,8 @@ async function updateWeather(location = "London") {
     const data = await response.json();
 
     if (data.error) {
-      weatherTemp.textContent = "22°C";
-      weatherIcon.className = "fas fa-sun";
+      if (weatherTemp) weatherTemp.textContent = "22°C";
+      if (weatherIcon) weatherIcon.className = "fas fa-sun";
       return;
     }
 

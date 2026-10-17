@@ -935,12 +935,16 @@
       window.addEventListener('message', handleGithubAuthMessage);
     }
 
-    // Check for URL query errors on load
+    // Check for URL query params and errors on load
     window.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const alertBox = document.getElementById('alert-box');
       const alertIcon = document.getElementById('alert-icon');
       const alertText = document.getElementById('alert-text');
+
+      if (urlParams.get('tab') === 'register' || urlParams.get('mode') === 'register') {
+        switchForm('register');
+      }
 
       if (urlParams.get('error') === 'deactivated') {
         alertBox.className = 'auth-alert error';

@@ -772,6 +772,7 @@
 
             <!-- Right: Date/Time, Notifications, Theme, Profile -->
             <div class="nav__actions">
+                {% if is_logged_in %}
                 <div class="weather-time" id="weather-time">
                     <div class="time-display" id="time-display">--:--</div>
                     <div class="weather-display" id="weather-display">
@@ -873,8 +874,7 @@
                     <i class="fas fa-moon" id="theme-icon"></i>
                 </button>
 
-                <!-- Profile Menu or Sign In Button -->
-                {% if is_logged_in %}
+                <!-- Profile Menu -->
                 <div
                     class="profile-menu-container"
                     style="position: relative; display: inline-block"
@@ -1097,14 +1097,24 @@
                     </div>
                 </div>
                 {% else %}
-                <a
-                    href="/login?next=/chat"
-                    class="btn btn--primary btn--sm"
-                    style="text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-weight: 600; font-size: 13px; border-radius: 20px; background: var(--mint); color: #0b0f14; border: none; transition: transform 0.2s, box-shadow 0.2s;"
-                >
-                    <i class="fas fa-sign-in-alt"></i>
-                    <span>Sign In</span>
-                </a>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <a
+                        href="/login?next=/chat"
+                        class="btn btn--ghost btn--sm"
+                        style="text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-weight: 600; font-size: 13px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.15); color: #ffffff; background: rgba(255, 255, 255, 0.04); transition: all 0.2s ease;"
+                    >
+                        <i class="fas fa-sign-in-alt"></i>
+                        <span>Sign In</span>
+                    </a>
+                    <a
+                        href="/login?tab=register&next=/chat"
+                        class="btn btn--primary btn--sm"
+                        style="text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-weight: 600; font-size: 13px; border-radius: 20px; background: var(--mint); color: #0b0f14; border: none; transition: transform 0.2s, box-shadow 0.2s;"
+                    >
+                        <i class="fas fa-user-plus"></i>
+                        <span>Sign Up</span>
+                    </a>
+                </div>
                 {% endif %}
             </div>
         </header>
@@ -8239,6 +8249,7 @@
             <i class="fas fa-graduation-cap"></i>
         </button>
 
+        {% if is_logged_in %}
         <button
             id="jamendo-btn"
             class="music-toggle-btn"
@@ -8306,6 +8317,7 @@
                 />
             </div>
         </button>
+        {% endif %}
 
         <!-- 🚨 Panic Mode Emergency Recovery Modal -->
         <div id="panic-modal" class="panic-modal">
