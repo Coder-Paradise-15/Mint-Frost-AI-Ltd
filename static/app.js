@@ -4470,7 +4470,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
             <div style="font-size: 0.9em; color: var(--muted); flex: 1;">Link your Google account for single sign-on.</div>
             <button id="modal-link-google-btn" class="btn btn--mint btn--sm" style="padding: 6px 12px; font-size: 0.85em; display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-              <img src="/static/google-g.png" alt="Google" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; flex-shrink: 0;"> Connect
+              <img src="/static/google-g.png" alt="Google" style="width: 16px; height: 16px; object-fit: contain; vertical-align: middle; flex-shrink: 0;"> Connect
             </button>
           </div>
         `
@@ -4479,7 +4479,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       <div class="glass" style="padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); margin-bottom: 16px;">
         <h4 style="margin: 0 0 12px 0; font-size: 1em; font-weight: 600; color: var(--fg); display: flex; align-items: center; gap: 8px;">
-          <img src="/static/github-invertocat.png" alt="GitHub" style="width: 16px; height: 16px; object-fit: contain; vertical-align: middle; flex-shrink: 0; border-radius: 50%;"> GitHub Integration
+          <img src="/static/github-invertocat.png" alt="GitHub" style="width: 18px; height: 18px; object-fit: contain; vertical-align: middle; flex-shrink: 0; border-radius: 50%;"> GitHub Integration
         </h4>
 
         ${
@@ -4499,7 +4499,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
             <div style="font-size: 0.9em; color: var(--muted); flex: 1;">Link your GitHub account for single sign-on.</div>
             <button id="modal-link-github-btn" class="btn btn--ghost btn--sm" style="padding: 6px 12px; font-size: 0.85em; display: flex; align-items: center; gap: 6px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05);">
-              <img src="/static/github-invertocat.png" alt="GitHub" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; flex-shrink: 0; border-radius: 50%;"> Connect
+              <img src="/static/github-invertocat.png" alt="GitHub" style="width: 16px; height: 16px; object-fit: contain; vertical-align: middle; flex-shrink: 0; border-radius: 50%;"> Connect
             </button>
           </div>
         `
