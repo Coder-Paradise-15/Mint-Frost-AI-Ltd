@@ -8,6 +8,8 @@
         <meta name="description" content="Mint Frost AI - Intelligent multi-model AI chat workspace featuring dynamic model discovery, daily productivity planning, and analytics." />
         <script>
             window.currentUser = "{{ session.get('user_id', '') }}";
+            window.isLoggedIn = {{ 'true' if is_logged_in else 'false' }};
+            window.defaultTab = "{{ default_tab or 'tab-home' }}";
             window.currentUserDisplayName =
                 "{{ session.get('display_name', '') or '' }}";
             window.currentUserProfilePic =
@@ -870,7 +872,8 @@
                     <i class="fas fa-moon" id="theme-icon"></i>
                 </button>
 
-                <!-- Profile Menu -->
+                <!-- Profile Menu or Sign In Button -->
+                {% if is_logged_in %}
                 <div
                     class="profile-menu-container"
                     style="position: relative; display: inline-block"
@@ -1092,6 +1095,16 @@
                         </a>
                     </div>
                 </div>
+                {% else %}
+                <a
+                    href="/login?next=/chat"
+                    class="btn btn--primary btn--sm"
+                    style="text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-weight: 600; font-size: 13px; border-radius: 20px; background: var(--mint); color: #0b0f14; border: none; transition: transform 0.2s, box-shadow 0.2s;"
+                >
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>Sign In</span>
+                </a>
+                {% endif %}
             </div>
         </header>
 
@@ -5611,13 +5624,21 @@
                 document.querySelectorAll(".nav-tab").forEach((tab) => {
                     tab.addEventListener("click", (e) => {
                         e.preventDefault();
+                        const targetId = tab.dataset.tab;
+
+                        // If user is guest and attempts to open Chat or Private workspace tabs, redirect to login
+                        if ((targetId === "tab-chat" || targetId === "tab-tasks" || targetId === "tab-todo" || targetId === "tab-planner" || targetId === "tab-analytics") && !window.isLoggedIn) {
+                            window.location.href = `/login?next=/${targetId === "tab-chat" ? "chat" : ""}`;
+                            return;
+                        }
+
                         document.querySelectorAll(".nav-tab").forEach((t) => {
                             t.classList.remove("active-tab");
                             t.removeAttribute("aria-current");
                         });
                         tab.classList.add("active-tab");
                         tab.setAttribute("aria-current", "page");
-                        const targetId = tab.dataset.tab;
+
                         document
                             .querySelectorAll(
                                 "#tab-home, #tab-chat, #tab-docs, #tab-support, #tab-tasks, #tab-todo, #tab-planner, #tab-analytics",
@@ -5647,6 +5668,14 @@
                         }
                     });
                 });
+
+                // Auto-activate default_tab if specified (e.g. tab-chat when navigating to /chat)
+                if (window.defaultTab && window.defaultTab !== "tab-home") {
+                    const defaultTabBtn = document.querySelector(`.nav-tab[data-tab="${window.defaultTab}"]`);
+                    if (defaultTabBtn) {
+                        defaultTabBtn.click();
+                    }
+                }
 
                 try {
                     const res = await fetch("/api/announcement");
@@ -6174,6 +6203,52 @@
                         );
                     }
 
+                    // ── ACCOUNT & INTEGRATIONS CONTROLLER ──
+                    function openAccountDrawer() {
+                        if (accountDrawerOverlay && accountDrawer) {
+                            accountDrawerOverlay.classList.add("show");
+                            accountDrawer.classList.add("show");
+                            refreshIntegrations();
+                        }
+                    }
+
+                    function closeAccountDrawer() {
+                        if (accountDrawerOverlay && accountDrawer) {
+                            accountDrawerOverlay.classList.remove("show");
+                            accountDrawer.classList.remove("show");
+                        }
+                    }
+
+                    if (profileAccountBtn) {
+                        profileAccountBtn.addEventListener("click", () => {
+                            const dropdown = document.getElementById("profile-dropdown");
+                            if (dropdown) dropdown.classList.remove("show");
+                            openAccountDrawer();
+                        });
+                    }
+
+                    if (accountDrawerClose) {
+                        accountDrawerClose.addEventListener("click", closeAccountDrawer);
+                    }
+                    if (accountDrawerOverlay) {
+                        accountDrawerOverlay.addEventListener("click", closeAccountDrawer);
+                    }
+
+                    // Profile Menu Dropdown Toggle Controller
+                    const profileMenuBtn = document.getElementById("profile-menu-btn");
+                    const profileDropdown = document.getElementById("profile-dropdown");
+                    if (profileMenuBtn && profileDropdown) {
+                        profileMenuBtn.addEventListener("click", (e) => {
+                            e.stopPropagation();
+                            profileDropdown.classList.toggle("show");
+                        });
+                        document.addEventListener("click", (e) => {
+                            if (!profileDropdown.contains(e.target) && !profileMenuBtn.contains(e.target)) {
+                                profileDropdown.classList.remove("show");
+                            }
+                        });
+                    }
+
                     // ── MFA DRAWER CONTROLLER ──
                     const mfaDrawer = document.getElementById("mfa-drawer");
                     const mfaDrawerOverlay =
@@ -6184,27 +6259,29 @@
                         document.getElementById("profile-mfa-btn");
 
                     function openMfaDrawer() {
-                        mfaDrawerOverlay.classList.add("show");
-                        mfaDrawer.classList.add("show");
-                        refreshMfaStatus();
+                        if (mfaDrawerOverlay && mfaDrawer) {
+                            mfaDrawerOverlay.classList.add("show");
+                            mfaDrawer.classList.add("show");
+                            refreshMfaStatus();
+                        }
                     }
 
                     function closeMfaDrawer() {
-                        mfaDrawerOverlay.classList.remove("show");
-                        mfaDrawer.classList.remove("show");
-                        document.getElementById(
-                            "mfa-totp-setup-container",
-                        ).style.display = "none";
-                        document.getElementById(
-                            "mfa-enable-totp-btn",
-                        ).style.display = "block";
+                        if (mfaDrawerOverlay && mfaDrawer) {
+                            mfaDrawerOverlay.classList.remove("show");
+                            mfaDrawer.classList.remove("show");
+                            const setupBox = document.getElementById("mfa-totp-setup-container");
+                            if (setupBox) setupBox.style.display = "none";
+                            const enableBtn = document.getElementById("mfa-enable-totp-btn");
+                            if (enableBtn) enableBtn.style.display = "block";
+                        }
                     }
 
                     if (profileMfaBtn) {
                         profileMfaBtn.addEventListener("click", () => {
                             const dropdown =
                                 document.getElementById("profile-dropdown");
-                            if (dropdown) dropdown.style.display = "none";
+                            if (dropdown) dropdown.classList.remove("show");
                             openMfaDrawer();
                         });
                     }
@@ -6232,21 +6309,23 @@
                     const mfaTotpSection =
                         document.getElementById("mfa-totp-section");
 
-                    tabPasskeyBtn.addEventListener("click", () => {
-                        tabPasskeyBtn.classList.add("active");
-                        tabTotpBtn.classList.remove("active");
-                        mfaSlidingPill.style.transform = "translateX(0)";
-                        mfaPasskeySection.classList.add("active");
-                        mfaTotpSection.classList.remove("active");
-                    });
+                    if (tabPasskeyBtn && tabTotpBtn && mfaSlidingPill && mfaPasskeySection && mfaTotpSection) {
+                        tabPasskeyBtn.addEventListener("click", () => {
+                            tabPasskeyBtn.classList.add("active");
+                            tabTotpBtn.classList.remove("active");
+                            mfaSlidingPill.style.transform = "translateX(0)";
+                            mfaPasskeySection.classList.add("active");
+                            mfaTotpSection.classList.remove("active");
+                        });
 
-                    tabTotpBtn.addEventListener("click", () => {
-                        tabTotpBtn.classList.add("active");
-                        tabPasskeyBtn.classList.remove("active");
-                        mfaSlidingPill.style.transform = "translateX(100%)";
-                        mfaTotpSection.classList.add("active");
-                        mfaPasskeySection.classList.remove("active");
-                    });
+                        tabTotpBtn.addEventListener("click", () => {
+                            tabTotpBtn.classList.add("active");
+                            tabPasskeyBtn.classList.remove("active");
+                            mfaSlidingPill.style.transform = "translateX(100%)";
+                            mfaTotpSection.classList.add("active");
+                            mfaPasskeySection.classList.remove("active");
+                        });
+                    }
 
                     // API Requests: Refresh lists
                     async function refreshMfaStatus() {
@@ -6684,7 +6763,79 @@
             });
         </script>
 
-        <!-- ACCOUNT & INTEGRATIONS DRAWER DEPRECATED - HANDLED BY UNIFIED MODAL IN APP.JS -->
+        <!-- ACCOUNT & INTEGRATIONS DRAWER -->
+        <div class="mfa-drawer-overlay" id="account-drawer-overlay"></div>
+        <div class="mfa-drawer" id="account-drawer" style="max-width: 480px;">
+            <div class="mfa-drawer__header">
+                <h3 class="mfa-drawer__title">
+                    <i class="fas fa-user-circle" style="color: var(--mint);"></i>
+                    <span>Account & Integrations</span>
+                </h3>
+                <button class="mfa-drawer__close" id="account-drawer-close">
+                    &times;
+                </button>
+            </div>
+            <div class="mfa-drawer__body">
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <!-- User Profile Info -->
+                    <div style="padding: 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: var(--radius-md); display: flex; align-items: center; gap: 14px;">
+                        <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(55, 230, 181, 0.15); display: flex; align-items: center; justify-content: center; color: var(--mint); font-size: 20px;">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; font-size: 15px; color: var(--fg);" id="account-user-display">{{ session.get('display_name', '') or session.get('user_id', 'User') }}</div>
+                            <div style="font-size: 12px; color: var(--muted);">Manage your linked integrations & sync</div>
+                        </div>
+                    </div>
+
+                    <h4 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--mint); margin: 8px 0 0;">Connected Services</h4>
+
+                    <!-- Google SSO -->
+                    <div class="mfa-list-item">
+                        <div class="mfa-item-info">
+                            <span style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                <i class="fab fa-google" style="color: #ea4335;"></i> Google Account
+                            </span>
+                            <span id="int-google-status" style="font-size: 12px; color: var(--muted);">Disconnected</span>
+                        </div>
+                        <button id="int-google-btn" class="btn btn--ghost btn--xs">Connect</button>
+                    </div>
+
+                    <!-- Google Drive -->
+                    <div class="mfa-list-item">
+                        <div class="mfa-item-info">
+                            <span style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                <i class="fab fa-google-drive" style="color: #0f9d58;"></i> Google Drive
+                            </span>
+                            <span id="int-drive-status" style="font-size: 12px; color: var(--muted);">Disconnected</span>
+                        </div>
+                        <button id="int-drive-btn" class="btn btn--ghost btn--xs">Connect</button>
+                    </div>
+
+                    <!-- Google Calendar -->
+                    <div class="mfa-list-item">
+                        <div class="mfa-item-info">
+                            <span style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-calendar-alt" style="color: #4285f4;"></i> Google Calendar
+                            </span>
+                            <span id="int-calendar-status" style="font-size: 12px; color: var(--muted);">Disconnected</span>
+                        </div>
+                        <button id="int-calendar-btn" class="btn btn--ghost btn--xs">Connect</button>
+                    </div>
+
+                    <!-- Geolocation -->
+                    <div class="mfa-list-item">
+                        <div class="mfa-item-info">
+                            <span style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-map-marker-alt" style="color: #f1c40f;"></i> Precise Location
+                            </span>
+                            <span id="int-location-status" style="font-size: 12px; color: var(--muted);">Inactive</span>
+                        </div>
+                        <button id="int-location-btn" class="btn btn--ghost btn--xs">Enable</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- MFA Sliding Drawer Overlay & Panel -->
         <div class="mfa-drawer-overlay" id="mfa-drawer-overlay"></div>

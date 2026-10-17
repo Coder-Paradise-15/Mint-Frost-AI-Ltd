@@ -667,10 +667,12 @@
           // Smooth fade-in
           alertBox.style.display = 'flex';
           
-          // Reload page to automatically unlock the dashboard at "/"
+          // Navigate to destination (default /chat)
           setTimeout(() => {
-            window.location.reload();
-          }, 1000);
+            const urlParams = new URLSearchParams(window.location.search);
+            const nextUrl = urlParams.get('next') || '/chat';
+            window.location.href = nextUrl;
+          }, 800);
         } else {
           // Show error and shake card
           throw new Error(data.error || "Authentication failed");
@@ -797,12 +799,15 @@
         const res = await verifyResp.json();
         if (verifyResp.ok && res.success) {
           alertBox.className = 'auth-alert success';
+          alertBox.className = 'auth-alert success';
           alertIcon.className = 'fas fa-check-circle';
           alertText.textContent = "Passkey verified successfully! Accessing dashboard...";
           alertBox.style.display = 'flex';
           setTimeout(() => {
-            window.location.reload();
-          }, 1000);
+            const urlParams = new URLSearchParams(window.location.search);
+            const nextUrl = urlParams.get('next') || '/chat';
+            window.location.href = nextUrl;
+          }, 800);
         } else {
           throw new Error(res.error || "Verification failed");
         }
@@ -846,8 +851,10 @@
           alertBox.style.display = 'flex';
           
           setTimeout(() => {
-            window.location.href = '/';
-          }, 1000);
+            const urlParams = new URLSearchParams(window.location.search);
+            const nextUrl = urlParams.get('next') || '/chat';
+            window.location.href = nextUrl;
+          }, 800);
         } else if (event.data && event.data.type === 'google_auth_error') {
           window.removeEventListener('message', handleAuthMessage);
           
@@ -893,8 +900,10 @@
           alertBox.style.display = 'flex';
           
           setTimeout(() => {
-            window.location.href = '/';
-          }, 1000);
+            const urlParams = new URLSearchParams(window.location.search);
+            const nextUrl = urlParams.get('next') || '/chat';
+            window.location.href = nextUrl;
+          }, 800);
         } else if (event.data && event.data.type === 'github_auth_error') {
           window.removeEventListener('message', handleGithubAuthMessage);
           

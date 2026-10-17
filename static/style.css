@@ -3596,6 +3596,10 @@ kbd {
   background: rgba(255, 255, 255, 0.98) !important;
 }
 
+.profile-dropdown.show {
+  display: flex !important;
+}
+
 .toolbar-dropdown.show {
   display: flex;
 }

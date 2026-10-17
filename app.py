@@ -46,6 +46,11 @@ _load_env_file()
 # Create Flask app with simple logging (working setup)
 app = Flask(__name__)
 
+# Respect proxy headers (X-Forwarded-Host, X-Forwarded-Proto) from reverse proxies like Vercel/Cloudflare
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
 # Persist secret key so sessions survive server restarts
 _env_secret = os.environ.get("SECRET_KEY") or os.environ.get("FLASK_SECRET_KEY")
 if _env_secret:
@@ -687,20 +692,19 @@ def inject_csrf_token():
 @app.route("/")
 def index():
     user_id = session.get("user_id")
-    if not user_id:
-        return redirect("/login")
-    user = database.get_user_secure(user_id)
-    if user and user.get("status") == "deactivated":
-        session.clear()
-        session.modified = True
-        return redirect("/login?error=deactivated")
+    if user_id:
+        user = database.get_user_secure(user_id)
+        if user and user.get("status") == "deactivated":
+            session.clear()
+            session.modified = True
+            return redirect("/login?error=deactivated")
 
     # Self-heal client cookies from oversized chat history data
     if "chat_history" in session:
         session.pop("chat_history", None)
         session.modified = True
 
-    return render_template("index.html")
+    return render_template("index.html", is_logged_in=bool(user_id), default_tab="tab-home")
 
 
 @app.route("/login")
@@ -1359,9 +1363,28 @@ def generate_fallback_subtasks(category, task_title):
     )
 
 
-@app.route("/chat", methods=["POST"])
-@login_required
+@app.route("/chat", methods=["GET", "POST"])
 def chat(is_regenerate=False):
+    if request.method == "GET":
+        user_id = session.get("user_id")
+        if not user_id:
+            return redirect("/login?next=/chat")
+        user = database.get_user_secure(user_id)
+        if user and user.get("status") == "deactivated":
+            session.clear()
+            session.modified = True
+            return redirect("/login?error=deactivated")
+        return render_template("index.html", is_logged_in=True, default_tab="tab-chat")
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Authentication required"}), 401
+    user = database.get_user_secure(user_id)
+    if user and user.get("status") == "deactivated":
+        session.clear()
+        session.modified = True
+        return jsonify({"error": "Your account has been deactivated by an administrator."}), 403
+
     detected_tasks = []
     client_ip = request.remote_addr
     app.logger.info(f"[Chat API] Received request from client IP: {client_ip}")

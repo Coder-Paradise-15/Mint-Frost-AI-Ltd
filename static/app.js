@@ -623,13 +623,21 @@ function detectSystemTheme() {
   }
 }
 
-// Toggle theme (now opens selector)
+// Toggle theme (now opens selector or toggles dark/light)
 function toggleTheme() {
-  showThemeSelector();
+  if (themeSelector) {
+    showThemeSelector();
+  } else {
+    const next = currentTheme === "dark" ? "light" : "dark";
+    applyTheme(next);
+    localStorage.setItem("theme", next);
+    updateThemeIcon();
+  }
 }
 
 // Show theme selector
 function showThemeSelector() {
+  if (!themeSelector) return;
   themeSelectorVisible = true;
   themeSelector.classList.add("show");
   updateThemeSelector();
@@ -638,15 +646,17 @@ function showThemeSelector() {
 // Hide theme selector
 function hideThemeSelector() {
   themeSelectorVisible = false;
-  themeSelector.classList.remove("show");
+  if (themeSelector) themeSelector.classList.remove("show");
 }
 
 // Update theme selector UI
 function updateThemeSelector() {
-  themeOptions.forEach((option) => {
-    option.classList.toggle("active", option.dataset.theme === currentTheme);
-  });
-  autoThemeCheckbox.checked = autoTheme;
+  if (themeOptions) {
+    themeOptions.forEach((option) => {
+      option.classList.toggle("active", option.dataset.theme === currentTheme);
+    });
+  }
+  if (autoThemeCheckbox) autoThemeCheckbox.checked = autoTheme;
   updateCustomThemesList();
 }
 
@@ -665,9 +675,11 @@ async function loadCustomThemes() {
 // Update custom themes list
 function updateCustomThemesList() {
   const hasCustomThemes = Object.keys(customThemes).length > 0;
-  customThemesList.style.display = hasCustomThemes ? "block" : "none";
-
-  customThemesContainer.innerHTML = "";
+  if (customThemesList) {
+    customThemesList.style.display = hasCustomThemes ? "block" : "none";
+  }
+  if (customThemesContainer) {
+    customThemesContainer.innerHTML = "";
 
   Object.entries(customThemes).forEach(([themeId, theme]) => {
     const item = document.createElement("div");
@@ -2922,28 +2934,32 @@ async function setWeatherApiKey(apiKey) {
 }
 
 // Modal event listeners
-modalClose.addEventListener("click", hideModal);
-modalOverlay.addEventListener("click", (e) => {
-  if (e.target === modalOverlay) {
-    hideModal();
-  }
-});
+if (modalClose) modalClose.addEventListener("click", hideModal);
+if (modalOverlay) {
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) {
+      hideModal();
+    }
+  });
+}
 
 // Event Listeners
-sendBtn.addEventListener("click", sendMessage);
+if (sendBtn) sendBtn.addEventListener("click", sendMessage);
 if (themeToggle) themeToggle.addEventListener("click", toggleTheme);
 
 // Theme selector events
-themeClose.addEventListener("click", hideThemeSelector);
-autoThemeCheckbox.addEventListener("change", toggleAutoTheme);
-createThemeBtn.addEventListener("click", showThemeCreator);
+if (themeClose) themeClose.addEventListener("click", hideThemeSelector);
+if (autoThemeCheckbox) autoThemeCheckbox.addEventListener("change", toggleAutoTheme);
+if (createThemeBtn) createThemeBtn.addEventListener("click", showThemeCreator);
 
-themeOptions.forEach((option) => {
-  option.addEventListener("click", () => {
-    const theme = option.dataset.theme;
-    setTheme(theme);
+if (themeOptions) {
+  themeOptions.forEach((option) => {
+    option.addEventListener("click", () => {
+      const theme = option.dataset.theme;
+      setTheme(theme);
+    });
   });
-});
+}
 
 // Simple event listeners
 if (creatorClose) creatorClose.addEventListener("click", hideThemeCreator);
@@ -2974,13 +2990,14 @@ window.testThemeCreator = function () {
 document.addEventListener("click", (e) => {
   if (
     themeSelectorVisible &&
+    themeSelector &&
     !themeSelector.contains(e.target) &&
     (!themeToggle || !themeToggle.contains(e.target))
   ) {
     hideThemeSelector();
   }
 });
-clearBtn.addEventListener("click", clearHistory);
+if (clearBtn) clearBtn.addEventListener("click", clearHistory);
 
 // Add clear all data button functionality
 document.addEventListener("DOMContentLoaded", () => {
@@ -3018,9 +3035,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 });
-exportBtn.addEventListener("click", exportChat);
-voiceBtn.addEventListener("click", toggleVoice);
-historyToggle.addEventListener("click", toggleHistory);
+if (exportBtn) exportBtn.addEventListener("click", exportChat);
+if (voiceBtn) voiceBtn.addEventListener("click", toggleVoice);
+if (historyToggle) historyToggle.addEventListener("click", toggleHistory);
 const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
 if (sidebarToggleBtn) {
   sidebarToggleBtn.addEventListener("click", toggleHistory);
@@ -3029,37 +3046,41 @@ const sidebarCloseBtn = document.getElementById("sidebar-close-btn");
 if (sidebarCloseBtn) {
   sidebarCloseBtn.addEventListener("click", toggleHistory);
 }
-newChatBtn.addEventListener("click", startNewChat);
-document
-  .getElementById("location-btn")
-  .addEventListener("click", getUserLocationWeather);
-emojiBtn.addEventListener("click", toggleEmojiPicker);
+if (newChatBtn) newChatBtn.addEventListener("click", startNewChat);
+const locationBtnEl = document.getElementById("location-btn");
+if (locationBtnEl) {
+  locationBtnEl.addEventListener("click", getUserLocationWeather);
+}
+if (emojiBtn) emojiBtn.addEventListener("click", toggleEmojiPicker);
 
 // Context panel events - no hover logic needed
 
-hoverPanel.addEventListener("click", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  const menuItem = e.target.closest(".panel-item");
-  if (menuItem && menuItem.dataset.action) {
-    handleHoverAction(menuItem.dataset.action);
-  }
-});
+if (hoverPanel) {
+  hoverPanel.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const menuItem = e.target.closest(".panel-item");
+    if (menuItem && menuItem.dataset.action) {
+      handleHoverAction(menuItem.dataset.action);
+    }
+  });
+}
 
 // Hide context panel on click outside or scroll
 document.addEventListener("click", (e) => {
-  if (!hoverPanel.contains(e.target)) {
+  if (hoverPanel && !hoverPanel.contains(e.target)) {
     hideHoverPanel();
   }
 
   // Hide emoji picker when clicking outside
-  if (!emojiPicker.contains(e.target) && !emojiBtn.contains(e.target)) {
+  if (emojiPicker && emojiBtn && !emojiPicker.contains(e.target) && !emojiBtn.contains(e.target)) {
     hideEmojiPicker();
   }
 
   // Hide theme selector when clicking outside
   if (
     themeSelectorVisible &&
+    themeSelector &&
     !themeSelector.contains(e.target) &&
     (!themeToggle || !themeToggle.contains(e.target))
   ) {
@@ -3080,38 +3101,44 @@ document.addEventListener("click", (e) => {
 });
 
 document.addEventListener("scroll", () => {
-  hideHoverPanel();
-  hideEmojiPicker();
+  if (hoverPanel) hideHoverPanel();
+  if (emojiPicker) hideEmojiPicker();
 });
 
 // Search functionality
-searchBtn.addEventListener("click", () => {
-  searchPanel.style.display =
-    searchPanel.style.display === "none" ? "flex" : "none";
-  if (searchPanel.style.display === "flex") {
-    searchInput.focus();
-  } else {
+if (searchBtn && searchPanel && searchInput) {
+  searchBtn.addEventListener("click", () => {
+    searchPanel.style.display =
+      searchPanel.style.display === "none" ? "flex" : "none";
+    if (searchPanel.style.display === "flex") {
+      searchInput.focus();
+    } else {
+      searchInput.value = "";
+      searchMessages();
+    }
+  });
+}
+
+if (searchClose && searchPanel && searchInput) {
+  searchClose.addEventListener("click", () => {
+    searchPanel.style.display = "none";
     searchInput.value = "";
     searchMessages();
-  }
-});
+  });
+}
 
-searchClose.addEventListener("click", () => {
-  searchPanel.style.display = "none";
-  searchInput.value = "";
-  searchMessages();
-});
-
-searchInput.addEventListener("input", searchMessages);
+if (searchInput) searchInput.addEventListener("input", searchMessages);
 
 // Input events
-inputEl.addEventListener("input", updateCharCount);
-inputEl.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
-});
+if (inputEl) {
+  inputEl.addEventListener("input", updateCharCount);
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+}
 
 // Keyboard shortcuts
 document.addEventListener("keydown", (e) => {
