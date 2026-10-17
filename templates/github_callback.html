@@ -183,7 +183,7 @@
       </script>
     {% else %}
       <div class="icon-container icon-success">
-        <i class="fab fa-github"></i>
+        <img src="{{ url_for('static', filename='github-invertocat.png') }}" alt="GitHub" style="width: 32px; height: 32px; object-fit: contain; border-radius: 50%;">
       </div>
       <h2>{{ "GitHub Account Linked!" if is_link else "Welcome to Mint Frost AI!" }}</h2>
       <p>{{ "Your GitHub account has been connected." if is_link else "GitHub authentication was successful. Redirecting to your workspace..." }}</p>

@@ -5891,62 +5891,6 @@
                                     }
                                 }
 
-                                // Drive
-                                const dStatus =
-                                    document.getElementById("int-drive-status");
-                                const dBtn =
-                                    document.getElementById("int-drive-btn");
-                                if (ints.google_drive.connected) {
-                                    dStatus.textContent = "Connected";
-                                    dStatus.style.color = "var(--mint)";
-                                    dBtn.textContent = "Disconnect";
-                                    dBtn.className =
-                                        "btn btn--ghost btn--xs btn--danger";
-                                    dBtn.onclick = () =>
-                                        toggleIntegration(
-                                            "google_drive",
-                                            "disconnect",
-                                        );
-                                } else {
-                                    dStatus.textContent = "Disconnected";
-                                    dStatus.style.color = "var(--muted)";
-                                    dBtn.textContent = "Connect";
-                                    dBtn.className = "btn btn--ghost btn--xs";
-                                    dBtn.onclick = () =>
-                                        toggleIntegration(
-                                            "google_drive",
-                                            "connect",
-                                        );
-                                }
-
-                                // Calendar
-                                const cStatus = document.getElementById(
-                                    "int-calendar-status",
-                                );
-                                const cBtn =
-                                    document.getElementById("int-calendar-btn");
-                                if (ints.google_calendar.connected) {
-                                    cStatus.textContent = "Connected";
-                                    cStatus.style.color = "var(--mint)";
-                                    cBtn.textContent = "Disconnect";
-                                    cBtn.className =
-                                        "btn btn--ghost btn--xs btn--danger";
-                                    cBtn.onclick = () =>
-                                        toggleIntegration(
-                                            "google_calendar",
-                                            "disconnect",
-                                        );
-                                } else {
-                                    cStatus.textContent = "Disconnected";
-                                    cStatus.style.color = "var(--muted)";
-                                    cBtn.textContent = "Connect";
-                                    cBtn.className = "btn btn--ghost btn--xs";
-                                    cBtn.onclick = () =>
-                                        toggleIntegration(
-                                            "google_calendar",
-                                            "connect",
-                                        );
-                                }
 
                                 // Location
                                 const lStatus = document.getElementById(
@@ -6714,7 +6658,7 @@
                     <div class="mfa-list-item">
                         <div class="mfa-item-info">
                             <span style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                                <i class="fab fa-google" style="color: #ea4335;"></i> Google Account
+                                <img src="{{ url_for('static', filename='google-g.png') }}" alt="Google" style="width: 20px; height: 20px; object-fit: contain; vertical-align: middle; flex-shrink: 0;"> Google Account
                             </span>
                             <span id="int-google-status" style="font-size: 12px; color: var(--muted);">Disconnected</span>
                         </div>
@@ -6725,33 +6669,11 @@
                     <div class="mfa-list-item">
                         <div class="mfa-item-info">
                             <span style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                                <i class="fab fa-github" style="color: #f0f6fc;"></i> GitHub Account
+                                <img src="{{ url_for('static', filename='github-invertocat.png') }}" alt="GitHub" style="width: 20px; height: 20px; object-fit: contain; vertical-align: middle; flex-shrink: 0; border-radius: 50%;"> GitHub Account
                             </span>
                             <span id="int-github-status" style="font-size: 12px; color: var(--muted);">Disconnected</span>
                         </div>
                         <button id="int-github-btn" class="btn btn--ghost btn--xs">Connect</button>
-                    </div>
-
-                    <!-- Google Drive -->
-                    <div class="mfa-list-item">
-                        <div class="mfa-item-info">
-                            <span style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                                <i class="fab fa-google-drive" style="color: #0f9d58;"></i> Google Drive
-                            </span>
-                            <span id="int-drive-status" style="font-size: 12px; color: var(--muted);">Disconnected</span>
-                        </div>
-                        <button id="int-drive-btn" class="btn btn--ghost btn--xs">Connect</button>
-                    </div>
-
-                    <!-- Google Calendar -->
-                    <div class="mfa-list-item">
-                        <div class="mfa-item-info">
-                            <span style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                                <i class="fas fa-calendar-alt" style="color: #4285f4;"></i> Google Calendar
-                            </span>
-                            <span id="int-calendar-status" style="font-size: 12px; color: var(--muted);">Disconnected</span>
-                        </div>
-                        <button id="int-calendar-btn" class="btn btn--ghost btn--xs">Connect</button>
                     </div>
 
                     <!-- Geolocation -->
