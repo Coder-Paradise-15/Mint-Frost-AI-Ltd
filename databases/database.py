@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import datetime
 import os
-
+import logging
 
 DATABASE_PATH = os.environ.get('DATABASE_PATH')
 if DATABASE_PATH:
@@ -20,8 +20,61 @@ class CoercedConnection(sqlite3.Connection):
         finally:
             self.close()
 
+class LibsqlConnectionWrapper:
+    """Wrapper around a libSQL connection to manage commit and clean closing in context managers"""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def __enter__(self):
+        return self._conn
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            if exc_type is None:
+                self._conn.commit()
+            else:
+                try:
+                    self._conn.rollback()
+                except Exception:
+                    pass
+        finally:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
 def connect_db():
-    """Get an optimized SQLite connection with WAL mode and synchronous tuning"""
+    """Get an optimized database connection: connects to Turso Cloud (libSQL) if configured, with local SQLite fallback"""
+    turso_url = os.environ.get('TURSO_DATABASE_URL')
+    turso_token = os.environ.get('TURSO_AUTH_TOKEN')
+    turso_sync_local = os.environ.get('TURSO_SYNC_LOCAL', '').lower() in ('1', 'true', 'yes')
+
+    if turso_url:
+        try:
+            import libsql
+            if turso_sync_local:
+                conn = libsql.connect(
+                    database=DATABASE_PATH,
+                    sync_url=turso_url,
+                    auth_token=turso_token or None
+                )
+                try:
+                    conn.sync()
+                except Exception:
+                    pass
+            else:
+                conn = libsql.connect(
+                    database=turso_url,
+                    auth_token=turso_token or None
+                )
+            return LibsqlConnectionWrapper(conn)
+        except Exception as e:
+            logging.warning(f"Turso connection attempt failed ({e}), falling back to local SQLite: {DATABASE_PATH}")
+
+    # Fallback to local SQLite connection with WAL mode and synchronous tuning
     conn = sqlite3.connect(DATABASE_PATH, timeout=10.0, factory=CoercedConnection)
     try:
         conn.execute('PRAGMA journal_mode=WAL;')
@@ -152,53 +205,53 @@ def init_db():
 
             try:
                 cursor.execute('ALTER TABLE users ADD COLUMN password_hash TEXT')
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
             
             try:
                 cursor.execute('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0')
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             try:
                 cursor.execute('ALTER TABLE users ADD COLUMN is_online INTEGER DEFAULT 0')
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             try:
                 cursor.execute('ALTER TABLE users ADD COLUMN last_seen TIMESTAMP DEFAULT NULL')
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             try:
                 cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'")
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             # Capturing IP, Geo-location, Age and Home Address telemetry columns
             try:
                 cursor.execute("ALTER TABLE users ADD COLUMN last_login_ip TEXT DEFAULT '127.0.0.1'")
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             try:
                 cursor.execute("ALTER TABLE users ADD COLUMN last_login_location TEXT DEFAULT 'Localhost Network'")
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             try:
                 cursor.execute("ALTER TABLE users ADD COLUMN home_address TEXT DEFAULT 'Not Provided'")
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             try:
                 cursor.execute("ALTER TABLE users ADD COLUMN birth_date TEXT DEFAULT 'Not Verified'")
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             try:
                 cursor.execute('ALTER TABLE chat_sessions ADD COLUMN user_id TEXT REFERENCES users(id)')
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id)')
@@ -207,7 +260,7 @@ def init_db():
             for col in ['api_provider TEXT', 'api_key TEXT', 'api_model TEXT']:
                 try:
                     cursor.execute(f'ALTER TABLE user_settings ADD COLUMN {col}')
-                except sqlite3.OperationalError:
+                except (sqlite3.OperationalError, Exception):
                     pass
 
             # Create announcements table for history
@@ -221,7 +274,7 @@ def init_db():
             ''')
             try:
                 cursor.execute('ALTER TABLE announcements ADD COLUMN user_id TEXT DEFAULT NULL')
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             # Create system_config table for admin configurations & announcements
@@ -273,7 +326,7 @@ def init_db():
             # Dynamic migrations for audit logs
             try:
                 cursor.execute("ALTER TABLE admin_audit_logs ADD COLUMN ip_address TEXT DEFAULT '127.0.0.1'")
-            except sqlite3.OperationalError:
+            except (sqlite3.OperationalError, Exception):
                 pass
 
             # Create active_sessions table for session tracking and revocation
