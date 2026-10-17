@@ -3064,25 +3064,30 @@ kbd {
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(2px);
+  transform: translate(-50%, -50%) scale(0.95);
+  background: var(--bg-1, #0f1620);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: var(--radius-xl, 16px);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(55, 230, 181, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   padding: 24px;
-  z-index: 10000;
+  z-index: 25000;
   opacity: 0;
   visibility: hidden;
-  transform: translate(-50%, -50%) scale(0.9);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
   min-width: 400px;
+  max-width: 90vw;
 }
 
 .theme-selector.show {
-  opacity: 1;
-  visibility: visible;
-  transform: translate(-50%, -50%) scale(1);
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  transform: translate(-50%, -50%) scale(1) !important;
+  pointer-events: auto !important;
+  z-index: 25000 !important;
 }
 
 .theme-selector__header {

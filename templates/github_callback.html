@@ -48,7 +48,7 @@
         if (window.opener && !window.opener.closed) {
           window.opener.postMessage({ type: 'github_auth_success' }, '*');
         } else {
-          window.location.href = '/';
+          window.location.href = '/chat';
         }
       } catch(e) {
         console.error(e);

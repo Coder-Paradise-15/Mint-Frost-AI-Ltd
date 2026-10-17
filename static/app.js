@@ -104,7 +104,7 @@ const shortcuts = document.getElementById("shortcuts");
 const timeDisplay = document.getElementById("time-display");
 const weatherDisplay = document.getElementById("weather-display");
 const weatherTemp = document.getElementById("weather-temp");
-const weatherIcon = weatherDisplay.querySelector("i");
+const weatherIcon = weatherDisplay ? weatherDisplay.querySelector("i") : null;
 const panel = document.querySelector(".panel");
 const historyToggle = document.getElementById("history-toggle");
 const historyPanel = document.getElementById("history-panel");
@@ -623,10 +623,19 @@ function detectSystemTheme() {
   }
 }
 
-// Toggle theme (now opens selector or toggles dark/light)
-function toggleTheme() {
-  if (themeSelector) {
-    showThemeSelector();
+// Toggle theme (now opens/toggles selector modal)
+function toggleTheme(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  const ts = document.getElementById("theme-selector");
+  if (ts) {
+    if (ts.classList.contains("show")) {
+      hideThemeSelector();
+    } else {
+      showThemeSelector();
+    }
   } else {
     const next = currentTheme === "dark" ? "light" : "dark";
     applyTheme(next);
@@ -635,19 +644,32 @@ function toggleTheme() {
   }
 }
 
-// Show theme selector
+// Show theme selector modal
 function showThemeSelector() {
-  if (!themeSelector) return;
+  const ts = document.getElementById("theme-selector");
+  if (!ts) return;
   themeSelectorVisible = true;
-  themeSelector.classList.add("show");
+  ts.style.display = "block";
+  ts.classList.add("show");
   updateThemeSelector();
 }
 
-// Hide theme selector
+// Hide theme selector modal
 function hideThemeSelector() {
   themeSelectorVisible = false;
-  if (themeSelector) themeSelector.classList.remove("show");
-}
+  const ts = document.getElementById("theme-selector");
+  if (ts) {
+    ts.classList.remove("show");
+    setTimeout(() => {
+      if (!ts.classList.contains("show")) {
+        ts.style.display = "none";
+      }
+    }, 250);
+  }
+// Expose globally for inline onclick and external callers
+window.toggleTheme = toggleTheme;
+window.showThemeSelector = showThemeSelector;
+window.hideThemeSelector = hideThemeSelector;
 
 // Update theme selector UI
 function updateThemeSelector() {
@@ -2945,10 +2967,20 @@ if (modalOverlay) {
 
 // Event Listeners
 if (sendBtn) sendBtn.addEventListener("click", sendMessage);
-if (themeToggle) themeToggle.addEventListener("click", toggleTheme);
+if (themeToggle) {
+  themeToggle.addEventListener("click", toggleTheme);
+}
 
 // Theme selector events
-if (themeClose) themeClose.addEventListener("click", hideThemeSelector);
+if (themeClose) {
+  themeClose.addEventListener("click", (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    hideThemeSelector();
+  });
+}
 if (autoThemeCheckbox) autoThemeCheckbox.addEventListener("change", toggleAutoTheme);
 if (createThemeBtn) createThemeBtn.addEventListener("click", showThemeCreator);
 
@@ -2986,17 +3018,6 @@ window.testThemeCreator = function () {
   showThemeCreator();
 };
 
-// Close theme selector on outside click
-document.addEventListener("click", (e) => {
-  if (
-    themeSelectorVisible &&
-    themeSelector &&
-    !themeSelector.contains(e.target) &&
-    (!themeToggle || !themeToggle.contains(e.target))
-  ) {
-    hideThemeSelector();
-  }
-});
 if (clearBtn) clearBtn.addEventListener("click", clearHistory);
 
 // Add clear all data button functionality
@@ -3078,11 +3099,13 @@ document.addEventListener("click", (e) => {
   }
 
   // Hide theme selector when clicking outside
+  const ts = document.getElementById("theme-selector");
   if (
     themeSelectorVisible &&
-    themeSelector &&
-    !themeSelector.contains(e.target) &&
-    (!themeToggle || !themeToggle.contains(e.target))
+    ts &&
+    ts.classList.contains("show") &&
+    !e.target.closest("#theme-selector") &&
+    !e.target.closest("#theme-toggle")
   ) {
     hideThemeSelector();
   }

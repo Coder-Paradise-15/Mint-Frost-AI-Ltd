@@ -868,6 +868,7 @@
                     class="btn btn--ghost btn--icon"
                     title="Toggle theme"
                     aria-label="Toggle dark/light theme"
+                    onclick="if (typeof toggleTheme === 'function') toggleTheme(event);"
                 >
                     <i class="fas fa-moon" id="theme-icon"></i>
                 </button>
@@ -4212,7 +4213,7 @@
         <div id="theme-selector" class="theme-selector">
             <div class="theme-selector__header">
                 <h3 class="theme-selector__title">🎨 Choose Theme</h3>
-                <button class="theme-selector__close" id="theme-close">
+                <button class="theme-selector__close" id="theme-close" onclick="if (typeof hideThemeSelector === 'function') hideThemeSelector();">
                     <i class="fas fa-times"></i>
                 </button>
             </div>

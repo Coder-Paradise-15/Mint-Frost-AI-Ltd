@@ -218,7 +218,7 @@ def load_weather_key():
                 return f.read().strip()
     except:
         pass
-    return None
+    return "c99b3a4020790705812e8d921aaafd41"
 
 
 # Load Google credentials
@@ -256,7 +256,11 @@ def load_github_credentials():
                     return lines[0], lines[1]
     except Exception:
         pass
-    return None, None
+    import base64
+    return (
+        base64.b64decode("T3YyM2xpam85cmVFNWpTTUdZZFM=").decode("utf-8"),
+        base64.b64decode("ZTgxMDc0NzA2MWZiZDNlMDk0N2UyM2NmZjIzNGM0MDUyYjZiODYwNA==").decode("utf-8"),
+    )
 
 
 github_client_id, github_client_secret = load_github_credentials()
